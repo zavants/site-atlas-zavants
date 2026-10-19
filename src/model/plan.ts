@@ -1,4 +1,5 @@
 import type { SiteMap } from './map.js';
+import { displaced } from './order.js';
 
 export type PlanDiff =
   | { type: 'newPage'; path: string; title: string }
@@ -41,8 +42,11 @@ export function describePlan(diffs: PlanDiff[]): string {
           return `Mover "${d.name}" de ${d.fromPage} a ${d.toPage} (posición ${d.index + 1})`;
         case 'delete':
           return `Eliminar "${d.name}" de ${d.page}`;
-        case 'reorder':
-          return `Reordenar ${d.page}: ${d.to.map((n) => `"${n}"`).join(' → ')} (antes: ${d.from.map((n) => `"${n}"`).join(' → ')})`;
+        case 'reorder': {
+          const shifted = displaced(d.from, d.to);
+          const changes = d.to.flatMap((n, i) => (shifted.has(n) ? [`"${n}" pasa a la posición ${i + 1}`] : []));
+          return `Reordenar ${d.page}: ${changes.join('; ')}`;
+        }
       }
     })
     .join('\n');

@@ -33,6 +33,11 @@ describe('blockName', () => {
     expect(blockName(raw({ tag: 'header' }), 1)).toBe('Header');
     expect(blockName(raw({ tag: 'footer' }), 9)).toBe('Footer');
   });
+  it('acorta nombres largos a 60 caracteres', () => {
+    const name = blockName(raw({ heading: 'Infraestructura financiera para aumentar sus ingresos. Acepte pagos y ofrezca servicios.' }), 1);
+    expect(name.length).toBeLessThanOrEqual(60);
+    expect(name.endsWith('…')).toBe(true);
+  });
   it('usa etiqueta y ordinal como último recurso', () => {
     expect(blockName(raw({ tag: 'div' }), 3)).toBe('div 3');
   });
