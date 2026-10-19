@@ -67,6 +67,7 @@ export function sampleScan(overrides: Partial<Scan> & { heroName?: string } = {}
         ],
       },
     ],
+    missingPages: [],
     issues: [
       { id: 'i1', level: 'error', rule: 'broken-link', page: '/', blockKey: '/#top', message: 'Enlace roto a /no-existe' },
       { id: 'i2', level: 'warn', rule: 'form-no-action', page: '/', blockKey: '/#cotizacion', message: 'Formulario sin destino' },

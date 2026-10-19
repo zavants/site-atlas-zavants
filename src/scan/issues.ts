@@ -10,6 +10,14 @@ export interface IssueContext {
   pathOf: (url: string) => string | null;
 }
 
+const safeDecode = (s: string) => {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+};
+
 const PLACEHOLDER = /placeholder|provisional|lorem|dummy/i;
 
 const isContent = (b: Block) => !b.global && b.tag !== 'header' && b.tag !== 'footer';
@@ -34,7 +42,7 @@ export function computeIssues(pages: Page[], ctx: IssueContext): Issue[] {
       const { links, forms, media } = block.components;
       for (const link of links) {
         if (link.kind === 'anchor') {
-          const id = decodeURIComponent(link.href.slice(1));
+          const id = safeDecode(link.href.slice(1));
           if (id && !ctx.idsByPath.get(page.path)?.has(id)) {
             add('error', 'missing-anchor', page.path, block.key, link.href, `El enlace "${link.href}" apunta a un ancla que no existe.`);
           }
@@ -52,7 +60,7 @@ export function computeIssues(pages: Page[], ctx: IssueContext): Issue[] {
         const hash = new URL(link.href).hash.slice(1);
         const targetPath = ctx.pathOf(target);
         const ids = targetPath === null ? undefined : ctx.idsByPath.get(targetPath);
-        if (hash && ids && !ids.has(decodeURIComponent(hash))) {
+        if (hash && ids && !ids.has(safeDecode(hash))) {
           add('error', 'missing-anchor', page.path, block.key, link.href, `El enlace a ${targetPath}#${hash} apunta a un ancla que no existe.`);
         }
       }

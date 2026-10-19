@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, open, readdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { emptyOverlay, OverlaySchema, type Overlay } from '../schema/overlay.js';
 import { ScanSchema, type Scan } from '../schema/scan.js';
@@ -43,6 +43,36 @@ async function readJson(file: string): Promise<unknown | undefined> {
     return JSON.parse(raw);
   } catch (err) {
     throw new Error(`No se pudo leer ${file}: ${(err as Error).message}`);
+  }
+}
+
+const LOCK_STALE_MS = 10_000;
+const LOCK_TIMEOUT_MS = 15_000;
+
+/** Bloqueo entre procesos con un archivo `.lock` creado de forma exclusiva. */
+async function withFileLock<T>(lockFile: string, fn: () => Promise<T>): Promise<T> {
+  const deadline = Date.now() + LOCK_TIMEOUT_MS;
+  for (;;) {
+    try {
+      const handle = await open(lockFile, 'wx');
+      await handle.writeFile(`${process.pid} ${new Date().toISOString()}`);
+      await handle.close();
+      break;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+      const age = await stat(lockFile).then((st) => Date.now() - st.mtimeMs, () => 0);
+      if (age > LOCK_STALE_MS) {
+        await unlink(lockFile).catch(() => undefined);
+        continue;
+      }
+      if (Date.now() > deadline) throw new Error(`La capa del usuario está bloqueada por otro proceso (${lockFile}).`);
+      await sleep(10 + Math.random() * 20);
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    await unlink(lockFile).catch(() => undefined);
   }
 }
 
@@ -133,16 +163,26 @@ export class SiteStore {
     return parsed.data;
   }
 
-  writeOverlay(site: string, next: Overlay, expectedRev: number): Promise<Overlay> {
+  /**
+   * Lee, transforma y guarda la capa del usuario de forma atómica, también entre procesos.
+   * Si se pasa `expectedRev` y no coincide con el de disco, lanza `StaleRevError`.
+   */
+  updateOverlay(site: string, fn: (current: Overlay) => Overlay, expectedRev?: number): Promise<Overlay> {
     const run = this.chain.then(async () => {
-      const current = await this.readOverlay(site);
-      if (current.rev !== expectedRev) throw new StaleRevError(expectedRev, current.rev);
-      const saved: Overlay = { ...next, rev: current.rev + 1 };
       await mkdir(this.dir(site), { recursive: true });
-      await writeAtomic(this.overlayFile(site), JSON.stringify(saved, null, 2));
-      return saved;
+      return withFileLock(`${this.overlayFile(site)}.lock`, async () => {
+        const current = await this.readOverlay(site);
+        if (expectedRev !== undefined && current.rev !== expectedRev) throw new StaleRevError(expectedRev, current.rev);
+        const saved: Overlay = { ...fn(current), rev: current.rev + 1 };
+        await writeAtomic(this.overlayFile(site), JSON.stringify(saved, null, 2));
+        return saved;
+      });
     });
     this.chain = run.catch(() => undefined);
     return run;
+  }
+
+  writeOverlay(site: string, next: Overlay, expectedRev: number): Promise<Overlay> {
+    return this.updateOverlay(site, () => next, expectedRev);
   }
 }

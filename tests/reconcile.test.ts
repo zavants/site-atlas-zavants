@@ -61,6 +61,30 @@ describe('reconcile', () => {
     expect(o.plannedOrder).toEqual(before.plannedOrder);
   });
 
+  it('conserva las claves de páginas que no se visitaron en el re-escaneo', () => {
+    const prev = sampleScan();
+    const next = clone(prev);
+    next.pages = next.pages.filter((p) => p.path !== '/otra');
+    const before = tagged({ '/otra#precios': ['t'] }, { plannedPages: [{ path: '/nueva', title: 'Nueva' }], plannedOrder: { '/nueva': ['/otra#precios'] } });
+    const o = reconcile(before, prev, next);
+    expect(o.orphans).toEqual([]);
+    expect(o.plannedOrder['/nueva']).toEqual(['/otra#precios']);
+  });
+
+  it('deja huérfanas las claves de una página que ya no existe (404)', () => {
+    const prev = sampleScan();
+    const next = { ...clone(prev), missingPages: ['/otra'] };
+    next.pages = next.pages.filter((p) => p.path !== '/otra');
+    const o = reconcile(tagged({ '/otra#precios': ['t'] }), prev, next);
+    expect(o.orphans.map((x) => x.key)).toEqual(['/otra#precios']);
+  });
+
+  it('quita del orden planificado los bloques que pasaron a ser globales', () => {
+    const prev = sampleScan();
+    const o = reconcile({ ...emptyOverlay(), plannedOrder: { '/': ['/~header', '/#top', '/~integraciones', '/#cotizacion'] } }, prev, clone(prev));
+    expect(o.plannedOrder['/']).toEqual(['/#top', '/~integraciones', '/#cotizacion']);
+  });
+
   it('inserta bloques nuevos después de su vecino real y los marca', () => {
     const prev = sampleScan();
     const next = clone(prev);

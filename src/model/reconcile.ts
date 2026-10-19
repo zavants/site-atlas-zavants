@@ -32,7 +32,11 @@ export function reconcile(overlay: Overlay, prev: Scan | null, next: Scan): Over
   for (const page of next.pages) for (const block of page.blocks) nextBlocks.set(block.key, { block, page: page.path });
   const prevBlocks = new Map<string, { block: Block; page: string }>();
   for (const page of prev?.pages ?? []) for (const block of page.blocks) prevBlocks.set(block.key, { block, page: page.path });
-  const failedPages = new Set(next.pages.filter((p) => p.status >= 400 || p.status === 0 || p.error).map((p) => p.path));
+  // Solo se decide sobre páginas visitadas con éxito o confirmadas como borradas (404/410);
+  // lo que no se visitó (falló, no se descubrió, quedó fuera de maxPages) se conserva tal cual.
+  const visited = new Set(next.pages.filter((p) => p.status > 0 && p.status < 400 && !p.error).map((p) => p.path));
+  const decidable = new Set([...visited, ...(next.missingPages ?? [])]);
+  const globalKeys = new Set([...nextBlocks.values()].filter((v) => v.block.global).map((v) => v.block.key));
 
   let o: Overlay = { ...overlay, orphans: overlay.orphans.filter((x) => !nextBlocks.has(x.key)) };
   const alreadyOrphan = new Set(o.orphans.map((x) => x.key));
@@ -42,7 +46,7 @@ export function reconcile(overlay: Overlay, prev: Scan | null, next: Scan): Over
   for (const key of referencedKeys(o)) {
     if (nextBlocks.has(key) || alreadyOrphan.has(key)) continue;
     const before = prevBlocks.get(key);
-    if (failedPages.has(before?.page ?? pathOfKey(key))) continue;
+    if (!decidable.has(before?.page ?? pathOfKey(key))) continue;
 
     const candidates = [...nextBlocks.values()].map((v) => v.block).filter((b) => !owned.has(b.key));
     let match: Block | undefined;
@@ -73,12 +77,14 @@ export function reconcile(overlay: Overlay, prev: Scan | null, next: Scan): Over
     };
   }
 
-  const plannedOrder = { ...o.plannedOrder };
+  const plannedOrder = Object.fromEntries(
+    Object.entries(o.plannedOrder).map(([p, ks]) => [p, ks.filter((k) => !globalKeys.has(k))]),
+  );
   const placed = new Set(Object.values(plannedOrder).flat());
   const newKeys: string[] = [];
   for (const page of next.pages) {
     const order = plannedOrder[page.path];
-    if (!order || failedPages.has(page.path)) continue;
+    if (!order || !visited.has(page.path)) continue;
     const real = page.blocks.filter((b) => !b.global).map((b) => b.key);
     const updated = [...order];
     real.forEach((key, i) => {

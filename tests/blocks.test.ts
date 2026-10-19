@@ -65,6 +65,12 @@ describe('blockKeys', () => {
   });
 });
 
+describe('blockKeys con ids repetidos', () => {
+  it('numera anclas repetidas', () => {
+    expect(blockKeys('/', [{ name: 'A', anchor: 'x' }, { name: 'B', anchor: 'x' }])).toEqual(['/#x', '/#x-2']);
+  });
+});
+
 describe('fingerprint', () => {
   it('ignora espacios y mayúsculas', () => {
     const a = raw({ heading: 'Hola  Mundo', text: 'Texto  largo', childTags: ['h2', 'p'] });

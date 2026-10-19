@@ -53,6 +53,12 @@ describe('computeIssues', () => {
   it('marca h1 múltiples e ids duplicados por página', () => {
     expect(rules()).toEqual(expect.arrayContaining(['heading /otra', 'duplicate-id /otra']));
   });
+  it('no se rompe con anclas mal codificadas', () => {
+    const ps = pages();
+    ps[0]!.blocks[1]!.components.links.push({ text: 'x', href: '#100%', kind: 'anchor' });
+    expect(() => computeIssues(ps, ctx())).not.toThrow();
+  });
+
   it('genera ids estables', () => {
     expect(computeIssues(pages(), ctx()).map((i) => i.id)).toEqual(computeIssues(pages(), ctx()).map((i) => i.id));
   });

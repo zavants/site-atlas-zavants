@@ -14,9 +14,18 @@ async function isFile(p: string): Promise<boolean> {
 }
 
 /** Servidor estático para fixtures. `/x` sirve `x.html`; lo inexistente responde 404. */
-export async function startStatic(dir: string): Promise<{ url: string; close(): Promise<void> }> {
+export async function startStatic(
+  dir: string,
+  opts: { redirects?: Record<string, string> } = {},
+): Promise<{ url: string; close(): Promise<void> }> {
   const server = createServer(async (req, res) => {
     const pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://x').pathname);
+    const target = opts.redirects?.[pathname];
+    if (target) {
+      res.writeHead(301, { location: target });
+      res.end();
+      return;
+    }
     const rel = normalize(pathname).replace(/^[\\/]+/, '');
     const candidates = [join(dir, rel), join(dir, rel, 'index.html'), join(dir, `${rel}.html`)];
     for (const c of candidates) {

@@ -76,6 +76,11 @@ describe('applyOp + buildMap', () => {
     expect(view(o).pages[0]!.blocks.find((b) => b.key === '/~integraciones')).toMatchObject({ effectiveKind: 'narrativa', kindOverridden: false });
   });
 
+  it('ignora claves globales que quedaron en el orden planificado', () => {
+    const o: Overlay = { ...emptyOverlay(), plannedOrder: { '/': ['/~header', '/#cotizacion', '/#top', '/~integraciones', '/~footer'] } };
+    expect(keysOf(o, '/')).toEqual(['/#cotizacion', '/#top', '/~integraciones']);
+  });
+
   it('separa globales y cuenta alertas', () => {
     const m = view(emptyOverlay());
     expect(m.globals.map((b) => b.name)).toEqual(['Header', 'Footer']);

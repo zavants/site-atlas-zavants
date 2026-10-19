@@ -69,6 +69,17 @@ export const ScanSchema = z.object({
   startedAt: z.string(),
   finishedAt: z.string(),
   pages: z.array(PageSchema),
+  /** Rutas del sitio que respondieron 404/410: sus bloques organizados pasan a huérfanos. */
+  missingPages: z.array(z.string()).default([]),
+  /** Cómo se lanzó el escaneo, para repetirlo igual desde el lienzo. */
+  options: z
+    .object({
+      startUrl: z.string(),
+      maxPages: z.number().optional(),
+      include: z.array(z.string()).optional(),
+      exclude: z.array(z.string()).optional(),
+    })
+    .optional(),
   issues: z.array(IssueSchema),
 });
 export type Scan = z.infer<typeof ScanSchema>;
