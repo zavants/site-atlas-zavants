@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import type { Overlay } from '../schema/overlay.js';
 import type { Block, Kind, Scan } from '../schema/scan.js';
@@ -168,3 +169,22 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
     }
   }
 }
+
+const KindOrNull = z.enum(['narrativa', 'visual', 'conversion']).nullable();
+export const OverlayOpSchema: z.ZodType<OverlayOp> = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('createTag'), name: z.string(), color: z.string().optional() }),
+  z.object({ type: z.literal('renameTag'), tagId: z.string(), name: z.string() }),
+  z.object({ type: z.literal('deleteTag'), tagId: z.string() }),
+  z.object({ type: z.literal('setBlockTags'), blockKey: z.string(), tagIds: z.array(z.string()) }),
+  z.object({ type: z.literal('setKind'), blockKey: z.string(), kind: KindOrNull }),
+  z.object({ type: z.literal('moveBlock'), blockKey: z.string(), toPage: z.string(), index: z.number() }),
+  z.object({ type: z.literal('addPlannedPage'), path: z.string(), title: z.string() }),
+  z.object({ type: z.literal('markDeleted'), blockKey: z.string() }),
+  z.object({ type: z.literal('restore'), blockKey: z.string() }),
+  z.object({
+    type: z.literal('resolveOrphan'),
+    orphanKey: z.string(),
+    action: z.enum(['assign', 'discard']),
+    targetKey: z.string().optional(),
+  }),
+]) as z.ZodType<OverlayOp>;
