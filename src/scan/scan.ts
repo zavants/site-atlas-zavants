@@ -11,6 +11,7 @@ import { blockKeys, blockName, fingerprint, inferKind } from './blocks.js';
 import { openBrowser, preparePage } from './browser.js';
 import { inScope, isLocalHost, normalizeUrl } from './crawl.js';
 import { extractBlocks } from './extract.js';
+import { mapLimit } from './limit.js';
 import { computeIssues } from './issues.js';
 
 export interface ScanOptions {
@@ -28,6 +29,7 @@ const robotsParser = robotsParserModule as unknown as (url: string, contents: st
 const SHOT_WIDTH = 480;
 const SHOT_MAX_HEIGHT = 1200;
 const MAX_LINK_CHECKS = 200;
+const LINK_CHECK_CONCURRENCY = 6;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function captureShot(page: PwPage, handle: ElementHandle | null, file: string): Promise<boolean> {
@@ -175,9 +177,9 @@ export async function scanSite(url: string, opts: ScanOptions): Promise<Scan> {
     await browser.close();
   }
 
-  for (const link of [...internalLinks].filter((l) => !linkStatus.has(l)).slice(0, MAX_LINK_CHECKS)) {
-    linkStatus.set(link, await checkStatus(link));
-  }
+  const unchecked = [...internalLinks].filter((l) => !linkStatus.has(l)).slice(0, MAX_LINK_CHECKS);
+  const statuses = await mapLimit(unchecked, LINK_CHECK_CONCURRENCY, checkStatus);
+  unchecked.forEach((link, i) => linkStatus.set(link, statuses[i]!));
 
   const counts = new Map<string, number>();
   for (const p of pages) for (const fp of new Set(p.blocks.map((b) => b.fingerprint))) counts.set(fp, (counts.get(fp) ?? 0) + 1);

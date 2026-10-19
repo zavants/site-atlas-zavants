@@ -24,6 +24,8 @@ describe('diffPlan', () => {
     const text = describePlan(diffs);
     expect(text).toContain('Mover "Integraciones" de / a /soluciones (posición 1)');
     expect(text.split('\n')).toHaveLength(4);
+    expect(text).toContain('Reordenar /: "Cierre" pasa a la posición 1');
+    expect(text).not.toContain('antes:');
   });
 
   it('no reporta nada si el plan coincide con el sitio', () => {

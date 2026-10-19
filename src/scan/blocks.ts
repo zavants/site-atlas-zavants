@@ -24,9 +24,14 @@ export function normalize(text: string): string {
 
 const present = (s: string | null): s is string => s !== null && s.trim() !== '';
 
+const MAX_NAME = 60;
+
 export function blockName(raw: RawBlock, ordinal: number): string {
   const candidate = [raw.atlasName, raw.ariaLabel, raw.kicker, raw.heading, raw.anchor].find(present);
-  if (candidate) return candidate.replace(/\s+/g, ' ').trim();
+  if (candidate) {
+    const name = candidate.replace(/\s+/g, ' ').trim();
+    return name.length > MAX_NAME ? `${name.slice(0, MAX_NAME - 1).trimEnd()}…` : name;
+  }
   if (raw.tag === 'header') return 'Header';
   if (raw.tag === 'footer') return 'Footer';
   return `${raw.tag} ${ordinal}`;

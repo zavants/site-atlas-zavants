@@ -1,6 +1,7 @@
 import type { Overlay } from '../schema/overlay.js';
 import type { Block, Issue, Kind, Scan } from '../schema/scan.js';
 import { effectiveOrders, indexScan } from './ops.js';
+import { displaced } from './order.js';
 
 export type BlockView = Block & {
   /** Página real donde está el bloque en el último escaneo. */
@@ -56,11 +57,10 @@ export function buildMap(scan: Scan, overlay: Overlay): SiteMap {
   const pageView = (path: string, title: string, planned: boolean, status: number | null): PageView => {
     const realOrder = idx.realOrder.get(path) ?? [];
     const keys = (orders.get(path) ?? []).filter((k) => idx.blocks.has(k));
-    const stayed = keys.filter((k) => realOrder.includes(k));
-    const realStayed = realOrder.filter((k) => stayed.includes(k));
+    const shifted = displaced(realOrder, keys);
     const blocks = keys.map((k) => {
       const { block, page } = idx.blocks.get(k)!;
-      const moved = page !== path || stayed.indexOf(k) !== realStayed.indexOf(k);
+      const moved = page !== path || shifted.has(k);
       return view(block, page, moved);
     });
     return { path, title, planned, status, realOrder, blocks };

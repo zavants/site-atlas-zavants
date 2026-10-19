@@ -25,6 +25,12 @@ describe('applyOp + buildMap', () => {
     expect(keysOf(o, '/otra')).toEqual(['/otra#precios']);
   });
 
+  it('al reordenar solo marca como movido al bloque desplazado', () => {
+    const o = run({ type: 'moveBlock', blockKey: '/#cotizacion', toPage: '/', index: 0 });
+    const moved = view(o).pages[0]!.blocks.filter((b) => b.moved).map((b) => b.key);
+    expect(moved).toEqual(['/#cotizacion']);
+  });
+
   it('no mueve bloques globales a otra página', () => {
     expect(() => run({ type: 'moveBlock', blockKey: '/~header', toPage: '/otra', index: 0 })).toThrow(OpError);
   });
