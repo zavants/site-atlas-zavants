@@ -2,7 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import picomatch from 'picomatch';
-import robotsParser from 'robots-parser';
+import robotsParserModule from 'robots-parser';
 import sharp from 'sharp';
 import type { ElementHandle, Page as PwPage } from 'playwright';
 import type { Block, Page, Scan } from '../schema/scan.js';
@@ -21,6 +21,9 @@ export interface ScanOptions {
   shotsDir: (scanId: string) => string;
   onProgress?: (msg: string) => void;
 }
+
+type Robots = { isAllowed(url: string, ua?: string): boolean | undefined };
+const robotsParser = robotsParserModule as unknown as (url: string, contents: string) => Robots;
 
 const SHOT_WIDTH = 480;
 const SHOT_MAX_HEIGHT = 1200;
@@ -70,7 +73,7 @@ export async function scanSite(url: string, opts: ScanOptions): Promise<Scan> {
   const shotsDir = opts.shotsDir(scanId);
   await mkdir(shotsDir, { recursive: true });
 
-  let robots: ReturnType<typeof robotsParser> | null = null;
+  let robots: Robots | null = null;
   if (!local) {
     const robotsUrl = `${origin}/robots.txt`;
     try {
