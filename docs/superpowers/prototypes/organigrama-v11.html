@@ -1,0 +1,551 @@
+<style>
+  #vp{position:relative;height:74vh;overflow:hidden;border:1px solid #ddd;border-radius:12px;cursor:grab;
+       background-color:#f6f6f4;background-image:radial-gradient(#d3d1c7 1px,transparent 1px);background-size:20px 20px}
+  #vp.panning{cursor:grabbing}
+  #stage{position:absolute;left:0;top:0;transform-origin:0 0;width:2400px;height:1800px}
+  #wires{position:absolute;left:0;top:0;width:2400px;height:1800px;overflow:visible;pointer-events:none;z-index:3}
+  #wires .handle{pointer-events:all;cursor:crosshair}
+  .page{position:absolute;background:#fff;border:2px solid #1d1d1b;border-radius:14px;padding:0 12px 12px;width:320px;z-index:1;font-size:13px}
+  .page.small{width:230px}
+  .page.snap{outline:3px solid #378add;outline-offset:2px}
+  .page h4{margin:0 -12px 4px;padding:10px 12px 4px;font-size:15px;cursor:move;user-select:none}
+  .tag{display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px;margin:0 4px 8px 0}
+  .drop{min-height:44px;border-radius:8px;padding:2px}
+  .drop.over{outline:2px dashed #378add;background:#f4f8fd}
+  .lego{border-radius:8px;margin-bottom:6px;background:#f1efe8;cursor:grab;border:1px solid transparent}
+  .lego.k-visual{background:#eeedfe}.lego.k-conversion{background:#e1f5ee}
+  .lego.comp{background:#fff;border:1px dashed #888}
+  .lego.dim{opacity:.35}.lego.hit{outline:2px solid #378add}
+  .lego.snap{outline:3px solid #378add}
+  .lego.lego-hole{opacity:.35;outline:2px dashed #378add;outline-offset:-2px}
+  .lego.float{position:absolute;z-index:20;pointer-events:none;box-shadow:0 10px 24px rgba(0,0,0,.22);transform:rotate(1.5deg);margin:0}
+  .drop.target{background:#f4f8fd;outline:2px dashed #85b7eb}
+  .page{transition:border-color .15s, box-shadow .15s}
+  .lego .cap{display:none}
+  #vp.shots .page{width:480px}
+  #vp.shots .page.small{width:300px}
+  #vp.shots .lego{background:transparent;border:0;padding:0;margin-bottom:10px;position:relative}
+  #vp.shots .lego .lh{position:absolute;left:6px;top:6px;z-index:2;background:rgba(255,255,255,.92);border-radius:6px;padding:2px 8px;max-width:calc(100% - 12px);box-shadow:0 1px 4px rgba(0,0,0,.15)}
+  #vp.shots .lego .cnt, #vp.shots .lego .warn, #vp.shots .lego .tag, #vp.shots .lego .det, #vp.shots .lego .plug{display:none !important}
+  #vp.shots .lego .cap{display:block;width:100%;border-radius:8px;border:1px solid #ddd;min-height:40px;background:#f1efe8;pointer-events:none}
+  #vp.shots .lego .cap.empty{height:60px}
+  #vp.shots .lego.comp .cap{opacity:.85}
+  .modes button{font:inherit}
+  .page:has(> h4:hover), .page.moving{border-color:#378add;box-shadow:0 0 0 4px rgba(55,138,221,.22), 0 6px 20px rgba(55,138,221,.18)}
+  .page.moving{z-index:6}
+  .lego{touch-action:none;position:relative}
+  .lego .plug{position:absolute;right:-9px;top:8px;width:18px;height:18px;border-radius:50%;background:#7f77dd;color:#fff;
+              font:600 13px/18px system-ui;text-align:center;cursor:crosshair;opacity:0;transition:opacity .12s;z-index:4}
+  .lego:hover .plug{opacity:1}
+  body.dragging .lego .plug{opacity:0}
+  #vp, #vp .lego, #vp .page h4, .hist, .zoom{-webkit-user-select:none;user-select:none}
+  #vp .det{-webkit-user-select:text;user-select:text}
+  body.dragging, body.dragging *{-webkit-user-select:none !important;user-select:none !important;cursor:grabbing !important}
+  .lh{display:flex;align-items:center;gap:6px;padding:6px 8px}
+  .lh b{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .n{font:11px ui-monospace,monospace;color:#888}
+  .cnt{font-size:10px;color:#555;white-space:nowrap}
+  .warn{color:#a32d2d;font-size:11px}
+  .det{display:none;padding:0 8px 8px;font-size:12px;color:#333;cursor:default}
+  .lego.open .det{display:block}
+  .det img{width:100%;border-radius:4px;border:1px solid #ddd;margin:4px 0}
+  .det ul{margin:2px 0 6px;padding-left:16px}
+  .det .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#888;margin-top:6px}
+  .link code{font-size:11px;background:#fff;padding:0 4px;border-radius:4px}
+  .hint{font-size:12px;color:#666;margin:0 0 8px}
+  .toolbar{display:flex;gap:12px;align-items:center;margin-bottom:6px;font-size:12px;flex-wrap:wrap}
+  .toolbar button{font:inherit;border:1px solid #ccc;background:#fff;border-radius:6px;padding:3px 10px;cursor:pointer}
+  .toolbar button.on{border-color:#1d1d1b;font-weight:600}
+  .zoom{position:absolute;right:12px;bottom:12px;z-index:5;display:flex;gap:4px;align-items:center;background:#fff;
+        border:1px solid #ccc;border-radius:10px;padding:4px;box-shadow:0 2px 8px rgba(0,0,0,.08);font-size:12px;cursor:default}
+  .zoom button{font:inherit;border:1px solid #ddd;background:#fff;border-radius:6px;padding:3px 9px;cursor:pointer}
+  .zoom output{min-width:44px;text-align:center;font-variant-numeric:tabular-nums}
+  #changes{font-size:12px;background:#f6f6f4;border-radius:8px;padding:6px 10px;margin-bottom:10px}
+  #changes summary{cursor:pointer;font-weight:600}
+  #log{white-space:pre-line;padding-top:6px}
+  .hist{position:absolute;left:12px;top:12px;z-index:5;display:flex;gap:4px;background:#fff;border:1px solid #ccc;border-radius:10px;padding:4px;box-shadow:0 2px 8px rgba(0,0,0,.08);font-size:12px;cursor:default}
+  .hist button{font:inherit;border:1px solid #ddd;background:#fff;border-radius:6px;padding:3px 9px;cursor:pointer}
+  .hist button:disabled{opacity:.4;cursor:default}
+  dialog{border:1px solid #ccc;border-radius:12px;padding:18px 20px;font-size:14px;max-width:420px}
+  dialog::backdrop{background:rgba(0,0,0,.3)}
+  dialog .row{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+  dialog button{font:inherit;border:1px solid #ccc;background:#fff;border-radius:6px;padding:5px 12px;cursor:pointer}
+  dialog button.primary{background:#185fa5;border-color:#185fa5;color:#fff}
+  .page .del{position:absolute;top:8px;right:8px;border:1px solid #ddd;background:#fff;border-radius:6px;font-size:12px;padding:1px 7px;cursor:pointer;color:#a32d2d}
+  dialog button.danger{background:#a32d2d;border-color:#a32d2d;color:#fff}
+</style>
+
+<h2>Organigrama · v11: vista Diagrama y vista Capturas</h2>
+<p class="subtitle">Arrastra un diagrama por su título. Arrastra el punto al final de una flecha y acércalo a una sección o página: se imanta y queda conectada ahí.</p>
+<div class="toolbar"><span>Vista:</span><span id="modes"></span><span style="width:16px"></span><span id="tabs" style="display:flex;gap:6px;align-items:center"></span></div>
+<div class="toolbar">
+  <label><input type="checkbox" id="anchors" checked onchange="draw()"> Mostrar enlaces dentro de la página (#anclas)</label>
+</div>
+<p class="hint">Azul: a otra sección · Rojo: página que no existe · Gris: externo · Verde punteado: flecha cambiada · Violeta: conector nuevo (arrastra desde el ＋ de una pieza).</p>
+<details id="changes"><summary id="changesSum">Cambios planificados (0)</summary><div id="log">Ninguno todavía.</div></details>
+
+<div id="vp">
+  <div class="hist" aria-label="Historial">
+    <button id="undoBtn" onclick="undo()" title="Deshacer (Ctrl+Z)">↶ Deshacer</button>
+    <button id="redoBtn" onclick="redo()" title="Rehacer (Ctrl+Y)">↷ Rehacer</button>
+    <button onclick="askReset()" title="Volver al estado original">Restablecer</button>
+    <span style="width:1px;background:#ddd;margin:0 2px"></span>
+    <button onclick="openNewPage()" title="Crear una página planificada">+ Nueva página</button>
+  </div>
+  <div class="zoom" id="zoomBar">
+    <button onclick="zoomBy(1/1.2)" aria-label="Alejar">−</button><output id="zv">100%</output><button onclick="zoomBy(1.2)" aria-label="Acercar">+</button>
+    <button onclick="setScale(1)">100%</button><button onclick="fit()">Ajustar</button><button onclick="center()">Centrar</button>
+  </div>
+  <div id="stage"><svg id="wires"></svg><div id="nodes"></div></div>
+</div>
+<dialog id="newPageDlg">
+  <form method="dialog" id="newPageForm" style="display:grid;gap:10px;min-width:320px">
+    <strong>Nueva página</strong>
+    <label style="display:grid;gap:4px;font-size:13px">Ruta
+      <input id="npPath" required placeholder="/es/soluciones/ibs" autocomplete="off" style="font:inherit;padding:6px 8px;border:1px solid #ccc;border-radius:6px">
+    </label>
+    <label style="display:grid;gap:4px;font-size:13px">Título
+      <input id="npTitle" placeholder="Redes de IBs" autocomplete="off" style="font:inherit;padding:6px 8px;border:1px solid #ccc;border-radius:6px">
+    </label>
+    <span id="npError" role="alert" style="color:#a32d2d;font-size:12px;min-height:16px"></span>
+    <div class="row"><button type="button" onclick="document.getElementById('newPageDlg').close()">Cancelar</button><button type="submit" class="primary">Crear página</button></div>
+  </form>
+</dialog>
+<dialog id="delPageDlg"><p id="delPageMsg"></p>
+  <div class="row"><button onclick="document.getElementById('delPageDlg').close()">Cancelar</button><button class="danger" onclick="confirmDeletePage()">Eliminar página</button></div></dialog>
+<dialog id="delConnDlg"><p id="delConnMsg"></p>
+  <div class="row"><button onclick="document.getElementById('delConnDlg').close()">Cancelar</button><button class="danger" onclick="confirmDeleteConnector()">Eliminar conector</button></div></dialog>
+<dialog id="resetDlg"><p>¿Estás seguro de deshacer todos los cambios?</p><p class="hint">Se restablecen el orden, las páginas planificadas, las flechas y la posición de los diagramas.</p>
+  <div class="row"><button onclick="document.getElementById('resetDlg').close()">Cancelar</button><button class="danger" onclick="resetAll()">Deshacer todo</button></div></dialog>
+<p class="hint" style="margin-top:6px">Rueda: desplazar · Shift + rueda: desplazar a los lados · Ctrl + rueda: zoom · Arrastra el fondo para moverte.</p>
+
+<script>
+const DATA = __DATA__;
+const SHOT = (f) => '/shots/<sitio>/' + DATA.scanId + '/' + f;
+const blocks = Object.fromEntries(DATA.blocks.map(b => [b.key, b]));
+const original = DATA.blocks.map(b => b.key);
+const COMPONENTS = { '/~header': 'Header 1', '/~footer': 'Footer 1' };
+for (const k in COMPONENTS) blocks[k].name = COMPONENTS[k];
+const KIND = { narrativa: 'narrativa', visual: 'visual', conversion: 'conversión' };
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+let view = '/';
+let mode = 'diagram';
+const XF = () => (mode === 'shots' ? 1.6 : 1);
+const nodes = [
+  { id: '/', title: 'Home', x: 360, y: 40, w: 320, tag: null, drop: true },
+  { id: '/es/soluciones/brokers', title: '/es/soluciones/brokers', x: 780, y: 40, tag: ['NO EXISTE', '#fde2e2', '#791f1f'], drop: true },
+  { id: 'https://scapbroker.com/', title: 'scapbroker.com', x: 780, y: 300, tag: ['EXTERNO', '#f1efe8', '#444'], drop: false },
+  { id: 'comp', title: '', x: 40, y: 40, tag: ['COMPONENTE COMPARTIDO', '#f1efe8', '#444'], drop: false, comp: true },
+];
+const order = { '/': [...original] };
+const placement = Object.fromEntries(original.map(k => [k, '/']));
+const snap = () => JSON.stringify({ order, placement, relink, nodes, added });
+let past = [], future = [], initialState = null;
+function restore(json) {
+  const st = JSON.parse(json);
+  for (const k in order) delete order[k]; Object.assign(order, st.order);
+  for (const k in placement) delete placement[k]; Object.assign(placement, st.placement);
+  for (const k in relink) delete relink[k]; Object.assign(relink, st.relink);
+  nodes.length = 0; nodes.push(...st.nodes);
+  added.length = 0; added.push(...(st.added || []));
+}
+function checkpoint() { past.push(snap()); future = []; }
+function undo() { if (!past.length) return; future.push(snap()); restore(past.pop()); render(); }
+function redo() { if (!future.length) return; past.push(snap()); restore(future.pop()); render(); }
+function askReset() { document.getElementById('resetDlg').showModal(); }
+function resetAll() { document.getElementById('resetDlg').close(); if (snap() === initialState) return; checkpoint(); restore(initialState); render(); }
+document.addEventListener('keydown', (e) => {
+  if (!(e.ctrlKey || e.metaKey)) return;
+  const k = e.key.toLowerCase();
+  if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+  else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+});
+/** Destinos cambiados a mano: "clave#índice" → { block: key } | { page: id } */
+const relink = {};
+/** Conectores nuevos: { id, from, block | page } */
+const added = [];
+
+function lego(k, i) {
+  const b = blocks[k]; const comp = k in COMPONENTS;
+  const targets = view !== '/' ? linksOf(view).map(t => t.block).filter(Boolean) : [];
+  const state = view === '/' || k === view ? '' : (targets.includes(k) ? ' hit' : ' dim');
+  return '<div class="lego k-' + b.kind + (comp && view === '/' ? ' comp' : '') + state + '" data-key="' + esc(k) + '">' +
+    '<div class="lh"><span class="n">' + String(i + 1).padStart(2, '0') + '</span><b title="' + esc(b.name) + '">' + esc(b.name) + '</b>' +
+    '<span class="cnt">' + (b.links.length ? '↗' + b.links.length + ' ' : '') + (b.media ? '▣' + b.media : '') + '</span>' +
+    (b.issues.length ? '<span class="warn">⚠' + b.issues.length + '</span>' : '') +
+    (comp && view === '/' ? '<span class="tag" style="margin:0;background:#f1efe8;color:#444">COMPONENTE</span>' : '') + '</div>' +
+    (b.shot ? '<img class="cap" src="' + SHOT(b.shot) + '" alt="" loading="lazy" draggable="false">' : '<div class="cap empty"></div>') +
+    ((view === '/' ? !comp : k === view) ? '<span class="plug" title="Arrastra para crear un conector" data-plug="' + esc(k) + '">+</span>' : '') +
+    '<div class="det">' + (b.shot ? '<img src="' + SHOT(b.shot) + '" alt="">' : '') +
+      '<div>Tipo: ' + KIND[b.kind] + ' · alto ' + b.h + ' px</div>' +
+      (b.headings.length ? '<div class="lbl">Títulos</div><ul>' + b.headings.map(h => '<li>' + esc(h) + '</li>').join('') + '</ul>' : '') +
+      (b.links.length ? '<div class="lbl">Enlaces y botones (' + b.links.length + ')</div>' + linksOf(k).map(t => '<div class="link">• ' + esc(t.l.t) + ' <code>' + esc(t.label) + '</code>' + (t.changed ? ' <b style="color:#3b6d11">(cambiado)</b>' : '') + '</div>').join('') : '<div class="lbl">Sin enlaces</div>') +
+      (b.forms.length ? '<div class="lbl">Formulario</div><div>' + b.forms.map(f => f.fields + ' campos · destino: ' + esc(f.action || 'ninguno')).join('<br>') + '</div>' : '') +
+      (b.issues.length ? '<div class="lbl">Alertas</div><ul>' + b.issues.map(m => '<li class="warn">' + esc(m) + '</li>').join('') + '</ul>' : '') +
+    '</div></div>';
+}
+
+/** Enlaces de un bloque con su destino efectivo (original o cambiado). */
+function linksOf(k) {
+  const extra = added.filter(a => a.from === k).map(a => ({ l: { t: 'Conector nuevo', h: a.block ? '#' + a.block : a.page, k: 'added' }, i: -1, id: a.id, added: true, block: a.block || null, page: a.page || null, label: a.block ? blocks[a.block].name : a.page }));
+  return extra.concat(blocks[k].links.map((l, i) => {
+    const id = k + '#' + i; const o = relink[id];
+    if (o) return { l, i, id, changed: true, block: o.block || null, page: o.page || null, label: o.block ? blocks[o.block].name : o.page };
+    if (l.k === 'anchor') {
+      const target = original.find(x => x !== k && x.endsWith('#' + l.h.slice(1)));
+      return { l, i, id, block: target || null, page: null, label: l.h };
+    }
+    return { l, i, id, block: null, page: l.k === 'external' ? l.h : l.h.split('#')[0], label: l.h };
+  }));
+}
+
+function render() {
+  document.getElementById('modes').innerHTML = [['diagram', 'Diagrama'], ['shots', 'Capturas']].map(m =>
+    '<button class="' + (m[0] === mode ? 'on' : '') + '" data-mode="' + m[0] + '">' + m[1] + '</button>').join(' ');
+  vp.classList.toggle('shots', mode === 'shots');
+  document.getElementById('tabs').innerHTML = 'Mostrar: ' + ['/', ...Object.keys(COMPONENTS)].map(v =>
+    '<button class="' + (v === view ? 'on' : '') + '" data-view="' + v + '">' + (v === '/' ? 'Home' : COMPONENTS[v]) + '</button>').join(' ');
+  document.getElementById('nodes').innerHTML = nodes.filter(n => !n.comp || view !== '/').map(n => {
+    const items = n.comp ? [view] : (n.id === '/' && view !== '/' ? order['/'].filter(k => !(k in COMPONENTS)) : (order[n.id] || []));
+    const title = n.comp ? COMPONENTS[view] + ' · lo usa: Home' : n.title;
+    return '<div class="page' + (n.id === '/' ? '' : ' small') + '" data-node="' + esc(n.id) + '" style="left:' + Math.round(n.x * XF()) + 'px;top:' + n.y + 'px">' +
+      '<h4>' + esc(title) + '</h4>' + (n.planned ? '<button class="del" data-del="' + esc(n.id) + '" title="Eliminar página">×</button>' : '') + (n.id === '/' ? '<span class="tag" style="background:#e6f1fb;color:#0c447c">' + order['/'].length + ' piezas</span>' : '') +
+      (n.tag ? '<span class="tag" style="background:' + n.tag[1] + ';color:' + n.tag[2] + '">' + n.tag[0] + '</span>' : '') +
+      (n.drop || n.comp ? '<div class="drop" data-page="' + esc(n.id) + '">' + (items.map(lego).join('') || '<div class="hint">Suelta piezas aquí</div>') + '</div>' : '<div class="hint">Sitio externo</div>') +
+      '</div>';
+  }).join('');
+  bind(); draw(); log();
+  document.querySelectorAll('.lego .cap').forEach(img => { if (img.tagName === 'IMG' && !img.complete) img.addEventListener('load', scheduleDraw, { once: true }); });
+}
+
+function bind() {
+  document.querySelectorAll('.lego').forEach(el => {
+    el.querySelector('.lh').onclick = () => { if (suppressClick) return; el.classList.toggle('open'); requestAnimationFrame(draw); };
+  });
+  document.querySelectorAll('.lego').forEach(el => {
+    if (view !== '/' || el.classList.contains('comp')) return;
+    el.addEventListener('pointerdown', (e) => startDragPiece(e, el));
+  });
+  document.querySelectorAll('.page h4').forEach(h => h.onpointerdown = (e) => startMoveNode(e, h.parentElement));
+}
+
+/* ---------- coordenadas (en el espacio del lienzo, sin zoom) ---------- */
+const cam = { s: 1, x: 0, y: 0 };
+const vp = document.getElementById('vp'), stage = document.getElementById('stage');
+function toStage(clientX, clientY) { const r = stage.getBoundingClientRect(); return { x: (clientX - r.left) / cam.s, y: (clientY - r.top) / cam.s }; }
+function rectOf(el) { const r = el.getBoundingClientRect(); const a = toStage(r.left, r.top); return { x: a.x, y: a.y, w: r.width / cam.s, h: r.height / cam.s }; }
+
+/* ---------- flechas ---------- */
+function anchorPoint(srcR, dstR, row) {
+  const toRight = dstR.x > srcR.x + srcR.w;
+  const toLeft = dstR.x + dstR.w < srcR.x;
+  const y = dstR.y + (row ? 15 : 22);
+  if (toRight) return { x: dstR.x, y, side: 'left' };
+  if (toLeft) return { x: dstR.x + dstR.w, y, side: 'right' };
+  return { x: dstR.x + dstR.w, y, side: 'loop' };
+}
+function curve(x1, y1, x2, y2, side, lane) {
+  if (side === 'loop') { const b = 22 + (lane % 7) * 7; return 'M' + x1 + ' ' + y1 + ' C' + (x1 + b) + ' ' + y1 + ', ' + (x2 + b) + ' ' + y2 + ', ' + x2 + ' ' + y2; }
+  const mx = (x1 + x2) / 2; return 'M' + x1 + ' ' + y1 + ' C' + mx + ' ' + y1 + ', ' + mx + ' ' + y2 + ', ' + x2 + ' ' + y2;
+}
+let wires = [];
+function draw() {
+  const svg = document.getElementById('wires'); const showAnchors = document.getElementById('anchors').checked;
+  const legos = Object.fromEntries([...document.querySelectorAll('.lego')].map(el => [el.dataset.key, el]));
+  let out = ''; let lane = 0; wires = [];
+  for (const k in legos) {
+    if (view === '/' ? (k in COMPONENTS) : k !== view) continue;
+    const src = legos[k]; const sR = rectOf(src); const x1 = sR.x + sR.w, y1 = sR.y + 15;
+    for (const t of linksOf(k)) {
+      let dst = null, color = '#378add', row = false;
+      if (t.block) { if (t.l.k === 'anchor' && !t.changed && !showAnchors) continue; dst = legos[t.block]; row = true; }
+      else if (t.page) { dst = document.querySelector('.page[data-node="' + CSS.escape(t.page) + '"]'); color = t.l.k === 'external' && !t.changed ? '#888780' : (t.page === '/es/soluciones/brokers' && !t.changed ? '#e24b4a' : '#378add'); }
+      if (!dst || dst === src) continue;
+      if (t.changed) color = '#3b6d11';
+      if (t.added) color = '#7f77dd';
+      const p = anchorPoint(sR, rectOf(dst), row); const d = curve(x1, y1, p.x, p.y, p.side, lane++);
+      wires.push({ id: t.id, x: p.x, y: p.y });
+      out += '<path d="' + d + '" stroke="' + color + '" stroke-width="' + (t.changed ? 2.4 : 1.6) + '" fill="none"' + (t.changed ? ' stroke-dasharray="6 4"' : t.added ? ' stroke-dasharray="2 4"' : '') + ' marker-end="url(#ah)" opacity=".85"/>' +
+        '<circle class="handle" data-wire="' + esc(t.id) + '"' + (t.added ? ' data-added="1"' : '') + ' cx="' + p.x + '" cy="' + p.y + '" r="6" fill="#fff" stroke="' + color + '" stroke-width="2"><title>Arrastra para cambiar el destino</title></circle>';
+    }
+  }
+  svg.innerHTML = '<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5"/></marker></defs>' + out +
+    '<path id="ghost" d="" stroke="#3b6d11" stroke-width="2" stroke-dasharray="4 4" fill="none"/>';
+  svg.querySelectorAll('.handle').forEach(h => h.onpointerdown = startRelink);
+}
+
+const SNAP = 70;
+function nearestTarget(pt, srcKey) {
+  let best = null, bestD = SNAP;
+  document.querySelectorAll('.lego, .page').forEach(el => {
+    if (el.dataset.key === srcKey) return;
+    if (el.classList.contains('page') && (el.dataset.node === '/' || el.dataset.node === 'comp')) return;
+    const r = rectOf(el);
+    const dx = Math.max(r.x - pt.x, 0, pt.x - (r.x + r.w)), dy = Math.max(r.y - pt.y, 0, pt.y - (r.y + r.h));
+    let d = Math.hypot(dx, dy); if (el.classList.contains('lego')) d -= 8;
+    if (d < bestD) { bestD = d; best = el; }
+  });
+  return best;
+}
+function startRelink(e) {
+  e.stopPropagation(); e.preventDefault();
+  const id = e.target.dataset.wire; const isAdded = e.target.dataset.added === '1';
+  const srcKey = isAdded ? added.find(a => a.id === id).from : id.slice(0, id.lastIndexOf('#'));
+  const c0 = { x: e.clientX, y: e.clientY }; let dragged = false;
+  const sR = rectOf(document.querySelector('.lego[data-key="' + CSS.escape(srcKey) + '"]'));
+  const ghost = document.getElementById('ghost'); ghost.setAttribute('stroke', '#3b6d11'); let snapped = null;
+  const move = (ev) => {
+    if (Math.hypot(ev.clientX - c0.x, ev.clientY - c0.y) > 4) dragged = true;
+    const p = toStage(ev.clientX, ev.clientY);
+    document.querySelectorAll('.snap').forEach(x => x.classList.remove('snap'));
+    snapped = nearestTarget(p, srcKey);
+    let end = p;
+    if (snapped) { snapped.classList.add('snap'); const a = anchorPoint(sR, rectOf(snapped), snapped.classList.contains('lego')); end = a; }
+    ghost.setAttribute('d', curve(sR.x + sR.w, sR.y + 15, end.x, end.y, end.side || 'left', 0));
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+    document.querySelectorAll('.snap').forEach(x => x.classList.remove('snap'));
+    if (isAdded && !dragged) { ghost.setAttribute('d', ''); askDeleteConnector(id); return; }
+    const dest = snapped ? (snapped.classList.contains('lego') ? { block: snapped.dataset.key } : { page: snapped.dataset.node }) : null;
+    if (dest) {
+      checkpoint();
+      if (isAdded) Object.assign(added.find(a => a.id === id), { block: dest.block || null, page: dest.page || null });
+      else relink[id] = dest;
+    }
+    render();
+  };
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+}
+
+let drawQueued = 0;
+function scheduleDraw() { cancelAnimationFrame(drawQueued); drawQueued = requestAnimationFrame(draw); }
+
+/* ---------- arrastre de piezas (en coordenadas del lienzo, respeta el zoom) ---------- */
+let suppressClick = false;
+function flip(lists, mutate) {
+  const before = new Map();
+  lists.forEach(l => l.querySelectorAll('.lego:not(.float)').forEach(el => before.set(el, el.getBoundingClientRect().top)));
+  mutate();
+  before.forEach((top, el) => {
+    const dy = (top - el.getBoundingClientRect().top) / cam.s;
+    if (!dy) return;
+    el.style.transition = 'none'; el.style.transform = 'translateY(' + dy + 'px)';
+    requestAnimationFrame(() => { el.style.transition = 'transform 160ms ease'; el.style.transform = ''; });
+  });
+}
+function startDragPiece(e, el) {
+  if (e.button !== 0 || e.target.closest('.det, .plug')) return;
+  e.stopPropagation(); e.preventDefault();
+  window.getSelection().removeAllRanges(); document.body.classList.add('dragging');
+  const p0 = toStage(e.clientX, e.clientY); const r0 = rectOf(el);
+  const grab = { x: p0.x - r0.x, y: p0.y - r0.y };
+  let floating = null, list = el.parentElement, raf = 0;
+  const start = () => {
+    pendingSnap = snap();
+    floating = el.cloneNode(true); floating.classList.add('float'); floating.classList.remove('open');
+    floating.style.width = r0.w + 'px';
+    stage.appendChild(floating);
+    el.classList.add('lego-hole'); el.classList.remove('open');
+  };
+  const move = (ev) => {
+    const p = toStage(ev.clientX, ev.clientY);
+    if (!floating) { if (Math.hypot(p.x - p0.x, p.y - p0.y) * cam.s < 5) return; start(); }
+    floating.style.left = (p.x - grab.x) + 'px'; floating.style.top = (p.y - grab.y) + 'px';
+    // El diagrama visible bajo el cursor (la pieza flotante no captura el puntero).
+    const under = document.elementFromPoint(ev.clientX, ev.clientY);
+    const page = under && under.closest('.page');
+    const zone = page && page.dataset.node !== 'comp' ? page.querySelector(':scope > .drop') : null;
+    document.querySelectorAll('.drop.target').forEach(z => z.classList.remove('target'));
+    if (!zone) return;
+    if (zone !== el.parentElement || zone.querySelector('.hint')) zone.classList.add('target');
+    const others = [...zone.querySelectorAll(':scope > .lego')].filter(o => o !== el);
+    // Posición de maqueta (offsetTop), no la animada: así el hueco no oscila mientras las piezas se deslizan.
+    const localY = p.y - rectOf(zone).y + zone.offsetTop;
+    const next = others.find(o => localY < o.offsetTop + o.offsetHeight / 2) || null;
+    if (el.parentElement === zone && el.nextElementSibling === next) return;
+    const lists = new Set([el.parentElement, zone]);
+    flip(lists, () => { const h = zone.querySelector(':scope > .hint'); if (h) h.remove(); zone.insertBefore(el, next); });
+    list = zone;
+    cancelAnimationFrame(raf); raf = requestAnimationFrame(draw);
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+    document.body.classList.remove('dragging');
+    document.querySelectorAll('.drop.target').forEach(z => z.classList.remove('target'));
+    if (!floating) return;
+    suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
+    floating.remove(); el.classList.remove('lego-hole');
+    const key = el.dataset.key; const to = list.dataset.page;
+    const idx = [...list.querySelectorAll(':scope > .lego')].indexOf(el);
+    const from = placement[key]; const oldIdx = order[from].indexOf(key);
+    if (from === to && oldIdx === idx) { render(); return; }
+    past.push(pendingSnap); future = [];
+    for (const pg in order) order[pg] = order[pg].filter(k => k !== key);
+    order[to] = order[to] || []; order[to].splice(idx, 0, key); placement[key] = to;
+    render();
+  };
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+}
+let pendingSnap = null;
+
+/* ---------- conectores nuevos ---------- */
+let connSeq = 0;
+function startConnector(e, srcKey) {
+  e.stopPropagation(); e.preventDefault();
+  document.body.classList.add('dragging');
+  const sR = rectOf(document.querySelector('.lego[data-key="' + CSS.escape(srcKey) + '"]'));
+  const ghost = document.getElementById('ghost'); ghost.setAttribute('stroke', '#7f77dd'); let snapped = null;
+  const move = (ev) => {
+    const p = toStage(ev.clientX, ev.clientY);
+    document.querySelectorAll('.snap').forEach(x => x.classList.remove('snap'));
+    snapped = nearestTarget(p, srcKey);
+    let end = p;
+    if (snapped) { snapped.classList.add('snap'); end = anchorPoint(sR, rectOf(snapped), snapped.classList.contains('lego')); }
+    ghost.setAttribute('d', curve(sR.x + sR.w, sR.y + 15, end.x, end.y, end.side || 'left', 0));
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+    document.body.classList.remove('dragging');
+    document.querySelectorAll('.snap').forEach(x => x.classList.remove('snap'));
+    if (snapped) {
+      checkpoint();
+      const dest = snapped.classList.contains('lego') ? { block: snapped.dataset.key, page: null } : { block: null, page: snapped.dataset.node };
+      added.push({ id: 'new-' + Date.now() + '-' + (connSeq++), from: srcKey, ...dest });
+    }
+    render();
+  };
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+}
+let deletingConn = null;
+function askDeleteConnector(id) {
+  deletingConn = id; const a = added.find(x => x.id === id);
+  document.getElementById('delConnMsg').textContent = '¿Eliminar el conector de ' + blocks[a.from].name + ' a ' + (a.block ? blocks[a.block].name : a.page) + '?';
+  document.getElementById('delConnDlg').showModal();
+}
+function confirmDeleteConnector() {
+  document.getElementById('delConnDlg').close();
+  const i = added.findIndex(x => x.id === deletingConn); deletingConn = null;
+  if (i < 0) return; checkpoint(); added.splice(i, 1); render();
+}
+document.getElementById('nodes').addEventListener('pointerdown', (e) => {
+  const plug = e.target.closest('[data-plug]'); if (plug) startConnector(e, plug.dataset.plug);
+}, true);
+
+/* ---------- mover diagramas ---------- */
+function startMoveNode(e, el) {
+  e.stopPropagation(); e.preventDefault();
+  const n = nodes.find(x => x.id === el.dataset.node); const p0 = toStage(e.clientX, e.clientY); const ox = n.x, oy = n.y;
+  const before = snap(); let moved = false;
+  el.classList.add('moving'); document.body.classList.add('dragging');
+  const move = (ev) => { const p = toStage(ev.clientX, ev.clientY); n.x = Math.round(ox + (p.x - p0.x) / XF()); n.y = Math.round(oy + p.y - p0.y); el.style.left = Math.round(n.x * XF()) + 'px'; el.style.top = n.y + 'px'; moved = true; draw(); };
+  const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); el.classList.remove('moving'); document.body.classList.remove('dragging'); if (moved) { past.push(before); future = []; updateHist(); } };
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+}
+
+/* ---------- zoom y paneo ---------- */
+function apply() { stage.style.transform = 'translate(' + cam.x + 'px,' + cam.y + 'px) scale(' + cam.s + ')'; document.getElementById('zv').textContent = Math.round(cam.s * 100) + '%'; }
+function setScale(s, cx, cy) {
+  s = Math.min(2.5, Math.max(0.2, s));
+  if (cx === undefined) { cx = vp.clientWidth / 2; cy = vp.clientHeight / 2; }
+  cam.x = cx - (cx - cam.x) * (s / cam.s); cam.y = cy - (cy - cam.y) * (s / cam.s); cam.s = s; apply();
+}
+function zoomBy(f) { setScale(cam.s * f); }
+function bounds() {
+  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+  document.querySelectorAll('.page').forEach(el => { const r = rectOf(el); x1 = Math.min(x1, r.x); y1 = Math.min(y1, r.y); x2 = Math.max(x2, r.x + r.w); y2 = Math.max(y2, r.y + r.h); });
+  return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+}
+function center() { const b = bounds(); cam.x = vp.clientWidth / 2 - (b.x + b.w / 2) * cam.s; cam.y = Math.max(16 - b.y * cam.s, vp.clientHeight / 2 - (b.y + b.h / 2) * cam.s); apply(); }
+function fitWidth() {
+  const b = bounds();
+  cam.s = Math.min(1.2, Math.max(0.2, vp.clientWidth / (b.w + 80)));
+  cam.x = vp.clientWidth / 2 - (b.x + b.w / 2) * cam.s; cam.y = 56 - b.y * cam.s; apply();
+}
+function fit() { const b = bounds(); cam.s = Math.min(2.5, Math.max(0.2, Math.min(vp.clientWidth / (b.w + 80), vp.clientHeight / (b.h + 80)))); apply(); center(); }
+vp.addEventListener('wheel', (e) => { if (!e.ctrlKey) { e.preventDefault(); if (e.shiftKey) cam.x -= e.deltaY; else { cam.x -= e.deltaX; cam.y -= e.deltaY; } apply(); return; } e.preventDefault(); const r = vp.getBoundingClientRect(); setScale(cam.s * (e.deltaY < 0 ? 1.1 : 1 / 1.1), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+let pan = null;
+vp.addEventListener('pointerdown', (e) => { if (e.target.closest('.page, .zoom, .hist, .handle')) return; pan = { x: e.clientX - cam.x, y: e.clientY - cam.y }; vp.classList.add('panning'); vp.setPointerCapture(e.pointerId); });
+vp.addEventListener('pointermove', (e) => { if (!pan) return; cam.x = e.clientX - pan.x; cam.y = e.clientY - pan.y; apply(); });
+vp.addEventListener('pointerup', () => { pan = null; vp.classList.remove('panning'); });
+
+/* ---------- registro ---------- */
+function log() {
+  const lines = [];
+  for (const n of nodes) if (n.planned) lines.push('Crear la página ' + n.id + (n.title !== n.id ? ' ("' + n.title + '")' : ''));
+  for (const k in placement) if (placement[k] !== '/') lines.push('Mover "' + blocks[k].name + '" a ' + placement[k]);
+  const home = order['/']; const was = original.filter(k => home.includes(k));
+  if (was.join() !== home.join()) lines.push('Nuevo orden del Home: ' + home.map(k => blocks[k].name).join(' → '));
+  for (const a of added) lines.push('Agregar enlace en ' + blocks[a.from].name + ' → ' + (a.block ? blocks[a.block].name + ' (' + placement[a.block] + ')' : a.page));
+  for (const id in relink) {
+    const k = id.slice(0, id.lastIndexOf('#')); const l = blocks[k].links[Number(id.slice(id.lastIndexOf('#') + 1))]; const o = relink[id];
+    lines.push('Cambiar el enlace "' + l.t + '" de ' + blocks[k].name + ': ' + l.h + ' → ' + (o.block ? blocks[o.block].name + ' (' + placement[o.block] + ')' : o.page));
+  }
+  document.getElementById('log').textContent = lines.join('\n') || 'Ninguno todavía.';
+  document.getElementById('changesSum').textContent = 'Cambios planificados (' + lines.length + ')';
+  updateHist();
+}
+
+function updateHist() { document.getElementById('undoBtn').disabled = !past.length; document.getElementById('redoBtn').disabled = !future.length; }
+function normPath(raw) {
+  let p = raw.trim().replace(/\s+/g, '-').toLowerCase();
+  if (p && !p.startsWith('/')) p = '/' + p;
+  return p.replace(/\/{2,}/g, '/').replace(/(.)\/$/, '$1');
+}
+function openNewPage() {
+  const dlg = document.getElementById('newPageDlg');
+  document.getElementById('npPath').value = ''; document.getElementById('npTitle').value = ''; document.getElementById('npError').textContent = '';
+  dlg.showModal(); document.getElementById('npPath').focus();
+}
+document.getElementById('npPath').addEventListener('input', () => { document.getElementById('npError').textContent = ''; });
+document.getElementById('newPageForm').addEventListener('submit', (e) => {
+  const path = normPath(document.getElementById('npPath').value);
+  const err = document.getElementById('npError');
+  if (!path || path === '/') { e.preventDefault(); err.textContent = 'Escribe una ruta, por ejemplo /es/soluciones/ibs.'; return; }
+  if (nodes.some(n => n.id === path)) { e.preventDefault(); err.textContent = 'Ya existe una página con esa ruta.'; return; }
+  const title = document.getElementById('npTitle').value.trim() || path;
+  checkpoint();
+  const c = toStage(vp.getBoundingClientRect().left + vp.clientWidth / 2, vp.getBoundingClientRect().top + vp.clientHeight / 2);
+  const spot = freeSpot(c.x - 115, c.y - 60, 230, 140);
+  nodes.push({ id: path, title, x: Math.round(spot.x / XF()), y: spot.y, tag: ['PLANIFICADA', '#e6f1fb', '#0c447c'], drop: true, planned: true });
+  order[path] = [];
+  render();
+});
+/** Primer hueco libre cerca de (x, y): prueba a la derecha y luego abajo. */
+function freeSpot(x, y, w, h) {
+  const boxes = [...document.querySelectorAll('.page')].map(rectOf);
+  const hits = (px, py) => boxes.some(b => px < b.x + b.w + 24 && px + w + 24 > b.x && py < b.y + b.h + 24 && py + h + 24 > b.y);
+  for (let row = 0; row < 12; row++) for (let col = 0; col < 12; col++) {
+    const px = Math.round(x + col * (w + 30)), py = Math.round(y + row * (h + 30));
+    if (!hits(px, py)) return { x: px, y: py };
+  }
+  return { x: Math.round(x), y: Math.round(y) };
+}
+let deleting = null;
+function deletePage(id) {
+  deleting = id; const n = nodes.find(x => x.id === id); const count = (order[id] || []).length;
+  document.getElementById('delPageMsg').textContent = '¿Eliminar la página ' + n.title + '?' + (count === 1 ? ' Su pieza vuelve al Home.' : count ? ' Sus ' + count + ' piezas vuelven al Home.' : '');
+  document.getElementById('delPageDlg').showModal();
+}
+function confirmDeletePage() {
+  document.getElementById('delPageDlg').close();
+  const id = deleting; deleting = null; if (!id) return;
+  checkpoint();
+  for (const k of order[id] || []) { order['/'].push(k); placement[k] = '/'; }
+  delete order[id];
+  const i = nodes.findIndex(n => n.id === id); if (i >= 0) nodes.splice(i, 1);
+  for (const w in relink) if (relink[w].page === id) delete relink[w];
+  for (let j = added.length - 1; j >= 0; j--) if (added[j].page === id) added.splice(j, 1);
+  render();
+}
+document.getElementById('nodes').addEventListener('click', (e) => { const b = e.target.closest('[data-del]'); if (b) deletePage(b.dataset.del); });
+document.getElementById('nodes').addEventListener('pointerdown', (e) => { if (e.target.closest('[data-del]')) e.stopPropagation(); }, true);
+
+document.getElementById('modes').addEventListener('click', (e) => { const m = e.target.dataset && e.target.dataset.mode; if (m && m !== mode) { mode = m; render(); const f = mode === 'shots' ? fitWidth : fit; requestAnimationFrame(() => { f(); setTimeout(() => { f(); draw(); }, 400); }); } });
+document.getElementById('tabs').addEventListener('click', (e) => { const v = e.target.dataset && e.target.dataset.view; if (v) { view = v; render(); } });
+window.addEventListener('resize', draw);
+render();
+initialState = snap();
+fit();
+</script>
