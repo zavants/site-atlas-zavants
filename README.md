@@ -31,7 +31,7 @@ Site Atlas makes that visible and turns your decisions into a **concrete plan** 
 
 ### Coming next (v2): the org chart
 
-Each page as a diagram of pieces, with **one line per link coming out of the exact section that contains it**. It adds shared components with their own diagram, arrows you can drag and snap to a new target, new connectors, a screenshot view, and changes that stay **pending until an AI confirms** it applied them. Design under review: [`organigrama-design.md`](https://github.com/zavants/site-atlas-zavants/blob/docs/organigrama-v2/docs/superpowers/specs/2026-10-19-organigrama-design.md) (Spanish).
+Each page as a diagram of pieces, with **one line per link coming out of the exact section that contains it**. It adds shared components with their own diagram, arrows you can drag and snap to a new target, new connectors, a screenshot view, and changes that stay **pending until an AI confirms** it applied them. Design under review: [`organigrama-design.md`](https://github.com/zavants/site-atlas-zavants/blob/docs/organigrama-v2/docs/superpowers/specs/2026-10-19-organigrama-design.md).
 
 ## How it works
 

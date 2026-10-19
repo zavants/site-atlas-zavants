@@ -1,281 +1,300 @@
-# Site Atlas — Diseño v2: organigrama
+# Site Atlas — Design v2: the org chart
 
-**Estado:** borrador para aprobación · **Fecha:** 2026-10-19 · **Amplía:** `2026-10-19-site-atlas-design.md` (v1). Todo lo de la v1 sigue vigente salvo lo que este documento cambia de forma explícita.
-**Referencia visual e interactiva:** `docs/superpowers/prototypes/organigrama-v11.html`, prototipo desechable validado con el usuario. Para abrirlo se reemplaza `__DATA__` por el JSON de un mapa.
+**Status:** draft for approval · **Date:** 2026-10-19 · **Extends:** `2026-10-19-site-atlas-design.md` (v1). Everything in v1 still applies unless this document explicitly changes it.
+**Visual and interactive reference:** `docs/superpowers/prototypes/organigrama-v11.html`, a throwaway prototype validated with the user. To open it, replace `__DATA__` with the JSON of a site map. The prototype's labels are in Spanish; the product must be in English (§9).
 
 ---
 
-## 1. Intención
+## 1. Intent
 
-La v1 muestra el sitio como columnas de bloques. Sirve para ordenar, pero no responde las preguntas que el usuario tiene al revisar una página:
+v1 shows the site as columns of sections. That works for ordering, but it doesn't answer the questions the user has when reviewing a page:
 
-- ¿Esta sección conviene moverla a otra página o mantenerla?
-- ¿A dónde apunta esta sección y qué la apunta a ella?
-- ¿Qué pasa si muevo la sección A a la página B y la enlazo con X?
-- ¿Qué secciones repiten lo mismo?
+- Should this section move to another page, or stay?
+- Where does this section point, and what points to it?
+- What happens if I move section A to page B and link it to X?
+- Which sections say the same thing?
 
-La v2 convierte el lienzo en un **organigrama**: cada página es un diagrama armado con piezas (sus secciones, como un lego), y **cada enlace es una línea que sale de la pieza exacta que lo contiene**. Muestra lo que una persona no ve recorriendo la página: hilos, destinos rotos y repeticiones.
+v2 turns the canvas into an **org chart**: each page is a diagram built from pieces (its sections, like Lego bricks), and **every link is a line that leaves the exact piece that contains it**. It shows what a person can't see by scrolling the page: threads, broken targets and repetition.
 
-Todo lo que el usuario cambia en el organigrama es un **plan**. Cualquier IA (Claude, Codex, GPT u otra) puede leerlo e implementarlo. **Ningún cambio se da por hecho hasta que una IA confirma que lo aplicó en el sitio.**
+Everything the user changes in the org chart is a **plan**. Any AI (Claude, Codex, GPT or others) can read it and implement it. **No change counts as done until an AI confirms it applied it to the site.**
 
-## 2. Objetivos, no objetivos y anti-objetivos
+## 2. Goals, non-goals and anti-goals
 
-**Objetivos v2**
+**Goals for v2**
 
-1. Vista **Diagrama**: páginas como diagramas de piezas con contenido, líneas por enlace y componentes compartidos aparte.
-2. Vista **Capturas**: el mismo organigrama con cada pieza mostrada como su captura ampliada.
-3. Edición directa:
-   - arrastrar piezas en vivo, dentro de una página o a otra;
-   - mover diagramas;
-   - redirigir flechas imantándolas a un destino;
-   - crear y eliminar conectores;
-   - crear y eliminar páginas planificadas.
-4. Historial: Deshacer, Rehacer y Restablecer.
-5. **Plan legible por cualquier IA**, con estados *pendiente* y *aplicado*, que se lee y se confirma por MCP y por terminal.
+1. **Diagram** view: pages as diagrams of pieces, with their contents, one line per link, and shared components shown separately.
+2. **Screenshots** view: the same org chart with every piece shown as its enlarged screenshot.
+3. Direct editing:
+   - drag pieces live, within a page or to another page;
+   - move diagrams;
+   - retarget arrows by snapping them to a new target;
+   - create and delete connectors;
+   - create and delete planned pages.
+4. History: Undo, Redo and Reset.
+5. **A plan any AI can read**, with *pending* and *applied* states, readable and confirmable through MCP and the CLI.
+6. **Everything in English** (§9).
 
-**No objetivos v2**
+**Non-goals for v2**
 
-- Detección automática de redundancia temática entre secciones (la matriz "tema × sección" de las maquetas). Queda para una versión posterior; el organigrama ya deja ver las repeticiones a simple vista.
-- Editar el contenido de las secciones (textos, imágenes).
-- Aplicar cambios al sitio. Eso lo hace una IA o una persona en el código.
-- Historial de Deshacer persistente entre sesiones del navegador.
+- Automatic detection of topic redundancy across sections (the "topic × section" matrix from the mockups). Left for a later version; the org chart already makes repetition visible.
+- Editing section content (copy, images).
+- Applying changes to the site. That is done by an AI or a person in the code.
+- Undo history that persists across browser sessions.
+- Localization into other languages (English only for now).
 
-**Anti-objetivos**
+**Anti-goals**
 
-- **Que Site Atlas escriba cualquier archivo dentro del repositorio del sitio escaneado.** Todo vive en la carpeta de datos de Atlas (`~/.site-atlas` o `SITE_ATLAS_HOME`).
-- Que un cambio pase a "aplicado" sin que una IA o persona lo confirme.
-- Que mirar el diagrama de una página se vuelva ilegible por hilos de componentes compartidos.
-- Que el arrastre se sienta torpe: pieza despegada del cursor, hueco que no la sigue o selección de texto mientras se arrastra.
+- **Site Atlas writing any file inside the scanned site's repository.** Everything lives in Atlas's data folder (`~/.site-atlas` or `SITE_ATLAS_HOME`).
+- A change becoming "applied" without an AI or a person confirming it.
+- A page diagram becoming unreadable because of threads from shared components.
+- Dragging that feels clumsy: a piece detached from the cursor, a gap that doesn't follow, or text getting selected while dragging.
 
-## 3. Conceptos nuevos
+## 3. New concepts
 
-| Concepto | Qué es |
+| Concept | What it is |
 |---|---|
-| **Diagrama** | Un nodo del organigrama. Puede ser una página real, una página planificada, un **destino** (ruta que no existe o sitio externo) o un **componente**. |
-| **Pieza** | La representación de un bloque (v1) dentro de un diagrama. |
-| **Componente compartido** | Un bloque global de la v1 (header, footer) con nombre: "Header 1", "Footer 1"… Las variantes distintas por huella se numeran "Header 2", y así. |
-| **Línea** | Un enlace de una pieza hacia otra pieza (ancla) o hacia un diagrama (página o destino). |
-| **Edición de enlace** | Cambio del destino de un enlace existente. |
-| **Conector nuevo** | Un enlace que no existe en el sitio y que el usuario agrega. |
-| **Cambio** | Cada diferencia entre el sitio real y lo planificado. Tiene un id estable y un estado. |
-| **Estado de un cambio** | `pendiente` (por defecto, siempre) o `aplicado` (solo tras confirmación). Aparte, se muestra si el último escaneo ya refleja el cambio. |
+| **Diagram** | A node of the org chart: a real page, a planned page, a **target** (a path that doesn't exist, or an external site) or a **component**. |
+| **Piece** | The representation of a v1 block inside a diagram. |
+| **Shared component** | A named global block: "Header 1", "Footer 1"… Variants with different fingerprints are numbered "Header 2" and so on (§10b). |
+| **Line** | A link from a piece to another piece (anchor) or to a diagram (page or target). |
+| **Link edit** | A change to the target of an existing link. |
+| **New connector** | A link that doesn't exist on the site and that the user adds. |
+| **Change** | Each difference between the real site and the plan. It has a stable id and a status. |
+| **Change status** | `pending` (the default, always) or `applied` (only after confirmation). Separately, the canvas shows whether the latest scan already reflects the change. |
 
-## 4. Vista Diagrama
+## 4. Diagram view
 
-**Diagramas**
-- **Páginas reales** del escaneo, más las planificadas.
-- **Destinos automáticos:** un diagrama por cada ruta interna enlazada que no existe (en `missingPages` o con un enlace roto), con la etiqueta NO EXISTE, y uno por cada origen externo enlazado, con la etiqueta EXTERNO.
-- Cada página muestra cuántas piezas tiene. Las páginas planificadas llevan la etiqueta PLANIFICADA y una × para eliminarlas (con confirmación; sus piezas vuelven a su página real).
+**Diagrams**
+- **Real pages** from the scan, plus planned pages.
+- **Automatic targets:** one diagram for each linked internal path that doesn't exist (in `missingPages` or behind a broken link), labeled NOT FOUND, and one for each linked external origin, labeled EXTERNAL.
+- Each page shows how many pieces it has. Planned pages are labeled PLANNED and have a × to delete them (with confirmation; their pieces go back to their real page).
 
-**Piezas**
-- **Cabecera:** número de orden, nombre, contadores (enlaces ↗n, medios ▣n) y alertas ⚠n.
-- **Fondo según tipo:** narrativa, visual o conversión.
-- **Detalle desplegable con un clic:** miniatura, tipo y alto, títulos, cada enlace con su destino efectivo (marcado "cambiado" si se editó), formularios y alertas.
-- **Selector de tipo y etiquetas** de la v1, dentro del detalle.
+**Pieces**
+- **Header row:** order number, name, counters (links ↗n, media ▣n) and issues ⚠n.
+- **Background by type:** narrative, visual or conversion.
+- **Details on click:** thumbnail, type and height, headings, every link with its effective target (marked "edited" if it was changed), forms and issues.
+- **The v1 type selector and tags**, inside the details.
 
-**Componentes compartidos**
-- En el diagrama de una página aparecen como pieza con la etiqueta COMPONENTE y **sin líneas**.
-- El selector **Mostrar** ofrece "Páginas" (todos los diagramas de página) y un diagrama propio por componente. En la vista de un componente, el componente queda a la izquierda con sus líneas; las piezas a las que apunta se resaltan y el resto se atenúa. Su título indica qué páginas lo usan.
+**Shared components**
+- In a page diagram they appear as a piece labeled COMPONENT, **with no lines**.
+- The **Show** selector offers "Pages" (all page diagrams) and one diagram per component. In a component's diagram, the component sits on the left with its lines; the pieces it points to are highlighted and the rest are dimmed. Its title says which pages use it.
 
-**Líneas**
-- **Salida:** desde el borde derecho de la pieza exacta.
-- **Llegada:** al borde más cercano de la pieza o diagrama destino; si el destino está en la misma columna, la línea hace un arco por la derecha.
-- **Colores:**
+**Lines**
+- **Start:** the right edge of the exact piece.
+- **End:** the nearest edge of the target piece or diagram; if the target is in the same column, the line loops out on the right.
+- **Colors:**
 
-| Color | Significa |
+| Color | Meaning |
 |---|---|
-| Azul | A otra sección |
-| Rojo | A una página que no existe |
-| Gris | A un sitio externo |
-| Verde punteado | Enlace editado |
-| Violeta punteado | Conector nuevo |
+| Blue | To another section |
+| Red | To a page that doesn't exist |
+| Gray | To an external site |
+| Dashed green | Edited link |
+| Dotted violet | New connector |
 
-- La casilla **"Mostrar enlaces dentro de la página (#anclas)"** oculta o muestra las líneas entre secciones de una misma página.
-- Cada línea termina en un **círculo** arrastrable (§6).
+- The **"Show links within the page (#anchors)"** checkbox hides or shows lines between sections of the same page.
+- Each line ends in a draggable **circle** (§6).
 
-**Funciones de la v1 que se conservan dentro del organigrama:** filtro y edición de etiquetas, interruptor Real / Planificado (en Real no se edita), marcar sección para eliminar (zona "Eliminar" como diagrama especial), huérfanos con Asignar o Descartar, re-escaneo y actualización en vivo por SSE.
+**v1 features kept inside the org chart:** tag filter and editing, the Real / Planned switch (no editing in Real), marking a section for deletion (a special "Delete" diagram), orphans with Assign or Discard, re-scan, and live updates over SSE.
 
-## 5. Vista Capturas
+## 5. Screenshots view
 
-- Selector **Vista: Diagrama | Capturas**. Los cambios hechos en una vista se ven en la otra.
-- En Capturas, cada pieza muestra su miniatura a todo el ancho del diagrama, con solo el número y el nombre superpuestos arriba a la izquierda. Se ocultan contadores, alertas, etiquetas, detalle y el ＋.
-- Los diagramas se ensanchan (página 480 px, destinos 300 px) y se separan horizontalmente ×1,6 respecto de su posición en Diagrama, para no superponerse. La posición guardada es una sola; el factor se aplica al mostrar.
-- Al entrar, el zoom se ajusta al ancho del contenido y la vista arranca arriba.
-- Arrastre, líneas, conectores e historial funcionan igual que en Diagrama.
+- A **View: Diagram | Screenshots** selector. Changes made in one view show in the other.
+- In Screenshots, each piece shows its thumbnail at the full width of the diagram, with only its number and name overlaid at the top left. Counters, issues, tags, details and the ＋ handle are hidden.
+- Diagrams get wider (pages 480 px, targets 300 px) and are spread horizontally ×1.6 relative to their Diagram position, so they don't overlap. There is one stored position; the factor is applied when rendering.
+- On entering the view, zoom fits the content width and the view starts at the top.
+- Dragging, lines, connectors and history work exactly as in Diagram.
 
-## 6. Interacciones
+## 6. Interactions
 
-**Lienzo**
-- Fondo punteado.
-- **Desplazarse:** rueda arriba o abajo; Shift + rueda a los lados; también arrastrando el fondo.
-- **Zoom:** Ctrl + rueda, hacia el cursor, de 20 % a 250 %.
-- **Barra inferior derecha:** −, porcentaje, +, 100 %, Ajustar (todo el contenido) y Centrar.
-- **Barra superior izquierda:** Deshacer (Ctrl+Z), Rehacer (Ctrl+Y o Ctrl+Shift+Z), Restablecer (pide confirmar "¿Estás seguro de deshacer todos los cambios?") y "+ Nueva página".
-- **Cambios planificados:** panel contraído por defecto, con el número de cambios en el título.
-- No se selecciona texto al arrastrar; el detalle desplegado sí se puede seleccionar.
+**Canvas**
+- Dotted background.
+- **Scroll:** wheel up and down; Shift + wheel sideways; or drag the background.
+- **Zoom:** Ctrl + wheel, toward the cursor, from 20 % to 250 %.
+- **Bottom-right bar:** −, percentage, +, 100 %, Fit (all content) and Center.
+- **Top-left bar:** Undo (Ctrl+Z), Redo (Ctrl+Y or Ctrl+Shift+Z), Reset (asks to confirm "Are you sure you want to undo all changes?") and "+ New page".
+- **Planned changes:** a panel collapsed by default, with the number of changes in its title.
+- No text gets selected while dragging; the expanded details can still be selected.
 
-**Arrastrar piezas** (arrastre propio, no el nativo del navegador ni SortableJS)
-- Empieza tras 5 px de movimiento; un clic sin movimiento despliega el detalle.
-- La pieza flota **dentro del lienzo, con el zoom aplicado**, pegada al punto donde se tomó.
-- Un **hueco** del mismo alto ocupa su lugar y se mueve en vivo. Las demás piezas se deslizan con una animación corta (FLIP, unos 160 ms).
-- El índice de destino se calcula con la **posición final de las piezas** (`offsetTop`), no con la animada.
-- El diagrama receptor es el que está bajo el cursor (`elementFromPoint`); se marca con borde azul punteado.
-- Los componentes no se arrastran entre páginas.
+**Dragging pieces** (custom drag; not the browser's native drag and not SortableJS)
+- Starts after 5 px of movement; a click without movement opens the details.
+- The piece floats **inside the canvas, with zoom applied**, stuck to the point where it was grabbed.
+- A **gap** of the same height takes its place and moves live. The other pieces slide with a short animation (FLIP, about 160 ms).
+- The drop index is computed from the pieces' **final layout positions** (`offsetTop`), not their animated ones.
+- The receiving diagram is the one under the cursor (`elementFromPoint`); it gets a dashed blue outline.
+- Components don't move between pages.
 
-**Mover diagramas**
-- Se arrastran por el título. Al pasar el cursor por el título, y mientras se mueven, el borde se **ilumina** (azul con halo) y el diagrama queda por encima.
-- Las páginas nuevas aparecen cerca del centro de la vista, en un hueco libre.
+**Moving diagrams**
+- Diagrams are dragged by their title. While the cursor is over the title, and while moving, the border **lights up** (blue with a halo) and the diagram stays on top.
+- New pages appear near the center of the view, in a free spot.
 
-**Flechas y conectores**
-- **Redirigir:** se arrastra el círculo final de una línea. Si queda a menos de 70 px de una pieza o diagrama válido, el destino se ilumina y la línea se imanta; al soltar se guarda la edición de enlace.
-- **Crear:** se arrastra desde el punto ＋ violeta que aparece al pasar sobre una pieza (en el diagrama de página, todas salvo componentes; en el de un componente, el componente).
-- **Eliminar un conector nuevo:** un clic sin arrastre en su círculo, con confirmación.
-- Al eliminar una página planificada se eliminan los conectores y ediciones que apuntaban a ella.
+**Arrows and connectors**
+- **Retarget:** drag the end circle of a line. If it comes within 70 px of a valid piece or diagram, the target lights up and the line snaps to it; on release the link edit is saved.
+- **Create:** drag from the violet ＋ handle that appears when hovering a piece (in a page diagram, any piece except components; in a component's diagram, the component).
+- **Delete a new connector:** click its end circle without dragging, then confirm.
+- Deleting a planned page also deletes the connectors and edits that pointed to it.
 
-**Crear página**
-- Diálogo con **Ruta** (se normaliza: `/` inicial, minúsculas, sin `/` final ni dobles) y **Título** (opcional; si falta, se usa la ruta).
-- Rechaza rutas vacías o repetidas con un mensaje en el diálogo.
+**Creating a page**
+- A dialog with **Path** (normalized: leading `/`, lowercase, no trailing `/` and no doubled slashes) and **Title** (optional; defaults to the path).
+- Empty or duplicate paths are rejected with a message inside the dialog.
 
-**Historial**
-- Cada operación es un paso: mover pieza, mover diagrama, editar o crear enlace, crear o eliminar página y conector, Restablecer.
-- Vive en memoria del navegador. Restablecer vuelve al estado de la capa del usuario guardada al abrir el lienzo, no a la v1 sin cambios.
+**History**
+- Each operation is one step: moving a piece, moving a diagram, editing or creating a link, creating or deleting a page or a connector, Reset.
+- It lives in browser memory. Reset returns to the user layer as it was saved when the canvas was opened, not to an untouched v1.
 
-## 7. Datos (capa del usuario, `overlay.json`)
+## 7. Data (user layer, `overlay.json`)
 
-Se agregan campos con `schemaVersion: 2`; la migración desde la v1 los inicializa vacíos.
+New fields with `schemaVersion: 2`; the migration from v1 initializes them empty and translates the type values (§9).
 
-- `layout`: `{ [diagramId]: { x, y } }`, posición de cada diagrama (en coordenadas de la vista Diagrama).
-- `componentNames`: `{ [huella]: "Header 1" }`, editable.
-- `linkEdits`: `{ [linkId]: Target }`. `linkId` = `<blockKey>|<href original>|<texto>`, estable entre escaneos; el índice no se usa.
-- `addedLinks`: `[{ id, from: blockKey, to: Target, label? }]`.
+- `layout`: `{ [diagramId]: { x, y } }`, each diagram's position (in Diagram-view coordinates).
+- `componentNames`: `{ [componentId]: "Header 1" }`, editable.
+- `linkEdits`: `{ [linkId]: Target & { by } }`. `linkId` = `<owner>|<original href>|<text>`, where `owner` is a `blockKey` or a `componentId`. It is stable across scans; the link's index is not used.
+- `addedLinks`: `[{ id, from: owner, to: Target, label?, by }]`.
 - `confirmations`: `{ [changeId]: { at, by, note } }`.
-- `Target` = `{ block: blockKey } | { page: ruta o URL }`.
+- `Target` = `{ block: blockKey } | { page: path or URL }`.
 
-La conciliación de la v1 se extiende: las claves de bloque dentro de `linkEdits`, `addedLinks` y como destino también se renombran o quedan huérfanas con las mismas reglas.
+v1 reconciliation is extended: block keys inside `linkEdits`, `addedLinks` and as targets are also renamed, or become orphans, under the same rules.
 
-## 8. El plan legible por cualquier IA
+## 8. A plan any AI can read
 
-### 8.1 Cambios
+### 8.1 Changes
 
-El plan se **deriva** del estado (escaneo + capa del usuario), como `atlas_get_plan` en la v1, ampliado con estos tipos:
+The plan is **derived** from the state (scan + user layer), like v1's `atlas_get_plan`, extended with these types:
 
-| Tipo | Significa |
+| Type | Meaning |
 |---|---|
-| `newPage` | Crear una página planificada |
-| `move` | Mover una sección a otra página |
-| `reorder` | Reordenar secciones dentro de una página |
-| `delete` | Eliminar una sección |
-| `relink` | Cambiar el destino de un enlace existente |
-| `addLink` | Agregar un enlace nuevo en una sección |
+| `newPage` | Create a planned page |
+| `move` | Move a section to another page |
+| `reorder` | Reorder sections within a page |
+| `delete` | Delete a section |
+| `relink` | Change the target of an existing link |
+| `addLink` | Add a new link to a section |
 
-Cada cambio tiene:
+Each change has:
 
-- `id`: hash estable de su contenido (tipo + claves + destino). Si el usuario modifica ese cambio, cambia el id y el cambio vuelve a pendiente.
-- `status`: `pending` | `applied`. Es `applied` solo si `confirmations[id]` existe.
-- `observed`: `true` | `false` | `null`. Indica si el último escaneo ya refleja el cambio (por ejemplo, la sección ya está en la página destino). Es solo informativo: **nunca cambia `status`**.
-- `summary`: una línea en español, por ejemplo `Mover "Tecnología" de / a /es/soluciones/brokers`.
-- `details`: datos exactos para implementar:
-  - página y sección de origen (nombre, `blockKey`, título, ancla, extracto de texto);
-  - destino (página, posición, sección vecina antes y después);
-  - para enlaces: texto del enlace, `href` actual y nuevo `href` sugerido (`/ruta#ancla` si el destino tiene ancla);
-  - alertas que el cambio resuelve (por ejemplo, el enlace roto a `/es/soluciones/brokers`).
-- `doneWhen`: criterio verificable en lenguaje claro, por ejemplo "La página /es/soluciones/brokers contiene la sección 'Tecnología' y / ya no la contiene."
+- `id`: a stable hash of what the change means (§10b). If the user modifies that change, the id changes and the change is pending again.
+- `status`: `pending` | `applied`. It is `applied` only when `confirmations[id]` exists.
+- `observed`: `true` | `false` | `null`. Whether the latest scan already reflects the change (for example, the section is already on the target page). It is informational only and **never changes `status`**.
+- `summary`: one line in English, for example `Move "Technology" from / to /es/soluciones/brokers`.
+- `details`: the exact data needed to implement it:
+  - source page and section (name, `blockKey`, heading, anchor, text excerpt);
+  - target (page, position, and the sections immediately before and after);
+  - for links: link text, current `href` and suggested new `href` (`/path#anchor` when the target has an anchor);
+  - issues the change resolves (for example, the broken link to `/es/soluciones/brokers`);
+  - who proposed it (`by`).
+- `doneWhen`: a verifiable criterion in plain language, for example "Page /es/soluciones/brokers contains the 'Technology' section and / no longer does."
 
-Un cambio aplicado sigue en el plan mientras exista la diferencia en el estado. Desaparece cuando el escaneo muestra el sitio igual que el plan; su confirmación queda en `confirmations` como historial.
+An applied change stays in the plan while the difference still exists in the state. It disappears once the scan shows the site matching the plan; its confirmation stays in `confirmations` as history.
 
-### 8.2 Cómo lo leen las IAs (sin escribir en el repo del sitio)
+### 8.2 How AIs read and edit it (without writing to the site's repository)
 
-**MCP**
-- `atlas_get_plan { site, status? }` devuelve el texto en Markdown más el JSON con los campos del §8.1.
-- **Nueva:** `atlas_confirm_change { site, changeId, note }` marca el cambio como aplicado. Exige `note`: qué se hizo y dónde (archivo, commit). Devuelve el plan actualizado.
-- **Nueva:** `atlas_reopen_change { site, changeId, note }` vuelve un cambio a pendiente.
+**MCP: read and confirm**
+- `atlas_get_plan { site, status? }` returns the Markdown text plus the JSON with the fields from §8.1.
+- **New:** `atlas_confirm_change { site, changeId, note }` marks a change as applied. `note` is required: what was done and where (file, commit). Returns the updated plan.
+- **New:** `atlas_reopen_change { site, changeId, note }` sets a change back to pending.
 
-**Las IAs también proponen cambios** (decidido por el usuario). Además de las herramientas de la v1 (`atlas_move_block`, `atlas_add_planned_page`, etiquetas), el MCP agrega:
-- `atlas_relink { site, blockKey, linkText, linkHref, to }`: redirige un enlace existente.
-- `atlas_add_link { site, blockKey, to, label? }`: agrega un conector.
-- `atlas_remove_link { site, linkId }`: quita un conector agregado o una edición de enlace.
-- `atlas_remove_planned_page { site, path }`: elimina una página planificada; sus piezas vuelven a su página real.
-- `atlas_mark_deleted { site, blockKey }` y `atlas_restore { site, blockKey }`.
+**MCP: AIs can also propose changes** (decided by the user). Besides the v1 tools (`atlas_move_block`, `atlas_add_planned_page`, tags), MCP adds:
+- `atlas_relink { site, owner, linkText, linkHref, to }`: retargets an existing link.
+- `atlas_add_link { site, owner, to, label? }`: adds a connector.
+- `atlas_remove_link { site, linkId }`: removes an added connector or a link edit.
+- `atlas_remove_planned_page { site, path }`: deletes a planned page; its pieces go back to their real page.
+- `atlas_mark_deleted { site, blockKey }` and `atlas_restore { site, blockKey }`.
 
-Son las mismas operaciones que usa el lienzo, por la misma capa de servicio y con el mismo bloqueo. Los agentes no envían `rev`; validan el destino y responden con error legible si no existe. Todo cambio propuesto por una IA queda **pendiente**, igual que los del usuario. Cada edición guarda quién la hizo (`by`: `lienzo` o el nombre del cliente MCP o de la terminal), y el panel de cambios lo muestra.
+These are the same operations the canvas uses, through the same service layer and with the same lock. Agents don't send `rev`; they validate the target and return a readable error if it doesn't exist. Every change proposed by an AI is **pending**, just like the user's. Each edit records who made it (`by`: `canvas`, or the name of the MCP client or of the CLI), and the changes panel shows it.
 
-**Terminal**, para IAs sin MCP pero con acceso a la terminal:
-- `site-atlas plan <site> [--json] [--status pending|applied]` imprime el plan en stdout.
-- `site-atlas confirm <site> <changeId> --note "<texto>"`.
-- `site-atlas reopen <site> <changeId> --note "<texto>"`.
-- Equivalentes para proponer: `site-atlas move`, `site-atlas page add|remove`, `site-atlas relink`, `site-atlas link add|remove`, `site-atlas delete|restore`, con las mismas entradas que el MCP.
+**CLI**, for AIs with a terminal but no MCP:
+- `site-atlas plan <site> [--json] [--status pending|applied]` prints the plan to stdout.
+- `site-atlas confirm <site> <changeId> --note "<text>"`.
+- `site-atlas reopen <site> <changeId> --note "<text>"`.
+- Equivalents for proposing: `site-atlas move`, `site-atlas page add|remove`, `site-atlas relink`, `site-atlas link add|remove`, `site-atlas delete|restore`, with the same inputs as MCP.
 
-**Formato del texto (Markdown):**
-1. un encabezado con el sitio y el escaneo;
-2. un párrafo fijo de **instrucciones para la IA**: implementar en el código del sitio, verificar, y solo entonces confirmar con `atlas_confirm_change` o `site-atlas confirm`; nunca confirmar sin haber aplicado el cambio;
-3. la lista de cambios, cada uno con id, estado, resumen, detalles y criterio de hecho.
+**Text format (Markdown):**
+1. a header with the site and the scan;
+2. a fixed paragraph of **instructions for the AI**: implement in the site's code, verify, and only then confirm with `atlas_confirm_change` or `site-atlas confirm`; never confirm without having applied the change;
+3. the list of changes, each with id, status, summary, details and done criterion.
 
-**Esquema JSON documentado** en `docs/plan-schema.md` del repo de Site Atlas (no del sitio), con un ejemplo completo. El JSON lleva `schemaVersion`.
+**A documented JSON schema** in `docs/plan-schema.md` in the Site Atlas repository (not the site's), with a complete example. The JSON carries `schemaVersion`.
 
-**El texto del sitio** dentro del plan (nombres, títulos, extractos) va marcado como contenido no confiable, como en la v1.
+**Text from the site** inside the plan (names, headings, excerpts) is marked as untrusted content, as in v1.
 
-### 8.3 En el lienzo
+### 8.3 In the canvas
 
-El panel "Cambios planificados" lista cada cambio con su estado. Los aplicados llevan una marca y quién los confirmó; los observados en el sitio llevan un indicador. El usuario no confirma desde el lienzo; solo ve el estado.
+The "Planned changes" panel lists every change with its status. Applied ones show a mark and who confirmed them; ones observed on the site show an indicator. The user doesn't confirm from the canvas; the canvas only shows the status.
 
-## 9. Restricciones
+## 9. Language: English everywhere
 
-- Igual que la v1: todo local, servidor en `127.0.0.1`, sin telemetría, sin `v-html`.
-- **Ninguna escritura fuera de la carpeta de datos de Atlas.** Esto se prueba (§10).
-- Rendimiento del arrastre: hasta 60 piezas por página y 20 diagramas visibles sin tirones perceptibles. Las líneas se redibujan como máximo una vez por cuadro (`requestAnimationFrame`).
-- Cada mutación pasa por la capa de servicio de la v1, con su bloqueo y control de `rev`.
+The whole product is in English, including what v1 shipped in Spanish:
 
-## 10. Criterio de éxito
+- canvas interface: labels, buttons, dialogs, empty states, tooltips and notices;
+- MCP tool names stay as they are; their descriptions, parameter descriptions, outputs (map text, plan text, untrusted-content notice) and error messages are in English;
+- CLI help and output;
+- issue messages (`broken-link`, `missing-anchor`, etc.) and change `summary` / `doneWhen` texts;
+- design documents: this document and the v1 design are in English; the v1 implementation plan stays as a historical record.
 
-1. Con SCAP Beta 1, el organigrama muestra el Home con 15 piezas.
-   - **Pestaña Páginas:** 4 líneas propias (2 del Hero, 1 a `/es/soluciones/brokers` en rojo, 1 a scapbroker.com en gris) y los destinos NO EXISTE y EXTERNO.
-   - **Pestaña Header 1:** sus 7 líneas.
-2. Las interacciones del §6 se comportan como en el prototipo v11. En particular, arrastrar "La plataforma" hasta entre "Soluciones" y "Tecnología para brokers" avanza el hueco una posición por vez, sin oscilar, y la deja exactamente ahí, con zoom distinto de 100 %.
-3. Tras mover una sección, redirigir un enlace y agregar un conector:
-   - `atlas_get_plan` y `site-atlas plan` devuelven esos cambios como `pending`, con `details` y `doneWhen`;
-   - `atlas_confirm_change` los pasa a `applied`;
-   - un re-escaneo no los vuelve pendientes ni los confirma solo.
-4. Una prueba recorre un flujo completo (escanear, planificar y confirmar) y comprueba que el árbol de archivos del sitio escaneado no cambió.
-5. Un agente sin MCP, solo con terminal, puede leer el plan e implementar un cambio guiado únicamente por `site-atlas plan`. Se verifica con Codex u otro agente sobre una copia de SCAP Beta 1.
+Section **type values** become English: `narrative`, `visual`, `conversion` (v1 stored `narrativa`). The user-layer migration translates `kindOverrides`, and scans saved by v1 are read with the same mapping.
 
-## 10b. Reglas precisas (decididas por Claude tras la revisión)
+Text taken from the scanned site (section names, headings, excerpts) is shown as it is, in whatever language the site uses.
 
-**Historial (Deshacer, Rehacer y Restablecer)**
-- Cada paso guarda una foto solo de los campos de plan de la capa: `plannedOrder`, `plannedPages`, `plannedDeletions`, `layout`, `linkEdits`, `addedLinks`.
-- Deshacer o Rehacer envía una operación `replacePlanFields` con el `rev` actual. Nunca toca `confirmations`, `tags`, `blockTags`, `kindOverrides`, `componentNames` ni huérfanos.
-- Si llega un aviso SSE de que otro cliente escribió (una IA, otra pestaña, un re-escaneo), el lienzo recarga el mapa, **vacía el historial** y muestra "El mapa cambió desde otro lugar; el historial se reinició". Restablecer usa la foto tomada en ese momento.
+## 10. Constraints
 
-**Identidad de los cambios** (el id no incluye posiciones exactas)
+- Same as v1: everything local, server on `127.0.0.1`, no telemetry, no `v-html`.
+- **No writes outside Atlas's data folder.** This is tested (§11).
+- Drag performance: up to 60 pieces per page and 20 visible diagrams with no perceptible stutter. Lines are redrawn at most once per frame (`requestAnimationFrame`).
+- Every mutation goes through the v1 service layer, with its lock and `rev` control.
 
-| Tipo | Contenido del id |
+## 10b. Precise rules (decided by Claude after review)
+
+**History (Undo, Redo and Reset)**
+- Each step stores a snapshot of only the plan fields of the user layer: `plannedOrder`, `plannedPages`, `plannedDeletions`, `layout`, `linkEdits`, `addedLinks`.
+- Undo or Redo sends a `replacePlanFields` operation with the current `rev`. It never touches `confirmations`, `tags`, `blockTags`, `kindOverrides`, `componentNames` or orphans.
+- If an SSE notice says another client wrote (an AI, another tab, a re-scan), the canvas reloads the map, **clears the history** and shows "The map changed elsewhere; history was reset." Reset uses the snapshot taken at that moment.
+
+**Change identity** (the id never includes exact positions)
+
+| Type | What the id is built from |
 |---|---|
-| `newPage` | ruta |
-| `move` | `blockKey` + página destino. La posición va en `details`, no en el id. |
-| `reorder` | un cambio **por sección desplazada** (fuera de la subsecuencia creciente más larga): `blockKey` + página + clave de la sección que queda inmediatamente antes (o "inicio") |
+| `newPage` | path |
+| `move` | `blockKey` + target page. The position goes in `details`, not the id. |
+| `reorder` | one change **per displaced section** (outside the longest increasing subsequence): `blockKey` + page + key of the section immediately before it (or "start") |
 | `delete` | `blockKey` |
-| `relink` | `linkId` + identidad del destino (`blockKey` o ruta/URL). Si la sección destino se mueve, el id no cambia; el `href` sugerido sí se actualiza. |
-| `addLink` | `blockKey` origen + identidad del destino |
+| `relink` | `linkId` + target identity (`blockKey` or path/URL). If the target section moves, the id doesn't change; the suggested `href` does. |
+| `addLink` | source owner + target identity |
 
-**Enlaces tras re-escanear**
-- **`relink`:** está *observado* si la sección de origen tiene algún enlace cuyo destino resuelto coincide con el destino planificado (misma página y, si el destino es una sección, su ancla). El texto no importa. Cuando se observa, la conciliación **retira** la edición de `linkEdits`: el cambio desaparece del plan y su confirmación queda como historial. Si no se observa y el `linkId` ya no existe, la edición pasa a huérfanos, como un bloque.
-- **`addLink`:** misma regla, por destino resuelto desde el bloque de origen.
+**Links after a re-scan**
+- **`relink`:** it is *observed* when the source section has a link whose resolved target matches the planned target (same page and, if the target is a section, its anchor). The link text doesn't matter. Once observed, reconciliation **removes** the edit from `linkEdits`: the change disappears from the plan and its confirmation stays as history. If it isn't observed and its `linkId` no longer exists, the edit becomes an orphan, like a block.
+- **`addLink`:** same rule, by resolved target from the source owner.
 
-**Componentes compartidos**
-- Todo `header`, `footer`, `[role=banner]` y `[role=contentinfo]` de primer nivel es componente **aunque aparezca en una sola página**. Además, los bloques globales de la v1 (huella repetida en dos o más páginas) también son componentes. Las piezas de la v1 con `global: true` se mantienen.
-- **Identidad:** `componentId` = `c:` + huella del primer escaneo en que apareció. En escaneos siguientes se concilia con las reglas de §5.5 de la v1 (huella igual o similitud ≥ 0,8), así que `componentNames` sobrevive a cambios de texto.
-- Las ediciones y conectores de un componente se guardan bajo su `componentId` y **valen para todas las páginas que lo usan**. El plan lo dice explícitamente: "Header 1 (usado en: /, /otra)".
+**Shared components**
+- Every top-level `header`, `footer`, `[role=banner]` and `[role=contentinfo]` is a component **even if it appears on only one page**. v1 global blocks (fingerprint repeated on two or more pages) are components too. v1 pieces with `global: true` stay as they are.
+- **Identity:** `componentId` = `c:` + the fingerprint from the first scan it appeared in. Later scans reconcile it with v1 §5.5 rules (same fingerprint or similarity ≥ 0.8), so `componentNames` survives text changes.
+- A component's link edits and connectors are stored under its `componentId` and **apply to every page that uses it**. The plan says so explicitly: "Header 1 (used on: /, /other)".
 
-## 11. Decisiones de cómo se construye (propuestas por Claude, a confirmar)
+## 11. Success criteria
 
-- El organigrama reemplaza al tablero de columnas como vista del lienzo y conserva sus funciones (§4).
-- Arrastre propio en vez de SortableJS / `vue-draggable-plus`: es la única forma que respetó el zoom en el prototipo. La dependencia se quita.
-- Líneas en un único SVG superpuesto, en coordenadas del lienzo sin zoom.
-- `linkId` por href + texto, no por índice, para que sobreviva a re-escaneos.
-- Ids de cambio derivados del contenido, sin registro de eventos: Deshacer, Rehacer y Restablecer siguen siendo simples, y la confirmación se ata al cambio exacto.
+1. With SCAP Beta 1, the org chart shows the Home page with 15 pieces.
+   - **Pages tab:** 4 lines of its own (2 from the Hero, 1 in red to `/es/soluciones/brokers`, 1 in gray to scapbroker.com) and the NOT FOUND and EXTERNAL targets.
+   - **Header 1 tab:** its 7 lines.
+2. The §6 interactions behave as in prototype v11. In particular, dragging "La plataforma" to between "Soluciones" and "Tecnología para brokers" advances the gap one position at a time, without flickering, and drops it exactly there, at a zoom level other than 100 %.
+3. After moving a section, retargeting a link and adding a connector:
+   - `atlas_get_plan` and `site-atlas plan` return those changes as `pending`, with `details` and `doneWhen`;
+   - `atlas_confirm_change` sets them to `applied`;
+   - a re-scan neither sets them back to pending nor confirms them on its own.
+4. A test runs a full flow (scan, plan, confirm) and checks that the scanned site's file tree did not change.
+5. An agent with a terminal but no MCP can read the plan and implement a change guided only by `site-atlas plan`. Verified with Codex or another agent on a copy of SCAP Beta 1.
+6. No Spanish text remains in the interface, MCP or CLI, except text that comes from the scanned site. Checked by a test that scans the built canvas, MCP descriptions and CLI help for a list of common Spanish words.
 
-## 12. Lo que queda al constructor
+## 12. Build decisions (proposed by Claude, to confirm)
 
-- Distribución automática inicial de los diagramas cuando no hay `layout` guardado.
-- Paleta exacta y detalles visuales finos (guía: el prototipo v11).
-- Formato exacto del Markdown del plan, respetando el orden del §8.2.
-- Cómo se muestran muchas páginas (más de 20): agrupación o minimapa, si hace falta.
+- The org chart replaces the column board as the canvas view and keeps its features (§4).
+- A custom drag instead of SortableJS / `vue-draggable-plus`: it was the only approach that respected zoom in the prototype. The dependency is removed.
+- Lines in a single overlay SVG, in unzoomed canvas coordinates.
+- `linkId` built from href + text, not index, so it survives re-scans.
+- Change ids derived from content, with no event log: Undo, Redo and Reset stay simple, and a confirmation is tied to the exact change.
+- English strings live in one module per side (server and canvas), not scattered through components, so a future translation is easy, even though localization is not a v2 goal.
+
+## 13. Left to the builder
+
+- Initial automatic layout of diagrams when no `layout` is stored.
+- Exact palette and fine visual details (guide: prototype v11).
+- Exact format of the plan's Markdown, following the order in §8.2.
+- How to show many pages (more than 20): grouping or a minimap, if needed.

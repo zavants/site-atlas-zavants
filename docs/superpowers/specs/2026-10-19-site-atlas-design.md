@@ -1,221 +1,222 @@
-# Site Atlas — Diseño v1
+# Site Atlas — Design v1
 
-**Estado:** borrador para aprobación · **Fecha:** 2026-10-19 · **Repo:** `zavants/site-atlas-zavants` (privado)
+**Status:** implemented (merged in PR #1) · **Date:** 2026-10-19 · **Repo:** `zavants/site-atlas-zavants` (public, MIT)
+**Note:** originally written in Spanish and translated to English on 2026-10-19. Design v2 (`2026-10-19-organigrama-design.md`) extends it.
 
 ---
 
-## 1. Intención
+## 1. Intent
 
-Ver un sitio web **por bloques** en una sola pantalla y organizarlo con las manos. Hoy, para entender la estructura de una página (qué secciones tiene, en qué orden, qué hay dentro de cada una, qué está roto o es provisional), hay que leer el código o dibujarla a mano en draw.io. Site Atlas genera ese mapa solo, a partir del sitio renderizado, y lo muestra en un lienzo donde los bloques se arrastran, se reordenan y se etiquetan.
+See a website **by sections** on one screen, and organize it by hand. Today, understanding a page's structure (which sections it has, in what order, what's inside each one, what's broken or provisional) means reading the code or drawing it manually in draw.io. Site Atlas builds that map on its own from the rendered site, and shows it on a canvas where sections can be dragged, reordered and tagged.
 
-Sirve para cualquier sitio: el primero es el de SCAP Tech (prototipo Beta 1 del Home), pero la herramienta no depende de él.
+It works for any site. The first one is SCAP Tech (the Beta 1 prototype of its Home page), but the tool doesn't depend on it.
 
-Es **compatible con MCP desde el día 1**: cualquier agente (Claude Code, Codex, Antigravity…) puede escanear un sitio, leer el mapa, leer lo que el equipo organizó en el lienzo y modificarlo. El mismo dato alimenta la pantalla y las herramientas MCP.
+It is **MCP-compatible from day one**: any agent (Claude Code, Codex, Antigravity…) can scan a site, read the map, read what the team organized on the canvas, and change it. The same data feeds the screen and the MCP tools.
 
-## 2. Objetivos, no objetivos y anti-objetivos
+## 2. Goals, non-goals and anti-goals
 
-**Objetivos v1**
+**Goals for v1**
 
-1. Escanear un sitio (localhost, staging o producción) y obtener sus páginas divididas en bloques con nombre, tipo, componentes, miniatura y alertas.
-2. Lienzo con arrastrar y soltar: reordenar bloques dentro de una página y moverlos entre páginas, incluidas páginas planificadas que aún no existen.
-3. Etiquetas como atributo de cada bloque (no como zona de soltar), con barra de filtro.
-4. Servidor MCP que expone el mapa, las alertas, las etiquetas y el orden planificado, y permite cambiarlos.
+1. Scan a site (localhost, staging or production) and get its pages split into sections, each with name, type, components, thumbnail and issues.
+2. A drag-and-drop canvas: reorder sections within a page and move them between pages, including planned pages that don't exist yet.
+3. Tags as an attribute of each section (not as a drop zone), with a filter bar.
+4. An MCP server that exposes the map, issues, tags and planned order, and lets agents change them.
 
-**No objetivos v1** (pueden venir después)
+**Non-goals for v1** (may come later)
 
-- Aplicar al sitio real lo que se mueve en el lienzo. En v1 el lienzo produce un **orden planificado**; un agente lo lee vía MCP (`atlas_get_plan`) y hace el cambio en el código.
-- Leer la estructura desde el código fuente (Astro u otro). v1 trabaja sobre el sitio renderizado.
-- URL compartida para el equipo (hospedada, con inicio de sesión) y colaboración multiusuario en línea. v1 es solo local (decidido el 2026-10-19). Para no cerrarle la puerta, el lienzo habla con su servidor solo por la API HTTP + SSE del §6: hospedarlo después implica cambiar almacenamiento y autenticación, no el lienzo.
-- Mostrar el lienzo dentro de clientes de IA (MCP Apps).
-- Páginas detrás de inicio de sesión.
-- Pantalla de comparación entre escaneos (el dato queda guardado para hacerlo después).
-- Exportar a Figma, Miro u otros lienzos.
+- Applying canvas changes to the real site. In v1 the canvas produces a **planned order**; an agent reads it through MCP (`atlas_get_plan`) and makes the change in the code.
+- Reading structure from source code (Astro or otherwise). v1 works on the rendered site.
+- A shared team URL (hosted, with sign-in) and real-time multi-user collaboration. v1 is local only (decided 2026-10-19). To keep that door open, the canvas talks to its server only through the HTTP + SSE API in §6: hosting later means changing storage and authentication, not the canvas.
+- Showing the canvas inside AI clients (MCP Apps).
+- Pages behind a login.
+- A screen to compare scans (the data is kept so it can be built later).
+- Export to Figma, Miro or other canvases.
 
-**Anti-objetivos** (si pasa esto, falló aunque funcione)
+**Anti-goals** (if these happen, it failed even if it works)
 
-- Que la herramienta modifique el sitio escaneado.
-- Que exija cambiar el sitio escaneado para funcionar (las marcas opcionales del §5.1 ayudan, pero no son requisito).
-- Que un re-escaneo borre las etiquetas o el orden que el equipo organizó.
-- Que envíe datos del sitio a servicios de terceros.
+- The tool modifying the scanned site.
+- Requiring changes to the scanned site in order to work (the optional markers in §5.1 help, but are not required).
+- A re-scan wiping the tags or order the team organized.
+- Sending site data to third-party services.
 
-## 3. Conceptos
+## 3. Concepts
 
-| Concepto | Qué es |
+| Concept | What it is |
 |---|---|
-| **Sitio** | Un proyecto con nombre (p. ej. `scap-tech`) que agrupa uno o varios **entornos**: orígenes con ruta base (p. ej. `http://localhost:4405/beta-1/`, `https://staging.…/`). La capa del usuario es del sitio, no del entorno: lo organizado sobre localhost se ve al escanear staging o producción. Si `atlas_scan` no recibe `site`, se deriva de host + puerto + primer segmento de ruta. |
-| **Escaneo** | Una fotografía del sitio en un momento: páginas, bloques, componentes, alertas, miniaturas. Inmutable; se guardan todos. |
-| **Página** | Una URL del sitio. Puede ser **real** (vino del escaneo) o **planificada** (creada en el lienzo o por MCP). |
-| **Bloque** | Una sección de primer nivel de una página (header, hero, una sección, footer). |
-| **Componente** | Lo que hay dentro de un bloque: títulos, enlaces, botones, formularios, medios (img, video, canvas). Se resume, no se edita. |
-| **Tipo de bloque** | `narrativa`, `visual` o `conversión`. Se infiere y el usuario puede corregirlo. |
-| **Etiqueta** | Nombre + color definidos por sitio. Un bloque puede tener varias. |
-| **Alerta** | Problema detectado en un bloque o página (§5.4). |
-| **Capa del usuario** | Lo que el equipo decide encima del escaneo: etiquetas, tipo corregido, orden planificado, páginas planificadas. Vive separada del escaneo para sobrevivir a re-escaneos. |
+| **Site** | A named project (e.g. `scap-tech`) that groups one or more **environments**: origins with a base path (e.g. `http://localhost:4405/beta-1/`, `https://staging.…/`). The user layer belongs to the site, not the environment: what was organized on localhost is still there when scanning staging or production. If `atlas_scan` gets no `site`, it is derived from host + port + first path segment. |
+| **Scan** | A snapshot of the site at a point in time: pages, sections, components, issues, thumbnails. Immutable; all of them are kept. |
+| **Page** | A URL of the site. It can be **real** (it came from the scan) or **planned** (created on the canvas or through MCP). |
+| **Section** (block) | A top-level section of a page (header, hero, a section, footer). In code and keys it is called a *block*. |
+| **Component** | What's inside a section: headings, links, buttons, forms, media (img, video, canvas). Summarized, not edited. |
+| **Section type** | `narrative`, `visual` or `conversion`. Inferred, and the user can correct it. (v1 stored `narrativa`; design v2 switches to English values.) |
+| **Tag** | A name + color defined per site. A section can have several. |
+| **Issue** | A problem detected in a section or page (§5.4). |
+| **User layer** | What the team decides on top of the scan: tags, corrected type, planned order, planned pages. Stored separately from the scan so it survives re-scans. |
 
-## 4. Recorrido
+## 4. Walkthrough
 
-1. Un agente llama `atlas_scan({ url })` (o se ejecuta `site-atlas scan <url>` en la terminal).
-2. Se abre el lienzo (`atlas_open_canvas` devuelve `http://localhost:4800/s/<siteId>`).
-3. El equipo arrastra, reordena, crea páginas planificadas y etiqueta.
-4. Un agente consulta `atlas_get_plan` y obtiene las diferencias entre el orden real y el planificado, listas para implementar en el código.
-5. Tras cambiar el sitio, se re-escanea; el lienzo muestra el nuevo estado con la capa del usuario conservada.
+1. An agent calls `atlas_scan({ url })` (or someone runs `site-atlas scan <url>` in the terminal).
+2. The canvas opens (`atlas_open_canvas` returns `http://localhost:4800/s/<siteId>`).
+3. The team drags, reorders, creates planned pages and tags.
+4. An agent calls `atlas_get_plan` and gets the differences between the real and planned order, ready to implement in code.
+5. After changing the site, it is re-scanned; the canvas shows the new state with the user layer preserved.
 
-## 5. Escaneo
+## 5. Scanning
 
-### 5.1 Detección de bloques
+### 5.1 Detecting sections
 
-Se renderiza cada página en Chromium headless a 1440×900 con `prefers-reduced-motion: reduce` emulado. Se recorre la página con scroll hasta el final para disparar contenido diferido y revelados, y se espera a que la red quede inactiva. Los elementos ocultos solo por animaciones de entrada (opacidad 0 con clase de revelado) cuentan como visibles.
+Each page is rendered in headless Chromium at 1440×900, with `prefers-reduced-motion: reduce` emulated. The page is scrolled to the bottom to trigger lazy content and reveal animations, then the scanner waits for the network to go idle. Elements hidden only by entrance animations (opacity 0 with a reveal class) count as visible.
 
-Reglas:
+Rules:
 
-1. **Marcas explícitas:** si la página tiene elementos `[data-atlas-block]`, esos son los bloques y no se aplican las demás reglas. `data-atlas-block="Nombre"` fija el nombre. Es opcional y pensado para los sitios propios.
-2. **Estructura semántica:** `header` / `[role=banner]` de primer nivel, cada `section` que no esté dentro de otra `section`, y `footer` / `[role=contentinfo]` de primer nivel. Los envoltorios (`div` que solo contienen una `section`, como `.hero-track` en SCAP Beta 1) se atraviesan. Un `nav` dentro del header no es un bloque aparte.
-3. **Respaldo, combinado con la regla 2:** los hijos directos visibles de `main` (o de `body` si no hay `main`) con altura ≥ 80 px que no contengan ni sean un bloque de la regla 2 también son bloques. Así una página que mezcla `section` y `div` no pierde contenido.
+1. **Explicit markers:** if the page has `[data-atlas-block]` elements, those are the sections and the other rules don't apply. `data-atlas-block="Name"` sets the name. Optional, intended for your own sites.
+2. **Semantic structure:** top-level `header` / `[role=banner]`, every `section` not nested in another `section`, and top-level `footer` / `[role=contentinfo]`. Wrappers (a `div` containing only one `section`, like `.hero-track` in SCAP Beta 1) are traversed. A `nav` inside the header is not a separate section.
+3. **Fallback, combined with rule 2:** visible direct children of `main` (or `body` if there's no `main`) at least 80 px tall that neither contain nor are a rule-2 section are also sections. That way a page mixing `section` and `div` doesn't lose content.
 
-**Bloques globales:** un bloque cuya huella (§5.5) se repite en dos o más páginas, como el header y el footer, se marca como global. El lienzo lo muestra una sola vez en un carril "Global" en vez de repetirlo en cada columna.
+**Global sections:** a section whose fingerprint (§5.5) appears on two or more pages, like the header and footer, is marked global. The canvas shows it once, in a "Global" lane, instead of repeating it in every column.
 
-Elementos fijos o superpuestos que no ocupan flujo (p. ej. etiquetas flotantes de prototipo) no son bloques.
+Fixed or overlaid elements that take no space in the flow (e.g. floating prototype labels) are not sections.
 
-### 5.2 Datos de cada bloque
+### 5.2 Data per section
 
-- **Nombre:** `data-atlas-block` → `aria-label` → texto del antetítulo (primer elemento de texto corto antes del título, como `.kicker` o `.eyebrow`) → texto del h1/h2 → `id` → `"<etiqueta HTML> <n>"`.
-- **Título:** primer h1/h2 del bloque.
-- **Ancla:** `id` del bloque, si tiene.
-- **Orden** en la página y **altura** en px.
-- **Tipo inferido:** contiene `form` → `conversión`; contiene `canvas`, `video` o un elemento WebGL que ocupe ≥ 30 % del bloque → `visual`; si no → `narrativa`.
-- **Componentes (resumen):** títulos (nivel + texto), enlaces (texto, destino, interno/externo/ancla), botones, formularios (cantidad de campos, `action`, método), medios (img con `src`, video, canvas), y un extracto de texto de hasta 200 caracteres.
-- **Miniatura:** captura del bloque a 1440 px, guardada como WebP.
+- **Name:** `data-atlas-block` → `aria-label` → eyebrow text (the first short text element before the heading, such as `.kicker` or `.eyebrow`) → h1/h2 text → `id` → `"<HTML tag> <n>"`.
+- **Heading:** the section's first h1/h2.
+- **Anchor:** the section's `id`, if any.
+- **Order** on the page and **height** in px.
+- **Inferred type:** contains a `form` → `conversion`; contains a `canvas`, `video` or WebGL element covering ≥ 30 % of the section → `visual`; otherwise → `narrative`.
+- **Components (summary):** headings (level + text), links (text, target, internal/external/anchor), buttons, forms (field count, `action`, method), media (img with `src`, video, canvas), and a text excerpt of up to 200 characters.
+- **Thumbnail:** a capture of the section at 1440 px, stored as WebP.
 
-### 5.3 Rastreo
+### 5.3 Crawling
 
-- Sigue enlaces del mismo origen desde la URL inicial. Máximo de páginas por defecto: 30 (`maxPages`).
-- Filtros opcionales `include` / `exclude` por patrón de ruta.
-- En hosts que no sean de desarrollo local respeta `robots.txt` y espera 1 s entre páginas.
-- Normaliza URLs (sin fragmento, sin barra final duplicada) para no repetir páginas.
+- Follows same-origin links from the start URL. Default page limit: 30 (`maxPages`).
+- Optional `include` / `exclude` path patterns.
+- On hosts that aren't local development hosts, respects `robots.txt` and waits 1 s between pages.
+- Normalizes URLs (no fragment, no duplicated trailing slash) so pages aren't repeated.
 
-### 5.4 Alertas
+### 5.4 Issues
 
-| Alerta | Nivel | Regla |
+| Issue | Level | Rule |
 |---|---|---|
-| Enlace interno roto | error | Destino del mismo origen que responde 4xx/5xx. |
-| Ancla inexistente | error | `href="#x"` o `/ruta#x` sin elemento con ese `id` en la página destino. |
-| Formulario sin destino | aviso | `form` sin `action` (o `action` vacío). |
-| Imagen provisional | aviso | `src` o `alt` que contiene `placeholder`, `provisional`, `lorem` o `dummy` (sin distinguir mayúsculas). |
-| Bloque sin ancla | info | Bloque de contenido (no header/footer) sin `id`: no se puede enlazar. |
-| Título faltante o duplicado | aviso | Página sin h1 o con más de un h1; bloque de contenido sin h2 ni nombre accesible. |
-| `id` duplicado | aviso | Dos elementos con el mismo `id` en la página. |
+| Broken internal link | error | A same-origin target that responds 4xx/5xx. |
+| Missing anchor | error | `href="#x"` or `/path#x` with no element with that `id` on the target page. |
+| Form without an action | warning | A `form` with no `action` (or an empty one). |
+| Placeholder image | warning | `src` or `alt` containing `placeholder`, `provisional`, `lorem` or `dummy` (case-insensitive). |
+| Section without an anchor | info | A content section (not header/footer) with no `id`: it can't be linked to. |
+| Missing or duplicate heading | warning | A page with no h1 or more than one; a content section with no h2 and no accessible name. |
+| Duplicate `id` | warning | Two elements with the same `id` on a page. |
 
-Con SCAP Beta 1 esto debe detectar: enlace a `/es/soluciones/brokers` roto, "Para quién" y "Cómo trabajamos" sin ancla, imágenes provisionales en "Gestión tecnológica", formulario de cotización sin destino.
+On SCAP Beta 1 this must detect: the broken link to `/es/soluciones/brokers`, "Para quién" and "Cómo trabajamos" without an anchor, placeholder images in "Gestión tecnológica", and the quote form without an action.
 
-### 5.5 Identidad de bloques entre escaneos
+### 5.5 Section identity across scans
 
-Cada bloque tiene una clave estable `blockKey`:
+Each section has a stable key, `blockKey`:
 
-1. `<ruta>#<ancla>` si tiene `id`;
-2. si no, `<ruta>~<slug del nombre>`;
-3. si el slug se repite en la página, se le agrega `-2`, `-3` en orden.
+1. `<path>#<anchor>` if it has an `id`;
+2. otherwise `<path>~<slug of the name>`;
+3. if the slug repeats on the page, `-2`, `-3` is appended in order.
 
-Cada bloque guarda además una **huella**: hash de su título normalizado + primeros 200 caracteres de texto + secuencia de etiquetas HTML de sus hijos directos.
+Each section also stores a **fingerprint**: a hash of its normalized heading + the first 200 characters of text + the sequence of its direct children's HTML tags.
 
-La capa del usuario referencia `blockKey`. Al re-escanear, la conciliación sigue este orden:
+The user layer references `blockKey`. On re-scan, reconciliation goes in this order:
 
-1. Misma `blockKey` → es el mismo bloque.
-2. Mismo `id` en otra página (el bloque se movió, como pedía el plan) → es el mismo bloque; su clave se actualiza en la capa del usuario.
-3. Huella idéntica, o similitud ≥ 0,8 entre extractos de texto, en cualquier página → es el mismo bloque (cubre cambios de título o de página sin `id`).
-4. Lo que no concilia queda como **huérfano**, con la mejor sugerencia de coincidencia si la hay, y el lienzo lo muestra aparte para reasignarlo o descartarlo con un clic. Nunca se borra solo.
+1. Same `blockKey` → same section.
+2. Same `id` on another page (the section moved, as the plan asked) → same section; its key is updated in the user layer.
+3. Identical fingerprint, or text similarity ≥ 0.8, on any page → same section (covers heading or page changes without an `id`).
+4. Anything that doesn't reconcile becomes an **orphan**, with the best matching suggestion if there is one, and the canvas shows it separately to reassign or discard with one click. It is never deleted automatically.
 
-## 6. Datos y almacenamiento
+## 6. Data and storage
 
-Carpeta de trabajo: `~/.site-atlas/` (cambiable con la variable `SITE_ATLAS_HOME`).
+Working folder: `~/.site-atlas/` (configurable with the `SITE_ATLAS_HOME` variable).
 
 ```
 ~/.site-atlas/sites/<siteId>/
-├── site.json            ← origen, nombre, fecha de creación
-├── scans/<ISO-fecha>.json  ← escaneos inmutables
+├── site.json               ← origin, name, creation date
+├── scans/<ISO-date>.json   ← immutable scans
 ├── shots/<scanId>/<hash>.webp
-└── overlay.json         ← capa del usuario
+└── overlay.json            ← user layer
 ```
 
-`overlay.json` contiene: `rev` (número de revisión), `tags` (id, nombre, color), `blockTags` (`blockKey` → ids de etiqueta), `kindOverrides`, `plannedPages` (ruta, título), `plannedOrder` (ruta de página → lista ordenada de `blockKey`, que puede incluir bloques de otras páginas) y `orphans`.
+`overlay.json` holds: `rev` (revision number), `tags` (id, name, color), `blockTags` (`blockKey` → tag ids), `kindOverrides`, `plannedPages` (path, title), `plannedOrder` (page path → ordered list of `blockKey`, which can include sections from other pages) and `orphans`.
 
-**Semántica del orden planificado:**
+**Planned order semantics:**
 
-- Una página sin orden planificado hereda el orden real. El orden planificado se crea la primera vez que se toca la página.
-- Mover un bloque a otra página lo **saca** de la de origen; no se copia. Los bloques globales no se mueven entre páginas.
-- `plannedDeletions`: lista de `blockKey` marcados para eliminar (zona "Eliminar" del lienzo). Se pueden restaurar.
-- Si un re-escaneo trae un bloque nuevo en una página con orden planificado, se inserta justo después de su vecino anterior en el orden real (o al principio si no tiene) y se marca como "nuevo".
-- Cuando el sitio real ya coincide con el plan, el orden planificado se conserva y `atlas_get_plan` no reporta diferencias para esa página. No se limpia solo.
-- `atlas_get_plan` reporta cuatro tipos de diferencia: reordenar, mover a otra página, eliminar, página nueva.
+- A page with no planned order inherits the real order. The planned order is created the first time the page is touched.
+- Moving a section to another page **removes** it from the source page; it isn't copied. Global sections don't move between pages.
+- `plannedDeletions`: a list of `blockKey` marked for deletion (the canvas's "Delete" zone). They can be restored.
+- If a re-scan brings a new section on a page with a planned order, it is inserted right after its preceding neighbor in the real order (or at the start if there is none) and marked "new".
+- Once the real site matches the plan, the planned order is kept and `atlas_get_plan` reports no differences for that page. It is not cleaned up automatically.
+- `atlas_get_plan` reports four kinds of difference: reorder, move to another page, delete, new page.
 
-Escrituras: atómicas (archivo temporal + renombrar), con control optimista por `rev`. Una escritura con `rev` desactualizado se rechaza y el cliente recarga. El lienzo recibe por SSE los cambios que hacen los agentes vía MCP y viceversa.
+Writes: atomic (temp file + rename), with optimistic control by `rev`. A write with a stale `rev` is rejected and the client reloads. The canvas receives, over SSE, the changes agents make through MCP, and vice versa.
 
-Los esquemas de `scan` y `overlay` se definen con Zod y llevan `schemaVersion`.
+The `scan` and `overlay` schemas are defined with Zod and carry `schemaVersion`.
 
-## 7. Lienzo
+## 7. Canvas
 
-- Columnas por página: primero las reales, en el orden del rastreo; después las planificadas. Botón "+ Página planificada".
-- Tarjeta de bloque: número de orden, miniatura, nombre, insignia de tipo, etiquetas, icono de alerta si tiene.
-- Arrastrar para reordenar dentro de una página o mover a otra. Mover crea o actualiza el orden planificado; no toca el escaneo.
-- Etiquetas: botón "+" en la tarjeta abre la lista para marcar/desmarcar; barra superior para filtrar (atenúa lo que no coincide) y crear, renombrar o borrar etiquetas.
-- Interruptor **Real / Planificado**: en Planificado, los bloques que cambiaron de lugar llevan una marca.
-- Clic en tarjeta: panel lateral con miniatura grande, componentes, alertas y tipo editable.
-- Carril "Global" arriba con los bloques compartidos entre páginas.
-- Zona "Eliminar": soltar un bloque ahí lo marca para eliminar (aparece tachado en su página y se puede restaurar).
-- Zona de huérfanos visible solo si hay alguno.
-- Botón "Re-escanear".
-- Funciona en escritorio; en móvil basta con que se vea, no que se arrastre bien.
+- One column per page: real ones first, in crawl order, then planned ones. A "+ Planned page" button.
+- Section card: order number, thumbnail, name, type badge, tags, and an issue icon if it has any.
+- Drag to reorder within a page or move to another. Moving creates or updates the planned order; it doesn't touch the scan.
+- Tags: a "+" button on the card opens the list to check/uncheck; a top bar filters (dims what doesn't match) and creates, renames or deletes tags.
+- **Real / Planned** switch: in Planned, sections that changed place carry a mark.
+- Clicking a card: a side panel with a large thumbnail, components, issues and an editable type.
+- A "Global" lane at the top with sections shared across pages.
+- A "Delete" zone: dropping a section there marks it for deletion (it shows struck through on its page and can be restored).
+- An orphans zone, visible only if there are any.
+- A "Re-scan" button.
+- Works on desktop; on mobile it only needs to be viewable, not draggable.
 
-Referencia visual: las maquetas del 2026-10-19 eran columnas por página con tarjetas compactas, superficies planas, bordes finos, etiquetas como píldoras de color dentro de la tarjeta y filtro de etiquetas en una barra horizontal sobre el lienzo. Esta sección es suficiente; no hay archivos de maqueta aparte.
+Visual reference: the 2026-10-19 mockups had one column per page with compact cards, flat surfaces, thin borders, tags as colored pills inside the card, and the tag filter in a horizontal bar above the canvas. This section is enough; there are no separate mockup files.
 
-## 8. Servidor MCP
+## 8. MCP server
 
-Transporte `stdio`. Herramientas:
+`stdio` transport. Tools:
 
-| Herramienta | Entrada | Devuelve |
+| Tool | Input | Returns |
 |---|---|---|
-| `atlas_scan` | `url`, `maxPages?`, `include?`, `exclude?` | `siteId`, `scanId`, páginas, bloques y alertas contados |
-| `atlas_list_sites` | — | sitios con último escaneo |
-| `atlas_get_map` | `site`, `page?` | páginas con bloques (capa del usuario aplicada), forma compacta |
-| `atlas_get_block` | `site`, `blockKey`, `withImage?` | detalle, componentes, alertas; miniatura como imagen MCP si `withImage` |
-| `atlas_list_issues` | `site`, `level?` | alertas con página y bloque |
-| `atlas_tags` | `site`, `action` (`create`/`rename`/`delete`), datos | etiquetas actualizadas |
-| `atlas_set_block_tags` | `site`, `blockKey`, `tags[]` | bloque actualizado |
-| `atlas_move_block` | `site`, `blockKey`, `toPage`, `index` | orden planificado actualizado |
-| `atlas_add_planned_page` | `site`, `path`, `title` | página creada |
-| `atlas_get_plan` | `site` | diferencias real vs. planificado por página, en lenguaje claro y en JSON |
-| `atlas_open_canvas` | `site` | URL local del lienzo (arranca el servidor si no está) |
+| `atlas_scan` | `url`, `maxPages?`, `include?`, `exclude?` | `siteId`, `scanId`, counts of pages, sections and issues |
+| `atlas_list_sites` | — | sites with their latest scan |
+| `atlas_get_map` | `site`, `page?` | pages with sections (user layer applied), compact form |
+| `atlas_get_block` | `site`, `blockKey`, `withImage?` | details, components, issues; thumbnail as an MCP image if `withImage` |
+| `atlas_list_issues` | `site`, `level?` | issues with page and section |
+| `atlas_tags` | `site`, `action` (`create`/`rename`/`delete`), data | updated tags |
+| `atlas_set_block_tags` | `site`, `blockKey`, `tags[]` | updated section |
+| `atlas_move_block` | `site`, `blockKey`, `toPage`, `index` | updated planned order |
+| `atlas_add_planned_page` | `site`, `path`, `title` | created page |
+| `atlas_get_plan` | `site` | real vs. planned differences per page, in plain language and JSON |
+| `atlas_open_canvas` | `site` | the canvas's local URL (starts the server if needed) |
 
-Las respuestas de MCP marcan como contenido no confiable el texto que viene del sitio escaneado (títulos, extractos), para que los agentes lo traten como dato y no como instrucciones.
+MCP responses mark text coming from the scanned site (headings, excerpts) as untrusted content, so agents treat it as data and not as instructions.
 
-## 9. Restricciones
+## 9. Constraints
 
-- Todo local. El servidor del lienzo escucha solo en `127.0.0.1`.
-- No se ejecuta código del sitio escaneado fuera del navegador headless.
-- Sin telemetría.
-- Escaneo de una página típica (como SCAP Beta 1) en menos de 30 s.
+- Everything local. The canvas server listens on `127.0.0.1` only.
+- No code from the scanned site runs outside the headless browser.
+- No telemetry.
+- Scanning a typical page (like SCAP Beta 1) takes under 30 s.
 
-## 10. Decisiones de cómo se construye (propuestas por Claude, a confirmar)
+## 10. Build decisions (proposed by Claude, confirmed by implementation)
 
-- **Node 24 LTS + TypeScript estricto + pnpm**: mismo stack que el equipo usa en SCAP.
-- **`@modelcontextprotocol/sdk`** para el servidor MCP.
-- **Playwright (Chromium)** para renderizar y capturar.
-- **Lienzo en Vue 3 + Vite** con **SortableJS** (`vue-draggable-plus`) para arrastrar: el equipo ya trabaja con Vue/Nuxt en el CRM.
-- **Hono** como servidor HTTP local del lienzo (API + SSE + archivos estáticos).
-- **Vitest** para pruebas unitarias del extractor con HTML de prueba; una prueba de integración que escanea una página de muestra servida en local.
-- Un solo paquete con dos entradas: `site-atlas` (CLI: `scan`, `canvas`, `mcp`) y el servidor MCP (`site-atlas mcp`). Se instala en Claude Code con `claude mcp add site-atlas -- node <ruta>/dist/cli.js mcp`. Sin publicar en npm en v1.
-- Licencia: privada, sin licencia abierta por ahora.
+- **Node 24 LTS + strict TypeScript + pnpm**: the same stack the team uses at SCAP.
+- **`@modelcontextprotocol/sdk`** for the MCP server.
+- **Playwright (Chromium)** to render and capture.
+- **Canvas in Vue 3 + Vite** with **SortableJS** (`vue-draggable-plus`) for dragging: the team already works with Vue/Nuxt in its CRM. (Design v2 replaces SortableJS with a custom drag.)
+- **Hono** as the canvas's local HTTP server (API + SSE + static files).
+- **Vitest** for unit tests of the extractor with test HTML, plus an integration test that scans a sample page served locally.
+- One package with two entry points: `site-atlas` (CLI: `scan`, `canvas`, `mcp`) and the MCP server (`site-atlas mcp`). Installed in Claude Code with `claude mcp add site-atlas -- node <path>/dist/cli.js mcp`. Not published to npm in v1.
+- License: originally private; the project was open-sourced under MIT on 2026-10-19.
 
-## 11. Criterio de éxito de v1
+## 11. Success criteria for v1
 
-1. `atlas_scan` sobre `http://localhost:4405/beta-1/index.html` (SCAP Tech; el archivo está en `SCAP Broker/SCAP Technology/Prototipos/hero/beta-1/index.html`) devuelve 15 bloques, en este orden y con estos nombres: Header (o el nombre que dé la cadena del §5.2), Tecnología financiera (hero), Integraciones, La plataforma, Tecnología, Gestión tecnológica, Productos, Soluciones, Tecnología para brokers, Para quién, Cómo trabajamos, Nosotros, Tecnología de vanguardia. Control absoluto. (pieza de impacto, por su `aria-label`), Solicite una propuesta (cierre) y Footer. También devuelve las alertas del §5.4. Los nombres salen del antetítulo de cada sección; esa es la prueba de que la cadena funciona. No se exige el nombre exacto de header y footer.
-2. En el lienzo se reordena el Home, se mueve un bloque a una página planificada y se etiqueta; tras re-escanear, nada de eso se pierde.
-3. Desde Claude Code, `atlas_get_plan` describe esos cambios de forma que un agente pueda implementarlos.
-4. Escanear `https://stripe.com` y `https://vercel.com` (las referencias visuales de SCAP) produce mapas razonables sin configuración. "Razonable" significa que cada sección visible a simple vista es un bloque, sin bloques vacíos ni fragmentos menores a 80 px, y con nombres legibles en al menos el 80 % de los bloques.
+1. `atlas_scan` on `http://localhost:4405/beta-1/index.html` (SCAP Tech) returns 15 sections, in this order and with these names: Header (or whatever name the §5.2 chain gives), Tecnología financiera (hero), Integraciones, La plataforma, Tecnología, Gestión tecnológica, Productos, Soluciones, Tecnología para brokers, Para quién, Cómo trabajamos, Nosotros, Tecnología de vanguardia. Control absoluto. (impact piece, from its `aria-label`), Solicite una propuesta (closing) and Footer. It also returns the §5.4 issues. The names come from each section's eyebrow; that proves the chain works. The exact header and footer names are not required.
+2. On the canvas, the Home page is reordered, a section is moved to a planned page and tagged; after a re-scan none of that is lost.
+3. From Claude Code, `atlas_get_plan` describes those changes so that an agent can implement them.
+4. Scanning `https://stripe.com` and `https://vercel.com` (SCAP's visual references) produces reasonable maps with no configuration. "Reasonable" means every section visible at a glance is a section, with no empty sections or fragments under 80 px, and readable names on at least 80 % of sections.
 
-## 12. Lo que queda al constructor
+## 12. Left to the builder
 
-- Estructura interna de carpetas y módulos.
-- Diseño visual fino del lienzo, siguiendo las maquetas.
-- Paleta de colores de etiquetas.
-- Formato exacto del texto de `atlas_get_plan`.
-- Cómo se nombran los `siteId` cuando hay colisión.
+- Internal folder and module structure.
+- Fine visual design of the canvas, following the mockups.
+- Tag color palette.
+- Exact text format of `atlas_get_plan`.
+- How `siteId`s are named on collision.
