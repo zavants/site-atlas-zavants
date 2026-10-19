@@ -41,6 +41,14 @@ program
     console.log(`Lienzo: ${url}/s/${site ?? ''}`);
   });
 
+program
+  .command('mcp')
+  .description('Inicia el servidor MCP por stdio.')
+  .action(async () => {
+    const { startMcpStdio } = await import('./mcp/server.js');
+    await startMcpStdio(new SiteStore());
+  });
+
 program.parseAsync().catch((err: Error) => {
   console.error(err.message);
   process.exit(1);
