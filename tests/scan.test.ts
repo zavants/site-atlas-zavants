@@ -11,7 +11,7 @@ let shots: string;
 let scan: Scan;
 
 beforeAll(async () => {
-  server = await startStatic('tests/fixtures/site');
+  server = await startStatic('tests/fixtures/site', { redirects: { '/viejo': '/otra', '/otra/': '/otra' } });
   shots = await mkdtemp(join(tmpdir(), 'site-atlas-test-shots-'));
   scan = await scanSite(`${server.url}/index.html`, { shotsDir: (id) => join(shots, id) });
 });
@@ -49,6 +49,26 @@ describe('scanSite', () => {
     const withShot = scan.pages.flatMap((p) => p.blocks).filter((b) => b.shot);
     expect(withShot.length).toBeGreaterThanOrEqual(8);
     expect(files.every((f) => f.endsWith('.webp'))).toBe(true);
+  });
+
+  it('no duplica páginas por barras finales ni redirecciones', () => {
+    expect(scan.pages.map((p) => p.path)).toEqual(['/', '/otra']);
+  });
+
+  it('registra las rutas que no existen y cómo se lanzó', () => {
+    expect(scan.missingPages).toEqual(['/no-existe']);
+    expect(scan.options).toEqual({ startUrl: `${server.url}/index.html` });
+  });
+
+  it('adopta el origen final si la URL inicial redirige a otro origen', async () => {
+    const front = await startStatic('tests/fixtures/site', { redirects: { '/': `${server.url}/index.html` } });
+    try {
+      const s = await scanSite(`${front.url}/`, { maxPages: 2, shotsDir: (id) => join(shots, `redir-${id}`) });
+      expect(s.environment.origin).toBe(server.url);
+      expect(s.pages.map((p) => p.path)).toEqual(['/', '/otra']);
+    } finally {
+      await front.close();
+    }
   });
 
   it('respeta maxPages', async () => {

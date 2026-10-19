@@ -1,5 +1,5 @@
 import type { Scan } from '../schema/scan.js';
-import { StaleRevError, type SiteStore } from '../store/store.js';
+import type { SiteStore } from '../store/store.js';
 import { buildMap, type SiteMap } from './map.js';
 import { applyOp, type OverlayOp } from './ops.js';
 import { describePlan, diffPlan, type PlanDiff } from './plan.js';
@@ -27,20 +27,11 @@ export async function getPlan(store: SiteStore, site: string): Promise<{ diffs: 
 }
 
 /**
- * Aplica una operación a la capa del usuario.
- * Con `rev` explícito (lienzo) un rev viejo se rechaza; sin `rev` (agentes) se usa el actual y se reintenta una vez.
+ * Aplica una operación a la capa del usuario bajo bloqueo.
+ * Con `rev` explícito (lienzo) un rev viejo se rechaza; sin `rev` (agentes) se aplica sobre el estado actual.
  */
 export async function mutate(store: SiteStore, site: string, op: OverlayOp, rev?: number): Promise<SiteMap> {
   const scan = await requireScan(store, site);
-  for (let attempt = 0; ; attempt++) {
-    const current = await store.readOverlay(site);
-    const expected = rev ?? current.rev;
-    if (expected !== current.rev) throw new StaleRevError(expected, current.rev);
-    try {
-      const saved = await store.writeOverlay(site, applyOp(current, scan, op), expected);
-      return buildMap(scan, saved);
-    } catch (err) {
-      if (!(err instanceof StaleRevError) || rev !== undefined || attempt >= 1) throw err;
-    }
-  }
+  const saved = await store.updateOverlay(site, (current) => applyOp(current, scan, op), rev);
+  return buildMap(scan, saved);
 }

@@ -67,6 +67,10 @@ export async function scanSite(url: string, opts: ScanOptions): Promise<Scan> {
   const scanId = startedAt.replace(/:/g, '-');
   const { origin, basePath } = splitEnvironment(url);
   const env = { origin, basePath };
+  const options: NonNullable<Scan['options']> = { startUrl: url };
+  if (opts.maxPages !== undefined) options.maxPages = opts.maxPages;
+  if (opts.include?.length) options.include = opts.include;
+  if (opts.exclude?.length) options.exclude = opts.exclude;
   const site = opts.site ?? deriveSiteId(url);
   const maxPages = opts.maxPages ?? 30;
   const include = opts.include?.length ? picomatch(opts.include) : null;
@@ -75,18 +79,19 @@ export async function scanSite(url: string, opts: ScanOptions): Promise<Scan> {
   const shotsDir = opts.shotsDir(scanId);
   await mkdir(shotsDir, { recursive: true });
 
-  let robots: Robots | null = null;
-  if (!local) {
-    const robotsUrl = `${origin}/robots.txt`;
+  const loadRobots = async (): Promise<Robots | null> => {
+    if (local) return null;
+    const robotsUrl = `${env.origin}/robots.txt`;
     try {
       const res = await fetch(robotsUrl, { signal: AbortSignal.timeout(10_000) });
-      if (res.ok) robots = robotsParser(robotsUrl, await res.text());
+      return res.ok ? robotsParser(robotsUrl, await res.text()) : null;
     } catch {
-      robots = null;
+      return null;
     }
-  }
+  };
+  let robots = await loadRobots();
 
-  const pathOf = (u: string) => (inScope(u, env) ? pagePath(new URL(u).pathname, basePath) : null);
+  const pathOf = (u: string) => (inScope(u, env) ? pagePath(new URL(u).pathname, env.basePath) : null);
   const allowed = (u: string) => {
     const p = pathOf(u);
     if (p === null) return false;
@@ -97,7 +102,9 @@ export async function scanSite(url: string, opts: ScanOptions): Promise<Scan> {
 
   const start = normalizeUrl(url, url)!;
   const queue = [start];
-  const queued = new Set(queue);
+  /** Rutas ya encoladas o visitadas: dos URLs con la misma ruta de página son la misma página. */
+  const seenPaths = new Set([pathOf(start)!]);
+  const missing = new Set<string>();
   const pages: Page[] = [];
   const linkStatus = new Map<string, number>();
   const idsByPath = new Map<string, Set<string>>();
@@ -108,7 +115,8 @@ export async function scanSite(url: string, opts: ScanOptions): Promise<Scan> {
   try {
     while (queue.length && pages.length < maxPages) {
       const current = queue.shift()!;
-      const path = pathOf(current)!;
+      let path = pathOf(current)!;
+      const isStart = pages.length === 0 && current === start;
       opts.onProgress?.(`Escaneando ${path}`);
       if (pages.length > 0 && !local) await sleep(1000);
 
@@ -123,8 +131,26 @@ export async function scanSite(url: string, opts: ScanOptions): Promise<Scan> {
       const { page, status } = prepared;
       try {
         linkStatus.set(current, status);
-        if (status === 404 || status === 410) continue;
+        if (status === 404 || status === 410) {
+          missing.add(path);
+          continue;
+        }
         const finalUrl = normalizeUrl(page.url(), page.url());
+        if (isStart && finalUrl && status < 400 && !inScope(finalUrl, env)) {
+          // La URL inicial redirige (http→https, dominio→www…): el sitio es el destino.
+          const moved = splitEnvironment(page.url());
+          env.origin = moved.origin;
+          env.basePath = moved.basePath;
+          robots = await loadRobots();
+        }
+        if (finalUrl && inScope(finalUrl, env)) {
+          const finalPath = pathOf(finalUrl)!;
+          if (finalPath !== path) {
+            if (pages.some((p) => p.path === finalPath)) continue;
+            seenPaths.add(finalPath);
+            path = finalPath;
+          }
+        }
         if (status >= 400 || !finalUrl || !inScope(finalUrl, env)) {
           const error = status >= 400 ? `HTTP ${status}` : `Redirige fuera del sitio: ${page.url()}`;
           pages.push({ path, url: current, title: '', status, error, blocks: [] });
@@ -162,10 +188,11 @@ export async function scanSite(url: string, opts: ScanOptions): Promise<Scan> {
         const hrefs = (await page.evaluate(`[...document.querySelectorAll('a[href]')].map((a) => a.href)`)) as string[];
         for (const href of hrefs) {
           const n = normalizeUrl(href, current);
-          if (!n || new URL(n).origin !== origin) continue;
+          if (!n || new URL(n).origin !== env.origin) continue;
           internalLinks.add(n);
-          if (!queued.has(n) && allowed(n)) {
-            queued.add(n);
+          const p = pathOf(n);
+          if (p !== null && !seenPaths.has(p) && allowed(n)) {
+            seenPaths.add(p);
             queue.push(n);
           }
         }
@@ -179,13 +206,28 @@ export async function scanSite(url: string, opts: ScanOptions): Promise<Scan> {
 
   const unchecked = [...internalLinks].filter((l) => !linkStatus.has(l)).slice(0, MAX_LINK_CHECKS);
   const statuses = await mapLimit(unchecked, LINK_CHECK_CONCURRENCY, checkStatus);
-  unchecked.forEach((link, i) => linkStatus.set(link, statuses[i]!));
+  unchecked.forEach((link, i) => {
+    linkStatus.set(link, statuses[i]!);
+    const p = pathOf(link);
+    if (p !== null && (statuses[i] === 404 || statuses[i] === 410)) missing.add(p);
+  });
 
   const counts = new Map<string, number>();
   for (const p of pages) for (const fp of new Set(p.blocks.map((b) => b.fingerprint))) counts.set(fp, (counts.get(fp) ?? 0) + 1);
   for (const p of pages) for (const b of p.blocks) b.global = (counts.get(b.fingerprint) ?? 0) >= 2;
 
   const issues = computeIssues(pages, { linkStatus, idsByPath, pageInfo, pathOf });
-  return { schemaVersion: 1, scanId, site, environment: env, startedAt, finishedAt: new Date().toISOString(), pages, issues };
+  return {
+    schemaVersion: 1,
+    scanId,
+    site,
+    environment: env,
+    startedAt,
+    finishedAt: new Date().toISOString(),
+    pages,
+    missingPages: [...missing].filter((p) => !pages.some((x) => x.path === p)).sort(),
+    options,
+    issues,
+  };
 }
 

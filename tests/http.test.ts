@@ -55,6 +55,25 @@ describe('API HTTP', () => {
     expect((await app.request(`/shots/${SITE}/..%2F..%2Fetc/passwd.webp`)).status).toBe(400);
   });
 
+  it('rechaza cuerpos que no son JSON', async () => {
+    const res = await app.request(`/api/sites/${SITE}/ops`, { method: 'POST', body: JSON.stringify({ rev: 0, op: move }), headers: { 'content-type': 'text/plain' } });
+    expect(res.status).toBe(415);
+  });
+
+  it('rechaza peticiones de otros orígenes', async () => {
+    const res = await app.request(`/api/sites/${SITE}/ops`, {
+      method: 'POST',
+      body: JSON.stringify({ rev: 0, op: move }),
+      headers: { 'content-type': 'application/json', origin: 'https://evil.example' },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('rechaza un Host ajeno (DNS rebinding)', async () => {
+    expect((await app.request(`/api/sites/${SITE}/map`, { headers: { host: 'attacker.example:4800' } })).status).toBe(403);
+    expect((await app.request(`/api/sites/${SITE}/map`, { headers: { host: '127.0.0.1:4800' } })).status).toBe(200);
+  });
+
   it('describe el plan', async () => {
     await post(`/api/sites/${SITE}/ops`, { rev: 0, op: move });
     const plan = await (await app.request(`/api/sites/${SITE}/plan`)).json();

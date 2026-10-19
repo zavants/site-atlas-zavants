@@ -65,7 +65,10 @@ class SiteEvents {
       }
     }
     entry.users++;
+    let done = false;
     return () => {
+      if (done) return;
+      done = true;
       this.bus.off(site, fn);
       const e = this.watchers.get(site);
       if (e && --e.users === 0) {
@@ -98,9 +101,18 @@ class SiteEvents {
   }
 }
 
+const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
+const isLocalOrigin = (origin: string) => {
+  try {
+    return LOCAL_HOSTS.has(new URL(origin).hostname === '::1' ? '[::1]' : new URL(origin).hostname);
+  } catch {
+    return false;
+  }
+};
+
 const OpBody = z.object({ rev: z.number().int().nonnegative(), op: OverlayOpSchema });
 
-export function createApp(store: SiteStore, opts: { canvasDir?: string } = {}) {
+export function createApp(store: SiteStore, opts: { canvasDir?: string; keepAliveMs?: number } = {}) {
   const canvasDir = opts.canvasDir ?? defaultCanvasDir();
   const events = new SiteEvents(store);
   const rescans = new Set<string>();
@@ -111,6 +123,22 @@ export function createApp(store: SiteStore, opts: { canvasDir?: string } = {}) {
     if (err instanceof OpError) return c.json({ error: err.message }, 400);
     console.error(err);
     return c.json({ error: 'Error interno del servidor.' }, 500);
+  });
+
+  // Solo el propio lienzo puede usar el servidor: Host local (contra DNS rebinding),
+  // Origin local en escrituras y cuerpos JSON (contra CSRF desde cualquier página, incluida la escaneada).
+  app.use('*', async (c, next) => {
+    const host = (c.req.header('host') ?? new URL(c.req.url).host).replace(/:\d+$/, '').toLowerCase();
+    if (!LOCAL_HOSTS.has(host)) return c.json({ error: 'Host no permitido.' }, 403);
+    if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
+      const origin = c.req.header('origin');
+      if (origin && !isLocalOrigin(origin)) return c.json({ error: 'Origen no permitido.' }, 403);
+      const type = c.req.header('content-type') ?? '';
+      if (c.req.path.endsWith('/ops') && !type.startsWith('application/json')) {
+        return c.json({ error: 'Se esperaba application/json.' }, 415);
+      }
+    }
+    await next();
   });
 
   app.get('/api/health', (c) => c.json({ app: 'site-atlas', version: VERSION }));
@@ -138,8 +166,8 @@ export function createApp(store: SiteStore, opts: { canvasDir?: string } = {}) {
     if (!scan) throw new SiteNotFoundError(site);
     if (rescans.has(site)) return c.json({ error: 'Ya hay un escaneo en curso.' }, 409);
     rescans.add(site);
-    const url = scan.environment.origin + scan.environment.basePath;
-    void runScan(store, url, { site, onProgress: (msg) => events.emit(site, { event: 'progress', data: { msg } }) })
+    const { startUrl, ...options } = scan.options ?? { startUrl: scan.environment.origin + scan.environment.basePath };
+    void runScan(store, startUrl, { ...options, site, onProgress: (msg) => events.emit(site, { event: 'progress', data: { msg } }) })
       .then(({ scan: s }) => events.emit(site, { event: 'scan', data: { scanId: s.scanId } }))
       .catch((err: Error) => events.emit(site, { event: 'progress', data: { msg: `El escaneo falló: ${err.message}` } }))
       .finally(() => rescans.delete(site));
@@ -155,7 +183,10 @@ export function createApp(store: SiteStore, opts: { canvasDir?: string } = {}) {
         queue.push(e);
         wake?.();
       });
-      stream.onAbort(off);
+      stream.onAbort(() => {
+        off();
+        wake?.();
+      });
       await stream.writeSSE({ event: 'ready', data: '{}' });
       while (!stream.aborted) {
         const next = queue.shift();
@@ -165,7 +196,7 @@ export function createApp(store: SiteStore, opts: { canvasDir?: string } = {}) {
         }
         await new Promise<void>((r) => {
           wake = r;
-          setTimeout(r, 15_000);
+          setTimeout(r, opts.keepAliveMs ?? 15_000);
         });
         wake = null;
         if (!queue.length && !stream.aborted) await stream.writeSSE({ event: 'ping', data: '{}' });

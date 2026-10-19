@@ -37,8 +37,9 @@ export function indexScan(scan: Scan): ScanIndex {
 /** Orden efectivo de cada página (real y planificada). Los bloques que no figuran en ningún orden vuelven a su página real. */
 export function effectiveOrders(scan: Scan, overlay: Overlay, idx = indexScan(scan)): Map<string, string[]> {
   const orders = new Map<string, string[]>();
-  for (const [path, real] of idx.realOrder) orders.set(path, [...(overlay.plannedOrder[path] ?? real)]);
-  for (const p of overlay.plannedPages) orders.set(p.path, [...(overlay.plannedOrder[p.path] ?? [])]);
+  const notGlobal = (k: string) => !idx.blocks.get(k)?.block.global;
+  for (const [path, real] of idx.realOrder) orders.set(path, (overlay.plannedOrder[path] ?? real).filter(notGlobal));
+  for (const p of overlay.plannedPages) orders.set(p.path, (overlay.plannedOrder[p.path] ?? []).filter(notGlobal));
   const placed = new Set([...orders.values()].flat());
   for (const [path, real] of idx.realOrder) {
     for (const key of real) if (!placed.has(key)) orders.get(path)!.push(key);

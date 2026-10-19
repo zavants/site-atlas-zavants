@@ -54,13 +54,13 @@ export function slug(text: string): string {
 
 export function blockKeys(path: string, raws: { name: string; anchor: string | null }[]): string[] {
   const seen = new Map<string, number>();
-  return raws.map(({ name, anchor }) => {
-    if (anchor) return `${path}#${anchor}`;
-    const base = slug(name) || 'bloque';
-    const n = (seen.get(base) ?? 0) + 1;
-    seen.set(base, n);
-    return `${path}~${n === 1 ? base : `${base}-${n}`}`;
-  });
+  const unique = (prefix: string, base: string) => {
+    const id = prefix + base;
+    const n = (seen.get(id) ?? 0) + 1;
+    seen.set(id, n);
+    return `${path}${prefix}${n === 1 ? base : `${base}-${n}`}`;
+  };
+  return raws.map(({ name, anchor }) => (anchor ? unique('#', anchor) : unique('~', slug(name) || 'bloque')));
 }
 
 export function fingerprint(raw: Pick<RawBlock, 'heading' | 'text' | 'childTags'>): string {

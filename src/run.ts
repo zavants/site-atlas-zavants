@@ -3,7 +3,7 @@ import type { Overlay } from './schema/overlay.js';
 import type { Scan } from './schema/scan.js';
 import { scanSite } from './scan/scan.js';
 import { deriveSiteId } from './store/paths.js';
-import { StaleRevError, type SiteStore } from './store/store.js';
+import type { SiteStore } from './store/store.js';
 
 export interface RunScanOptions {
   site?: string;
@@ -17,15 +17,13 @@ export interface RunScanOptions {
 export async function runScan(store: SiteStore, url: string, opts: RunScanOptions = {}): Promise<{ scan: Scan; overlay: Overlay }> {
   const site = opts.site ?? deriveSiteId(url);
   const scan = await scanSite(url, { ...opts, site, shotsDir: (scanId) => store.shotsDir(site, scanId) });
+  if (!scan.pages.some((p) => p.status > 0 && p.status < 400 && !p.error)) {
+    const first = scan.pages[0];
+    const reason = first?.error ?? (scan.missingPages.length ? 'la página no existe (404)' : 'no respondió');
+    throw new Error(`No se pudo escanear ${url}: ${reason}. No se guardó el escaneo ni se tocó la organización.`);
+  }
   const prev = await store.latestScan(site);
   await store.saveScan(scan);
-  for (let attempt = 0; ; attempt++) {
-    const current = await store.readOverlay(site);
-    try {
-      const overlay = await store.writeOverlay(site, reconcile(current, prev, scan), current.rev);
-      return { scan, overlay };
-    } catch (err) {
-      if (!(err instanceof StaleRevError) || attempt >= 1) throw err;
-    }
-  }
+  const overlay = await store.updateOverlay(site, (current) => reconcile(current, prev, scan));
+  return { scan, overlay };
 }
