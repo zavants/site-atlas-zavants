@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { existsSync, watch, type FSWatcher } from 'node:fs';
+import { existsSync, realpathSync, watch, type FSWatcher } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -53,7 +53,8 @@ class SiteEvents {
       if (existsSync(dir)) {
         const pending = new Set<'overlay' | 'scan'>();
         const current = entry;
-        current.watcher = watch(dir, { recursive: true }, (_type, file) => {
+        // Ruta larga real: en Windows, vigilar una ruta 8.3 (SEBAST~1) dispara un assert de libuv.
+        current.watcher = watch(realpathSync.native(dir), { recursive: true }, (_type, file) => {
           const name = String(file ?? '').replaceAll('\\', '/');
           if (name === 'overlay.json') pending.add('overlay');
           else if (/^scans\/[^/]+\.json$/.test(name)) pending.add('scan');
