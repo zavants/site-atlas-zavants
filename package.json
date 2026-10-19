@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "description": "Mapa semántico de sitios web: escaneo por bloques, lienzo con arrastrar y soltar y servidor MCP.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zavants/site-atlas-zavants.git"
+  },
   "type": "module",
   "bin": {
     "site-atlas": "dist/cli.js"

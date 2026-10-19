@@ -83,3 +83,7 @@ ATLAS_BETA1_URL=http://localhost:4405/beta-1/index.html pnpm test tests/acceptan
 | SCAP Tech Beta 1 (localhost) | 15 bloques con los nombres esperados; alertas: enlace roto a `/es/soluciones/brokers`, 4 bloques sin ancla, imágenes provisionales, formulario sin destino |
 | stripe.com (1 página) | 10 bloques, 8 con nombre legible; 26 s |
 | vercel.com (1 página) | 6 bloques, todos con nombre legible |
+
+## Licencia
+
+Código abierto bajo licencia [MIT](LICENSE). Puedes usarlo, modificarlo y redistribuirlo libremente.
