@@ -1,58 +1,56 @@
 # Site Atlas
 
-**Mapa semántico de sitios web para personas y agentes de IA.**
-Site Atlas escanea un sitio, lo divide en **bloques** (header, hero, secciones, footer…), detecta problemas y te deja reorganizarlo en un lienzo con arrastrar y soltar. Todo lo que planificas se expone por **MCP** y por **terminal**, para que cualquier IA (Claude, Codex, GPT u otras) lo lea y lo implemente en el código.
+**A semantic map of websites for people and AI agents.**
+Site Atlas scans a site, splits every page into **sections** (header, hero, content sections, footer…), flags problems, and lets you rearrange the site on a drag‑and‑drop canvas. Everything you plan is exposed through **MCP** and the **CLI**, so any AI (Claude, Codex, GPT and others) can read it and implement it in the code.
 
-> *English:* Site Atlas scans any website into sections, flags broken links and placeholders, lets you rearrange it on a drag‑and‑drop canvas, and exposes the resulting plan to any AI agent through MCP or the CLI. Local‑first, open source (MIT).
-
-![Lienzo de Site Atlas con un sitio de ejemplo: páginas en columnas, bloques con miniatura, etiquetas y una página planificada](docs/assets/lienzo.png)
+![Site Atlas canvas with a sample site: pages as columns, sections with thumbnails, tags and a planned page](docs/assets/lienzo.png)
 
 ---
 
-## Por qué existe
+## Why it exists
 
-Mirar una página no responde preguntas como:
+Looking at a page doesn't answer questions like:
 
-- ¿Qué secciones tiene esta página y en qué orden?
-- ¿A dónde apunta cada botón y qué enlaces están rotos?
-- ¿Esta sección debería vivir en otra página?
-- ¿Qué cambia si muevo la sección A a la página B?
+- Which sections does this page have, and in what order?
+- Where does each button point, and which links are broken?
+- Should this section live on another page?
+- What changes if I move section A to page B?
 
-Site Atlas lo hace visible y convierte tus decisiones en un **plan concreto** que una IA puede ejecutar. El sitio no se modifica nunca desde Atlas: tú decides y la IA implementa.
+Site Atlas makes that visible and turns your decisions into a **concrete plan** an AI can execute. Atlas never modifies the site itself: you decide, the AI implements.
 
-## Qué hace hoy (v1)
+## What it does today (v1)
 
 | | |
 |---|---|
-| **Escaneo por bloques** | Renderiza cada página en Chromium, la divide en bloques y guarda nombre, tipo (narrativa, visual, conversión), títulos, enlaces, formularios, medios y una miniatura. |
-| **Alertas** | Enlaces rotos, anclas inexistentes, formularios sin destino, imágenes provisionales, secciones sin ancla, títulos faltantes o duplicados, ids repetidos. |
-| **Lienzo** | Columnas por página, carril de componentes globales, arrastrar para reordenar o mover entre páginas, páginas planificadas, etiquetas con filtro, papelera, vista Real o Planificado y actualización en vivo. |
-| **Plan para IA** | Las diferencias entre el sitio real y lo planificado, en lenguaje claro y en JSON. |
-| **Re-escaneo sin pérdidas** | Lo que organizaste sobrevive a los cambios del sitio: los bloques se reconocen por ancla, huella o similitud de texto, y lo que no se reconoce queda como huérfano para reasignarlo. |
-| **Seguro y local** | Todo corre en tu máquina, el servidor escucha solo en `127.0.0.1`, protegido contra CSRF y DNS rebinding, sin telemetría. Atlas no escribe nada en el repositorio de tu sitio. |
+| **Section-level scanning** | Renders each page in Chromium, splits it into sections and records name, type (narrative, visual, conversion), headings, links, forms, media and a thumbnail. |
+| **Issues** | Broken links, missing anchors, forms without an action, placeholder images, sections without an anchor, missing or duplicate headings, duplicate ids. |
+| **Canvas** | One column per page, a lane for shared components, drag to reorder or move between pages, planned pages, tags with filters, a trash zone, Real / Planned views and live updates. |
+| **Plan for AI** | The differences between the real site and the plan, in plain language and JSON. |
+| **Lossless re-scans** | Your organization survives site changes: sections are matched by anchor, fingerprint or text similarity, and anything unmatched becomes an orphan you can reassign. |
+| **Local and safe** | Runs on your machine, the server listens on `127.0.0.1` only, protected against CSRF and DNS rebinding, no telemetry. Atlas never writes to your site's repository. |
 
-### En camino (v2): el organigrama
+### Coming next (v2): the org chart
 
-Cada página como un diagrama de piezas, con **una línea por enlace saliendo de la sección exacta que lo contiene**. Incluye componentes compartidos con su propio diagrama, flechas que se arrastran e imantan, conectores nuevos, una vista con capturas ampliadas, y cambios que quedan **pendientes hasta que una IA confirma** que los aplicó. Diseño en revisión: [`organigrama-design.md`](https://github.com/zavants/site-atlas-zavants/blob/docs/organigrama-v2/docs/superpowers/specs/2026-10-19-organigrama-design.md).
+Each page as a diagram of pieces, with **one line per link coming out of the exact section that contains it**. It adds shared components with their own diagram, arrows you can drag and snap to a new target, new connectors, a screenshot view, and changes that stay **pending until an AI confirms** it applied them. Design under review: [`organigrama-design.md`](https://github.com/zavants/site-atlas-zavants/blob/docs/organigrama-v2/docs/superpowers/specs/2026-10-19-organigrama-design.md) (Spanish).
 
-## Cómo funciona
+## How it works
 
 ```
- tu sitio (localhost, staging o producción)
-        │  escaneo con Chromium (solo lectura)
+ your site (localhost, staging or production)
+        │  Chromium scan (read-only)
         ▼
- ~/.site-atlas/sites/<sitio>/
-   ├── scans/*.json      fotografías inmutables del sitio
-   ├── shots/*.webp      miniaturas de cada bloque
-   └── overlay.json      tu organización: orden, páginas, etiquetas
+ ~/.site-atlas/sites/<site>/
+   ├── scans/*.json      immutable snapshots of the site
+   ├── shots/*.webp      a thumbnail per section
+   └── overlay.json      your organization: order, pages, tags
         │
-        ├──► lienzo local   http://127.0.0.1:4800
-        └──► MCP / terminal ──► Claude · Codex · GPT · …  ──► cambios en el código del sitio
+        ├──► local canvas   http://127.0.0.1:4800
+        └──► MCP / CLI ──► Claude · Codex · GPT · …  ──► changes in the site's code
 ```
 
-## Instalación
+## Installation
 
-Requisitos: **Node 24+** y **pnpm** (`npm i -g pnpm`).
+Requirements: **Node 24+** and **pnpm** (`npm i -g pnpm`).
 
 ```bash
 git clone https://github.com/zavants/site-atlas-zavants.git
@@ -62,107 +60,109 @@ pnpm exec playwright install chromium
 pnpm build
 ```
 
-## Uso rápido
+## Quick start
 
 ```bash
-# Escanear (máximo 30 páginas por defecto)
+# Scan (up to 30 pages by default)
 node dist/cli.js scan http://localhost:4321/
 
-# Más opciones
-node dist/cli.js scan https://ejemplo.com --max-pages 5 --exclude "/blog/**"
+# More options
+node dist/cli.js scan https://example.com --max-pages 5 --exclude "/blog/**"
 
-# Abrir el lienzo
+# Open the canvas
 node dist/cli.js canvas
 ```
 
-## Conectarlo a tu IA (MCP)
+## Connect it to your AI (MCP)
 
-El servidor MCP se inicia con `node <ruta>/dist/cli.js mcp`, por stdio.
+The MCP server starts with `node <path>/dist/cli.js mcp` over stdio.
 
 **Claude Code (terminal)**
 
 ```bash
-claude mcp add site-atlas -- node /ruta/a/site-atlas-zavants/dist/cli.js mcp
+claude mcp add site-atlas -- node /path/to/site-atlas-zavants/dist/cli.js mcp
 ```
 
-**Claude Code (app de escritorio, sin la CLI `claude`).** Agrega esto en `~/.claude.json`, dentro de `mcpServers`:
+**Claude Code (desktop app, without the `claude` CLI).** Add this to `~/.claude.json`, inside `mcpServers`:
 
 ```json
-"site-atlas": { "type": "stdio", "command": "node", "args": ["/ruta/a/site-atlas-zavants/dist/cli.js", "mcp"] }
+"site-atlas": { "type": "stdio", "command": "node", "args": ["/path/to/site-atlas-zavants/dist/cli.js", "mcp"] }
 ```
 
-**Codex**, en `~/.codex/config.toml`:
+**Codex**, in `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.site-atlas]
 command = "node"
-args = ["/ruta/a/site-atlas-zavants/dist/cli.js", "mcp"]
+args = ["/path/to/site-atlas-zavants/dist/cli.js", "mcp"]
 ```
 
-**Otros clientes MCP** (Cursor, Windsurf, Claude Desktop…):
+**Other MCP clients** (Cursor, Windsurf, Claude Desktop…):
 
 ```json
-{ "mcpServers": { "site-atlas": { "command": "node", "args": ["/ruta/a/site-atlas-zavants/dist/cli.js", "mcp"] } } }
+{ "mcpServers": { "site-atlas": { "command": "node", "args": ["/path/to/site-atlas-zavants/dist/cli.js", "mcp"] } } }
 ```
 
-### Herramientas
+### Tools
 
-| Herramienta | Para qué |
+| Tool | Purpose |
 |---|---|
-| `atlas_scan` | Escanear un sitio y conciliar lo ya organizado |
-| `atlas_list_sites` | Ver los sitios escaneados |
-| `atlas_get_map` | Mapa por páginas y bloques, con etiquetas y orden planificado |
-| `atlas_get_block` | Detalle de un bloque (componentes, alertas, miniatura) |
-| `atlas_list_issues` | Alertas del último escaneo |
-| `atlas_tags` · `atlas_set_block_tags` | Crear, renombrar, borrar y asignar etiquetas |
-| `atlas_move_block` · `atlas_add_planned_page` | Reorganizar el orden planificado |
-| `atlas_get_plan` | Diferencias entre el sitio real y el plan, listas para implementar |
-| `atlas_open_canvas` | URL del lienzo |
+| `atlas_scan` | Scan a site and reconcile your existing organization |
+| `atlas_list_sites` | List scanned sites |
+| `atlas_get_map` | Map of pages and sections, with tags and planned order |
+| `atlas_get_block` | Section details (components, issues, thumbnail) |
+| `atlas_list_issues` | Issues from the latest scan |
+| `atlas_tags` · `atlas_set_block_tags` | Create, rename, delete and assign tags |
+| `atlas_move_block` · `atlas_add_planned_page` | Rearrange the planned order |
+| `atlas_get_plan` | Differences between the real site and the plan, ready to implement |
+| `atlas_open_canvas` | Canvas URL |
 
-Ejemplo de conversación con un agente:
+Example prompt for an agent:
 
-> "Escanea http://localhost:4321 con site-atlas, mueve la sección de precios a /precios y dime qué cambios hay que hacer en el código."
+> "Scan http://localhost:4321 with site-atlas, move the pricing section to /pricing and tell me what needs to change in the code."
 
-El texto que viene del sitio escaneado se marca como **contenido no confiable**, para que el agente lo trate como datos y no como instrucciones.
+Text extracted from the scanned site is marked as **untrusted content**, so agents treat it as data, not instructions.
 
-## Marcas opcionales
+## Optional markers
 
-Atlas detecta los bloques solo: `header`, `section` de primer nivel, `footer` y bloques visibles de `main`. En un sitio propio puedes fijar la división exacta:
+Atlas detects sections on its own: top-level `header`, `section` and `footer`, plus visible blocks inside `main`. On your own site you can set the exact split:
 
 ```html
 <section data-atlas-block="Hero">…</section>
 ```
 
-## Datos y privacidad
+## Data and privacy
 
-- Todo se guarda en `~/.site-atlas/`, o en la carpeta que indique `SITE_ATLAS_HOME`.
-- Nada sale de tu máquina, salvo las visitas al sitio que escaneas.
-- En sitios públicos respeta `robots.txt` y espera 1 s entre páginas.
-- Atlas **nunca escribe** en el repositorio del sitio.
+- Everything is stored in `~/.site-atlas/`, or in the folder set by `SITE_ATLAS_HOME`.
+- Nothing leaves your machine, except the requests to the site you scan.
+- On public sites it respects `robots.txt` and waits 1 s between pages.
+- Atlas **never writes** to the site's repository.
 
-## Desarrollo
+## Development
 
 ```bash
-pnpm test            # pruebas unitarias, de integración y del lienzo (Vitest + Playwright)
-pnpm typecheck       # servidor (tsc) y lienzo (vue-tsc)
-pnpm atlas scan …    # CLI sin compilar (tsx)
-pnpm dev:canvas      # lienzo con recarga en vivo (requiere el servidor en :4800)
+pnpm test            # unit, integration and canvas tests (Vitest + Playwright)
+pnpm typecheck       # server (tsc) and canvas (vue-tsc)
+pnpm atlas scan …    # CLI without building (tsx)
+pnpm dev:canvas      # canvas with hot reload (needs the server on :4800)
 ```
 
-Stack: Node 24, TypeScript, Playwright, Hono, Vue 3 + Vite, Zod y `@modelcontextprotocol/sdk`.
+Stack: Node 24, TypeScript, Playwright, Hono, Vue 3 + Vite, Zod and `@modelcontextprotocol/sdk`.
 
-## Probado con
+> The interface and messages are currently in Spanish.
 
-| Sitio | Resultado |
+## Tested with
+
+| Site | Result |
 |---|---|
-| Sitio de marketing local (HTML, 15 secciones) | 15 bloques con sus nombres reales; detectó un enlace roto, 4 secciones sin ancla, imágenes provisionales y un formulario sin destino |
-| stripe.com (1 página) | 10 bloques, 8 con nombre legible, en 26 s |
-| vercel.com (1 página) | 6 bloques, todos con nombre legible |
+| Local marketing site (HTML, 15 sections) | 15 sections with their real names; found a broken link, 4 sections without an anchor, placeholder images and a form without an action |
+| stripe.com (1 page) | 10 sections, 8 with a readable name, in 26 s |
+| vercel.com (1 page) | 6 sections, all with a readable name |
 
-## Contribuir
+## Contributing
 
-Los issues y pull requests son bienvenidos. Antes de cambios grandes, abre un issue para conversarlo. Las decisiones de diseño viven en [`docs/superpowers/specs/`](docs/superpowers/specs/).
+Issues and pull requests are welcome. For larger changes, please open an issue first to discuss them. Design decisions live in [`docs/superpowers/specs/`](docs/superpowers/specs/).
 
-## Licencia
+## License
 
-Código abierto bajo licencia [MIT](LICENSE).
+Open source under the [MIT](LICENSE) license.
