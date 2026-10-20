@@ -1,8 +1,11 @@
 import { t } from './strings';
-import type { BlockView, SiteMap } from '../../src/model/map.js';
-import type { OverlayOp } from '../../src/model/ops.js';
+import type { BlockView, ComponentView, PageView, SiteMap, TargetView } from '../../src/model/map.js';
+import type { EffectiveLink } from '../../src/model/links.js';
+import type { Change } from '../../src/model/changes.js';
+import type { OverlayOp, PlanFields } from '../../src/model/ops.js';
+import type { Target } from '../../src/schema/overlay.js';
 
-export type { BlockView, SiteMap, OverlayOp };
+export type { BlockView, Change, ComponentView, EffectiveLink, OverlayOp, PageView, PlanFields, SiteMap, Target, TargetView };
 
 export class ConflictError extends Error {
   constructor(readonly map: SiteMap) {
@@ -21,6 +24,8 @@ const enc = encodeURIComponent;
 
 export const getSites = () => fetch('/api/sites').then((r) => json<{ site: string; lastScan: string | null }[]>(r));
 export const getMap = (site: string) => fetch(`/api/sites/${enc(site)}/map`).then((r) => json<SiteMap>(r));
+export const getPlan = (site: string) =>
+  fetch(`/api/sites/${enc(site)}/plan`).then((r) => json<{ changes: Change[]; markdown: string; schemaVersion: 2 }>(r));
 
 export const sendOp = (site: string, rev: number, op: OverlayOp) =>
   fetch(`/api/sites/${enc(site)}/ops`, {
@@ -31,9 +36,12 @@ export const sendOp = (site: string, rev: number, op: OverlayOp) =>
 
 export const rescan = (site: string) => fetch(`/api/sites/${enc(site)}/rescan`, { method: 'POST' }).then((r) => json<unknown>(r));
 
-export function subscribe(site: string, onEvent: (type: 'overlay' | 'scan' | 'progress', data: Record<string, unknown>) => void) {
+export type SiteEventType = 'ready' | 'overlay' | 'scan' | 'progress';
+
+/** Server-sent events of one site. `ready` fires once the server is watching the site for changes. */
+export function subscribe(site: string, onEvent: (type: SiteEventType, data: Record<string, unknown>) => void) {
   const source = new EventSource(`/api/sites/${enc(site)}/events`);
-  for (const type of ['overlay', 'scan', 'progress'] as const) {
+  for (const type of ['ready', 'overlay', 'scan', 'progress'] as const) {
     source.addEventListener(type, (e) => onEvent(type, JSON.parse((e as MessageEvent).data)));
   }
   return () => source.close();
