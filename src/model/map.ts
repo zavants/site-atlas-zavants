@@ -3,7 +3,7 @@ import type { Block, Issue, Kind, Scan } from '../schema/scan.js';
 import { pagePath } from '../store/paths.js';
 import { componentOf } from './components.js';
 import { effectiveLinks, externalOrigins, type EffectiveLink } from './links.js';
-import { effectiveOrders, indexScan } from './ops.js';
+import { effectiveOrders, indexScan, type PlanFields } from './ops.js';
 import { displaced } from './order.js';
 
 export type BlockView = Block & {
@@ -59,6 +59,8 @@ export interface SiteMap {
   components: ComponentView[];
   targets: TargetView[];
   layout: Overlay['layout'];
+  /** The six user-layer fields the canvas history snapshots and restores with `replacePlanFields` (spec §10b). */
+  planFields: PlanFields;
 }
 
 /** Missing paths (missingPages and broken-link targets) and external origins, without duplicates. */
@@ -157,5 +159,13 @@ export function buildMap(scan: Scan, overlay: Overlay): SiteMap {
     components: [...components.values()],
     targets: buildTargets(scan),
     layout: overlay.layout,
+    planFields: {
+      plannedOrder: overlay.plannedOrder,
+      plannedPages: overlay.plannedPages,
+      plannedDeletions: overlay.plannedDeletions,
+      layout: overlay.layout,
+      linkEdits: overlay.linkEdits,
+      addedLinks: overlay.addedLinks,
+    },
   };
 }
