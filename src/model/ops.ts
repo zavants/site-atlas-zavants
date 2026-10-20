@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { en } from '../i18n/en.js';
 import { OverlaySchema, TargetSchema, type Overlay, type Target } from '../schema/overlay.js';
 import { applyConfirmation } from './changes.js';
-import { externalOrigins, linkId } from './links.js';
+import { externalOrigins, linkId, owner as ownerOf } from './links.js';
 import type { Block, Kind, Scan } from '../schema/scan.js';
 
 export type OverlayOp =
@@ -205,7 +205,12 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
     case 'relink': {
       requireOwner(idx, overlay, op.owner);
       requireTarget(idx, scan, overlay, op.to);
-      const id = linkId(op.owner, op.linkHref, op.linkText);
+      const text = op.linkText.trim();
+      const scanned = scan.pages.some((p) =>
+        p.blocks.some((b) => ownerOf(b, overlay) === op.owner && b.components.links.some((l) => l.href === op.linkHref && l.text.trim() === text)),
+      );
+      if (!scanned) throw new OpError(en.op.noScannedLink(text, op.linkHref, op.owner));
+      const id = linkId(op.owner, op.linkHref, text);
       return { ...overlay, linkEdits: { ...overlay.linkEdits, [id]: { ...op.to, by: op.by ?? 'canvas' } } };
     }
     case 'addLink': {
