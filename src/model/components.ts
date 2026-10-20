@@ -50,6 +50,15 @@ export function assignComponents(overlay: Overlay, scan: Scan): Components {
   return out;
 }
 
+/**
+ * The overlay with its components reconciled against `scan`. Re-scans already do this; the service
+ * layer applies it on read and before each op so overlays not reconciled yet (fresh or migrated
+ * from v1) agree with the map on component owners.
+ */
+export function withComponents(overlay: Overlay, scan: Scan): Overlay {
+  return { ...overlay, components: assignComponents(overlay, scan) };
+}
+
 /** Component id a block belongs to, or null. */
 export function componentOf(block: Block, components: Components): string | null {
   return block.isComponent ? find(block, components) : null;

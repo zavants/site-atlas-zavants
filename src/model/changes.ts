@@ -3,7 +3,7 @@ import { en } from '../i18n/en.js';
 import { normalizeUrl } from '../scan/crawl.js';
 import type { Overlay, Target } from '../schema/overlay.js';
 import type { Block, Issue, Scan } from '../schema/scan.js';
-import { effectiveLinks, owner, resolveTarget } from './links.js';
+import { effectiveLinks, linkId, owner, resolveTarget } from './links.js';
 import { effectiveOrders, indexScan, OpError, sameTarget, type OverlayOp, type ScanIndex } from './ops.js';
 import { displaced } from './order.js';
 
@@ -72,6 +72,22 @@ export function observedLink(scan: Scan, overlay: Overlay, ownerId: string, targ
     }
   }
   return false;
+}
+
+/**
+ * A relink is observed only when the edited link itself (its `linkId`: owner, href and text) is no
+ * longer among the owner's scanned links and the owner now links to the planned target. While the
+ * original link is still on the site the edit is pending, even if another link already goes there.
+ */
+export function relinkObserved(scan: Scan, overlay: Overlay, id: string, target: Target): boolean {
+  const ownerId = id.split('|')[0]!;
+  for (const page of scan.pages) {
+    for (const block of page.blocks) {
+      if (owner(block, overlay) !== ownerId) continue;
+      if (block.components.links.some((l) => linkId(ownerId, l.href, l.text) === id)) return false;
+    }
+  }
+  return observedLink(scan, overlay, ownerId, target);
 }
 
 /** The plan as a list of changes, in the order newPage, move, delete, reorder, relink, addLink. */
@@ -314,7 +330,7 @@ class Planner {
           const targetInfo = this.targetInfo(target);
           out.push(
             this.change('relink', [link.id, targetIdentity(target)], {
-              observed: observedLink(this.scan, this.overlay, link.owner, target),
+              observed: relinkObserved(this.scan, this.overlay, link.id, target),
               summary: en.plan.summary.relink(text, label, this.targetLabel(target)),
               details: {
                 linkId: link.id,
