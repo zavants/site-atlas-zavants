@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { en } from '../i18n/en.js';
-import type { Overlay } from '../schema/overlay.js';
+import { OverlaySchema, TargetSchema, type Overlay, type Target } from '../schema/overlay.js';
+import { externalOrigins, linkId } from './links.js';
 import type { Block, Kind, Scan } from '../schema/scan.js';
 
 export type OverlayOp =
@@ -14,7 +15,15 @@ export type OverlayOp =
   | { type: 'addPlannedPage'; path: string; title: string }
   | { type: 'markDeleted'; blockKey: string }
   | { type: 'restore'; blockKey: string }
-  | { type: 'resolveOrphan'; orphanKey: string; action: 'assign' | 'discard'; targetKey?: string };
+  | { type: 'resolveOrphan'; orphanKey: string; action: 'assign' | 'discard'; targetKey?: string }
+  | { type: 'relink'; owner: string; linkText: string; linkHref: string; to: Target; by?: string }
+  | { type: 'addLink'; owner: string; to: Target; label?: string; by?: string }
+  | { type: 'removeLink'; linkId: string; by?: string }
+  | { type: 'removePlannedPage'; path: string; by?: string }
+  | { type: 'setLayout'; id: string; x: number; y: number; by?: string }
+  | { type: 'replacePlanFields'; fields: PlanFields; by?: string };
+
+export type PlanFields = Pick<Overlay, 'plannedOrder' | 'plannedPages' | 'plannedDeletions' | 'layout' | 'linkEdits' | 'addedLinks'>;
 
 export class OpError extends Error {}
 
@@ -58,6 +67,27 @@ function requireTag(overlay: Overlay, tagId: string) {
   const tag = overlay.tags.find((t) => t.id === tagId);
   if (!tag) throw new OpError(en.op.noTag(tagId));
   return tag;
+}
+
+function sameTarget(a: Target, b: Target): boolean {
+  return 'block' in a ? 'block' in b && a.block === b.block : 'page' in b && a.page === b.page;
+}
+
+function requireOwner(idx: ScanIndex, overlay: Overlay, id: string): void {
+  if (!idx.blocks.has(id) && !(id in overlay.components)) throw new OpError(en.op.noBlock(id));
+}
+
+function requireTarget(idx: ScanIndex, scan: Scan, overlay: Overlay, to: Target): void {
+  if ('block' in to) {
+    requireBlock(idx, to.block);
+    return;
+  }
+  const known =
+    idx.realOrder.has(to.page) ||
+    overlay.plannedPages.some((p) => p.path === to.page) ||
+    scan.missingPages.includes(to.page) ||
+    externalOrigins(scan).has(to.page);
+  if (!known) throw new OpError(en.op.noPage(to.page));
 }
 
 export function renameKey(overlay: Overlay, from: string, to: string): Overlay {
@@ -169,9 +199,59 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
         plannedOrder: Object.fromEntries(Object.entries(rest.plannedOrder).map(([p, ks]) => [p, ks.filter((k) => k !== op.orphanKey)])),
       };
     }
+    case 'relink': {
+      requireOwner(idx, overlay, op.owner);
+      requireTarget(idx, scan, overlay, op.to);
+      const id = linkId(op.owner, op.linkHref, op.linkText);
+      return { ...overlay, linkEdits: { ...overlay.linkEdits, [id]: { ...op.to, by: op.by ?? 'canvas' } } };
+    }
+    case 'addLink': {
+      requireOwner(idx, overlay, op.owner);
+      requireTarget(idx, scan, overlay, op.to);
+      const link = { id: randomUUID().slice(0, 8), from: op.owner, to: op.to, ...(op.label ? { label: op.label } : {}), by: op.by ?? 'canvas' };
+      return { ...overlay, addedLinks: [...overlay.addedLinks, link] };
+    }
+    case 'removeLink': {
+      if (overlay.addedLinks.some((l) => l.id === op.linkId)) {
+        return { ...overlay, addedLinks: overlay.addedLinks.filter((l) => l.id !== op.linkId) };
+      }
+      if (op.linkId in overlay.linkEdits) {
+        const linkEdits = { ...overlay.linkEdits };
+        delete linkEdits[op.linkId];
+        return { ...overlay, linkEdits };
+      }
+      throw new OpError(en.op.noLink(op.linkId));
+    }
+    case 'removePlannedPage': {
+      if (!overlay.plannedPages.some((p) => p.path === op.path)) throw new OpError(en.op.noPage(op.path));
+      const page: Target = { page: op.path };
+      const plannedOrder = { ...overlay.plannedOrder };
+      delete plannedOrder[op.path];
+      const layout = { ...overlay.layout };
+      delete layout[op.path];
+      return {
+        ...overlay,
+        plannedPages: overlay.plannedPages.filter((p) => p.path !== op.path),
+        plannedOrder,
+        layout,
+        linkEdits: Object.fromEntries(
+          Object.entries(overlay.linkEdits).filter(([, { by: _by, ...t }]) => !sameTarget(t as Target, page)),
+        ),
+        addedLinks: overlay.addedLinks.filter((l) => !sameTarget(l.to, page) && l.from !== op.path),
+      };
+    }
+    case 'setLayout': {
+      if (!Number.isFinite(op.x) || !Number.isFinite(op.y)) throw new OpError(en.op.badLayout);
+      return { ...overlay, layout: { ...overlay.layout, [op.id]: { x: op.x, y: op.y } } };
+    }
+    case 'replacePlanFields': {
+      const { plannedOrder, plannedPages, plannedDeletions, layout, linkEdits, addedLinks } = op.fields;
+      return { ...overlay, plannedOrder, plannedPages, plannedDeletions, layout, linkEdits, addedLinks };
+    }
   }
 }
 
+const by = z.string().default('canvas');
 const KindOrNull = z.enum(['narrative', 'visual', 'conversion']).nullable();
 export const OverlayOpSchema: z.ZodType<OverlayOp> = z.discriminatedUnion('type', [
   z.object({ type: z.literal('createTag'), name: z.string(), color: z.string().optional() }),
@@ -188,5 +268,22 @@ export const OverlayOpSchema: z.ZodType<OverlayOp> = z.discriminatedUnion('type'
     orphanKey: z.string(),
     action: z.enum(['assign', 'discard']),
     targetKey: z.string().optional(),
+  }),
+  z.object({ type: z.literal('relink'), owner: z.string(), linkText: z.string(), linkHref: z.string(), to: TargetSchema, by }),
+  z.object({ type: z.literal('addLink'), owner: z.string(), to: TargetSchema, label: z.string().optional(), by }),
+  z.object({ type: z.literal('removeLink'), linkId: z.string(), by }),
+  z.object({ type: z.literal('removePlannedPage'), path: z.string(), by }),
+  z.object({ type: z.literal('setLayout'), id: z.string(), x: z.number(), y: z.number(), by }),
+  z.object({
+    type: z.literal('replacePlanFields'),
+    fields: OverlaySchema.pick({
+      plannedOrder: true,
+      plannedPages: true,
+      plannedDeletions: true,
+      layout: true,
+      linkEdits: true,
+      addedLinks: true,
+    }),
+    by,
   }),
 ]) as z.ZodType<OverlayOp>;

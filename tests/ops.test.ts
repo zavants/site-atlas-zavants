@@ -59,7 +59,7 @@ describe('applyOp + buildMap', () => {
 
   it('rechaza etiquetas y claves inexistentes con English message', () => {
     expect(() => run({ type: 'setBlockTags', blockKey: '/#top', tagIds: ['nope'] })).toThrow(/tag/i);
-    expect(() => run({ type: 'markDeleted', blockKey: '/#nada' })).toThrow(/block/i);
+    expect(() => run({ type: 'markDeleted', blockKey: '/#nada' })).toThrow(/No section/);
   });
 
   it('marca y restaura eliminaciones', () => {
