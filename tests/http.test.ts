@@ -47,7 +47,7 @@ describe('API HTTP', () => {
   it('responde 400 con English message ante operaciones inválidas', async () => {
     const bad = await post(`/api/sites/${SITE}/ops`, { rev: 0, op: { type: 'markDeleted', blockKey: '/#nada' } });
     expect(bad.status).toBe(400);
-    expect((await bad.json()).error).toMatch(/does not exist/);
+    expect((await bad.json()).error).toMatch(/No section/);
     expect((await post(`/api/sites/${SITE}/ops`, { rev: 0, op: { type: 'volar' } })).status).toBe(400);
   });
 

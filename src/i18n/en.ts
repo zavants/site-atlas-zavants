@@ -85,7 +85,9 @@ export const en = {
   },
 
   op: {
-    noBlock: (key: string) => `Block ${key} does not exist in the latest scan.`,
+    noBlock: (key: string) => `No section ${key} in the latest scan.`,
+    noLink: (id: string) => `No link ${id}.`,
+    badLayout: 'The position needs finite x and y values.',
     noTag: (id: string) => `Tag ${id} does not exist.`,
     tagNeedsName: 'A tag needs a name.',
     noPage: (path: string) => `Page ${path} does not exist.`,
