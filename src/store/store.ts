@@ -60,7 +60,9 @@ async function withFileLock<T>(lockFile: string, fn: () => Promise<T>): Promise<
       await handle.close();
       break;
     } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+      // Windows reports EPERM/EACCES (not EEXIST) while another process's unlink of the lock is still pending.
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code !== 'EEXIST' && code !== 'EPERM' && code !== 'EACCES') throw err;
       const age = await stat(lockFile).then((st) => Date.now() - st.mtimeMs, () => 0);
       if (age > LOCK_STALE_MS) {
         await unlink(lockFile).catch(() => undefined);

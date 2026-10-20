@@ -65,7 +65,6 @@ describe('English only', () => {
   describe('built canvas', () => {
     let literals: string[] = [];
     beforeAll(async () => {
-      execFileSync(process.execPath, [join(root, 'node_modules', 'vite', 'bin', 'vite.js'), 'build', 'canvas'], { cwd: root, stdio: 'pipe', env: { ...process.env, NODE_ENV: 'production' } });
       const dir = join(root, 'dist', 'canvas', 'assets');
       const files = (await readdir(dir)).filter((f) => f.endsWith('.js'));
       const code = (await Promise.all(files.map((f) => readFile(join(dir, f), 'utf8')))).join('\n');
