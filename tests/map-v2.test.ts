@@ -1,10 +1,15 @@
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { effectiveLinks, linkId } from '../src/model/links.js';
 import { buildMap } from '../src/model/map.js';
 import { applyOp } from '../src/model/ops.js';
 import { reconcile } from '../src/model/reconcile.js';
+import { getMap, getPlan, mutate } from '../src/model/service.js';
 import { emptyOverlay } from '../src/schema/overlay.js';
 import type { Scan } from '../src/schema/scan.js';
+import { SiteStore } from '../src/store/store.js';
 import { sampleScan } from './helpers/sample.js';
 
 /** Sample scan rooted at `/`: the hero has a broken link, a link to /otra#precios and an external one. */
@@ -62,8 +67,27 @@ describe('buildMap v2', () => {
     expect(m.layout).toEqual({ '/otra': { x: 10, y: 20 } });
   });
 
-  it('works with an overlay that has not named components yet', () => {
-    const m = buildMap(scan, emptyOverlay());
-    expect(m.components.map((c) => c.name).sort()).toEqual(['Footer 1', 'Header 1']);
+});
+
+describe('service with a v1 overlay (no components yet)', () => {
+  it('names components lazily so a header relink from the map works and persists them', async () => {
+    const store = new SiteStore(await mkdtemp(join(tmpdir(), 'site-atlas-test-')));
+    const scan = fixture();
+    for (const p of scan.pages) p.blocks[0]!.components.links = [{ text: 'Productos', href: '#productos', kind: 'anchor' }];
+    await store.saveScan(scan);
+    const v1 = { schemaVersion: 1, rev: 0, tags: [], blockTags: {}, kindOverrides: {}, plannedPages: [], plannedOrder: {}, plannedDeletions: [], newKeys: [], orphans: [] };
+    await writeFile(store.overlayFile(scan.site), JSON.stringify(v1));
+
+    const map = await getMap(store, scan.site);
+    const header = map.globals.find((b) => b.tag === 'header')!;
+    expect(header.componentId).toBe('c:fp-header');
+    const owner = header.links[0]!.owner;
+    expect(owner).toBe('c:fp-header');
+
+    const after = await mutate(store, scan.site, { type: 'relink', owner, linkText: 'Productos', linkHref: '#productos', to: { block: '/#top' } });
+    expect(after.globals.find((b) => b.tag === 'header')!.links[0]).toMatchObject({ edited: true, target: { block: '/#top' } });
+    expect(Object.keys((await store.readOverlay(scan.site)).components).sort()).toEqual(['c:fp-footer', 'c:fp-header']);
+    const plan = await getPlan(store, scan.site);
+    expect(plan.changes.filter((c) => c.type === 'relink')).toHaveLength(1);
   });
 });

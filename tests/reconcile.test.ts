@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { deriveChanges } from '../src/model/changes.js';
 import { assignComponents } from '../src/model/components.js';
 import { linkId } from '../src/model/links.js';
+import { applyOp } from '../src/model/ops.js';
 import { reconcile } from '../src/model/reconcile.js';
 import { emptyOverlay, type Overlay } from '../src/schema/overlay.js';
 import type { Block, Scan } from '../src/schema/scan.js';
@@ -154,6 +155,39 @@ describe('reconcile v2 (links, layout, components)', () => {
     expect(o.linkEdits).toEqual({});
     expect(o.orphans).toEqual([]);
     expect(deriveChanges(next, o).filter((c) => c.type === 'relink')).toEqual([]);
+  });
+
+  it('keeps a relink while the edited link is still on the site, even if the owner already links to the target', () => {
+    const prev = linked();
+    page(prev, '/').blocks[1]!.components.links.push({ text: 'Precios', href: 'http://localhost:4405/otra#precios', kind: 'internal' });
+    const before = applyOp(emptyOverlay(), prev, { type: 'relink', owner: '/#top', linkText: 'Ver', linkHref: 'http://localhost:4405/no-existe', to: toPrecios });
+    const next = clone(prev);
+    const o = reconcile(before, prev, next);
+    expect(Object.keys(o.linkEdits)).toEqual([verId]);
+    expect(deriveChanges(next, o).filter((c) => c.type === 'relink')).toEqual([
+      expect.objectContaining({ status: 'pending', observed: false }),
+    ]);
+  });
+
+  it('drops the links of a discarded block orphan so it does not come back', () => {
+    const prev = linked();
+    const next = clone(prev);
+    page(next, '/otra').blocks.splice(1, 1);
+    const before: Overlay = {
+      ...emptyOverlay(),
+      linkEdits: { [verId]: { ...toPrecios, by: 'canvas' }, [linkId('/otra#precios', '#x', 'X')]: { block: '/#top', by: 'canvas' } },
+      addedLinks: [
+        { id: 'a1', from: '/#top', to: toPrecios, by: 'canvas' },
+        { id: 'a2', from: '/otra#precios', to: { block: '/#top' }, by: 'canvas' },
+        { id: 'a3', from: '/#top', to: { block: '/#cotizacion' }, by: 'canvas' },
+      ],
+    };
+    const orphaned = reconcile(before, prev, next);
+    expect(orphaned.orphans.map((x) => x.key)).toEqual(['/otra#precios']);
+    const discarded = applyOp(orphaned, next, { type: 'resolveOrphan', orphanKey: '/otra#precios', action: 'discard' });
+    expect(discarded.linkEdits).toEqual({});
+    expect(discarded.addedLinks.map((l) => l.id)).toEqual(['a3']);
+    expect(reconcile(discarded, next, clone(next)).orphans).toEqual([]);
   });
 
   it('turns a relink whose link vanished (not observed) into an orphan', () => {
