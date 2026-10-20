@@ -211,7 +211,7 @@ class Planner {
         summary: en.plan.summary.newPage(p.path, p.title),
         details: { page: p.path, title: p.title, sections: this.kept(p.path).map((k) => this.ref(k)), resolves: this.issueRefs(resolves) },
         doneWhen: en.plan.done.newPage(p.path),
-        by: 'canvas',
+        by: this.overlay.authors[`newPage|${p.path}`] ?? 'canvas',
       });
     });
   }
@@ -241,7 +241,7 @@ class Planner {
               resolves: [],
             },
             doneWhen: en.plan.done.move(b.name, from, path),
-            by: 'canvas',
+            by: this.overlay.authors[`move|${key}`] ?? 'canvas',
           }),
         );
       });
@@ -261,7 +261,7 @@ class Planner {
           summary: en.plan.summary.delete(b.name, page),
           details: { section: this.section(key), page, resolves: this.issueRefs(this.scan.issues.filter((i) => i.blockKey === key)) },
           doneWhen: en.plan.done.delete(b.name, page),
-          by: 'canvas',
+          by: this.overlay.authors[`delete|${key}`] ?? 'canvas',
         });
       });
   }
@@ -285,7 +285,7 @@ class Planner {
             summary: prevName ? en.plan.summary.reorderAfter(name, path, prevName) : en.plan.summary.reorderFirst(name, path),
             details: { section: this.section(key), page: path, position: i + 1, previousSection: this.ref(prev), nextSection: this.ref(kept[i + 1]), resolves: [] },
             doneWhen: prevName ? en.plan.done.reorderAfter(name, path, prevName) : en.plan.done.reorderFirst(name, path),
-            by: 'canvas',
+            by: this.overlay.authors[`reorder|${path}`] ?? 'canvas',
           }),
         );
       });

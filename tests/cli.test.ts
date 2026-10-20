@@ -77,6 +77,16 @@ describe.concurrent('CLI plan commands', () => {
     expect((await cli('plan', SITE, '--status', 'done')).code).toBe(1);
   });
 
+  it('rejects arguments that Git Bash rewrote into a path', SLOW, async () => {
+    const { cli } = await setup();
+    const r = await cli('move', SITE, 'C:/Program Files/Git/~integraciones', '/otra');
+    expect(r.code).toBe(1);
+    expect(r.err).toContain('Argument "C:/Program Files/Git/~integraciones" looks like a path rewritten by Git Bash. Run with MSYS_NO_PATHCONV=1 (see README).');
+    expect((await cli('delete', SITE, 'C:\\msys64\\usr\\bin\\x')).code).toBe(1);
+    expect((await cli('--help')).out).toContain('MSYS_NO_PATHCONV=1');
+    expect((await cli('plan', SITE, '--status', 'applied')).err).not.toContain('Git Bash');
+  });
+
   it('manages pages, links, deletions and relinks', SLOW, async () => {
     const { cli, plan } = await setup();
     expect((await cli('page', 'add', SITE, '/nueva', '--title', 'Nueva')).code).toBe(0);
@@ -98,7 +108,7 @@ describe.concurrent('CLI plan commands', () => {
     expect((await plan()).changes).toEqual([]);
 
     expect((await cli('delete', SITE, '/otra#precios')).code).toBe(0);
-    expect((await plan()).changes.map((c) => c.type)).toEqual(['delete']);
+    expect((await plan()).changes.map((c) => [c.type, c.by])).toEqual([['delete', 'cli']]);
     expect((await cli('restore', SITE, '/otra#precios')).code).toBe(0);
     expect((await plan()).changes).toEqual([]);
   });

@@ -121,6 +121,14 @@ describe('servidor MCP', () => {
     expect(text(await call('atlas_get_plan', { site: SITE }))).toContain('Move "Integraciones" from / to /otra');
   });
 
+  it('attributes moves, deletions and pages to the MCP client', async () => {
+    await call('atlas_move_block', { site: SITE, blockKey: '/~integraciones', toPage: '/otra', index: 0 });
+    await call('atlas_mark_deleted', { site: SITE, blockKey: '/otra#precios' });
+    await call('atlas_add_planned_page', { site: SITE, path: '/nueva', title: 'Nueva' });
+    const plan = JSON.parse((await call('atlas_get_plan', { site: SITE })).content.at(-1)!.text!) as { changes: { type: string; by: string }[] };
+    expect(plan.changes.map((c) => [c.type, c.by])).toEqual([['newPage', 'test'], ['move', 'test'], ['delete', 'test']]);
+  });
+
   it('marca como no confiable el contenido del sitio y lo pone después del aviso', async () => {
     const map = await call('atlas_get_map', { site: SITE });
     expect(map._meta?.['site-atlas/untrusted']).toBe(true);

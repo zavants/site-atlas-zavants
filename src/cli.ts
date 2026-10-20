@@ -24,7 +24,8 @@ const targetOf = (o: { toBlock?: string; toPage?: string }): Target => {
 const program = new Command()
   .name('site-atlas')
   .description(en.cli.description)
-  .version(VERSION);
+  .version(VERSION)
+  .addHelpText('after', en.cli.helpWindows);
 
 program
   .command('scan <url>')
@@ -88,7 +89,7 @@ program
   .description(en.cli.move)
   .option('--index <n>', en.cli.index, (v) => Number.parseInt(v, 10))
   .action((site: string, blockKey: string, toPage: string, o: { index?: number }) =>
-    propose(site, { type: 'moveBlock', blockKey, toPage, index: o.index ?? Number.MAX_SAFE_INTEGER }),
+    propose(site, { type: 'moveBlock', blockKey, toPage, index: o.index ?? Number.MAX_SAFE_INTEGER, by: BY }),
   );
 
 const page = program.command('page').description(en.cli.page);
@@ -96,7 +97,7 @@ page
   .command('add <site> <path>')
   .description(en.cli.pageAdd)
   .option('--title <title>', en.cli.pageTitle)
-  .action((site: string, path: string, o: { title?: string }) => propose(site, { type: 'addPlannedPage', path, title: o.title ?? '' }));
+  .action((site: string, path: string, o: { title?: string }) => propose(site, { type: 'addPlannedPage', path, title: o.title ?? '', by: BY }));
 page
   .command('remove <site> <path>')
   .description(en.cli.pageRemove)
@@ -131,12 +132,12 @@ link
 program
   .command('delete <site> <blockKey>')
   .description(en.cli.delete)
-  .action((site: string, blockKey: string) => propose(site, { type: 'markDeleted', blockKey }));
+  .action((site: string, blockKey: string) => propose(site, { type: 'markDeleted', blockKey, by: BY }));
 
 program
   .command('restore <site> <blockKey>')
   .description(en.cli.restore)
-  .action((site: string, blockKey: string) => propose(site, { type: 'restore', blockKey }));
+  .action((site: string, blockKey: string) => propose(site, { type: 'restore', blockKey, by: BY }));
 
 program
   .command('mcp')
@@ -145,6 +146,14 @@ program
     const { startMcpStdio } = await import('./mcp/server.js');
     await startMcpStdio(new SiteStore());
   });
+
+// Git Bash (MSYS) rewrites arguments that start with "/" into Windows paths before Node sees them.
+const MSYS_PREFIX = /^[A-Za-z]:[\\/](Program Files[\\/]Git|msys64|usr)[\\/]/i;
+const mangled = process.argv.slice(2).find((a) => MSYS_PREFIX.test(a));
+if (mangled) {
+  console.error(en.cli.mangledPath(mangled));
+  process.exit(1);
+}
 
 program.parseAsync().catch((err: Error) => {
   console.error(err.message);

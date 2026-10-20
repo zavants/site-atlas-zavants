@@ -126,6 +126,16 @@ Example prompt for an agent:
 
 Text extracted from the scanned site is marked as **untrusted content**, so agents treat it as data, not instructions.
 
+## CLI on Windows (Git Bash)
+
+Git Bash rewrites arguments that start with `/` into Windows paths (`/~hero` becomes `C:/Program Files/Git/~hero`) before the CLI sees them. Start the command with `MSYS_NO_PATHCONV=1`:
+
+```sh
+MSYS_NO_PATHCONV=1 site-atlas move my-site /~hero /pricing
+```
+
+The CLI refuses arguments that look rewritten and tells you to do this. PowerShell and cmd are not affected.
+
 ## Optional markers
 
 Atlas detects sections on its own: top-level `header`, `section` and `footer`, plus visible blocks inside `main`. On your own site you can set the exact split:
