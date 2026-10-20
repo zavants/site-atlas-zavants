@@ -108,6 +108,17 @@ export function renameKey(overlay: Overlay, from: string, to: string): Overlay {
   const plannedOrder = Object.fromEntries(
     Object.entries(overlay.plannedOrder).map(([p, keys]) => [p, [...new Set(keys.map(swap))]]),
   );
+  const swapTarget = <T extends Target>(t: T): T => ('block' in t && t.block === from ? { ...t, block: to } : t);
+  const linkEdits: Overlay['linkEdits'] = {};
+  for (const [id, edit] of Object.entries(overlay.linkEdits)) {
+    const renamed = id.startsWith(`${from}|`) ? to + id.slice(from.length) : id;
+    linkEdits[renamed] ??= swapTarget(edit);
+  }
+  const layout = { ...overlay.layout };
+  if (from in layout) {
+    layout[to] ??= layout[from]!;
+    delete layout[from];
+  }
   return {
     ...overlay,
     blockTags,
@@ -115,6 +126,9 @@ export function renameKey(overlay: Overlay, from: string, to: string): Overlay {
     plannedOrder,
     plannedDeletions: [...new Set(overlay.plannedDeletions.map(swap))],
     newKeys: overlay.newKeys.map(swap),
+    linkEdits,
+    addedLinks: overlay.addedLinks.map((l) => ({ ...l, from: swap(l.from), to: swapTarget(l.to) })),
+    layout,
   };
 }
 
@@ -194,10 +208,13 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
       delete blockTags[op.orphanKey];
       const kindOverrides = { ...rest.kindOverrides };
       delete kindOverrides[op.orphanKey];
+      const linkEdits = { ...rest.linkEdits };
+      delete linkEdits[op.orphanKey];
       return {
         ...rest,
         blockTags,
         kindOverrides,
+        linkEdits,
         plannedDeletions: rest.plannedDeletions.filter((k) => k !== op.orphanKey),
         plannedOrder: Object.fromEntries(Object.entries(rest.plannedOrder).map(([p, ks]) => [p, ks.filter((k) => k !== op.orphanKey)])),
       };
