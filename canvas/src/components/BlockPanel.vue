@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import type { BlockView, SiteMap } from '../api';
 import { shotUrl } from '../api';
+import { t } from '../strings';
 
 const props = defineProps<{ block: BlockView; map: SiteMap }>();
 const emit = defineEmits<{ close: []; setKind: [key: string, kind: BlockView['kind'] | null] }>();
@@ -13,44 +14,44 @@ function onKind(value: string) {
 </script>
 
 <template>
-  <aside class="panel" aria-label="Detalle del bloque">
+  <aside class="panel" :aria-label="t.panel.aria">
     <header>
       <h2>{{ block.name }}</h2>
-      <button type="button" aria-label="Cerrar" @click="emit('close')">×</button>
+      <button type="button" :aria-label="t.panel.close" @click="emit('close')">×</button>
     </header>
-    <p class="muted key">{{ block.key }} · página {{ block.page }}</p>
+    <p class="muted key">{{ block.key }} · {{ t.panel.page }} {{ block.page }}</p>
     <img v-if="shot" :src="shot" alt="" class="shot" />
     <label class="row">
-      Tipo
+      {{ t.panel.type }}
       <select :value="block.kindOverridden ? block.effectiveKind : 'auto'" @change="onKind(($event.target as HTMLSelectElement).value)">
-        <option value="auto">Automático ({{ block.kind }})</option>
-        <option value="narrativa">Narrativa</option>
-        <option value="visual">Visual</option>
-        <option value="conversion">Conversión</option>
+        <option value="auto">{{ t.panel.auto }} ({{ t.kind[block.kind] }})</option>
+        <option value="narrative">{{ t.kind.narrative }}</option>
+        <option value="visual">{{ t.kind.visual }}</option>
+        <option value="conversion">{{ t.kind.conversion }}</option>
       </select>
     </label>
     <section v-if="block.issues.length">
-      <h3>Alertas</h3>
+      <h3>{{ t.panel.issues }}</h3>
       <ul><li v-for="i in block.issues" :key="i.id" :class="i.level">{{ i.message }}</li></ul>
     </section>
     <section v-if="block.components.headings.length">
-      <h3>Títulos</h3>
+      <h3>{{ t.panel.headings }}</h3>
       <ul><li v-for="(h, n) in block.components.headings" :key="n">h{{ h.level }} · {{ h.text }}</li></ul>
     </section>
     <section v-if="block.components.links.length">
-      <h3>Enlaces ({{ block.components.links.length }})</h3>
+      <h3>{{ t.panel.links }} ({{ block.components.links.length }})</h3>
       <ul><li v-for="(l, n) in block.components.links.slice(0, 30)" :key="n">{{ l.text || '—' }} <span class="muted">→ {{ l.href }}</span></li></ul>
     </section>
     <section v-if="block.components.forms.length">
-      <h3>Formularios</h3>
-      <ul><li v-for="(f, n) in block.components.forms" :key="n">{{ f.fields }} campos · {{ f.method.toUpperCase() }} {{ f.action ?? '(sin destino)' }}</li></ul>
+      <h3>{{ t.panel.forms }}</h3>
+      <ul><li v-for="(f, n) in block.components.forms" :key="n">{{ f.fields }} {{ t.panel.fields }} · {{ f.method.toUpperCase() }} {{ f.action ?? t.panel.noAction }}</li></ul>
     </section>
     <section v-if="block.components.media.length">
-      <h3>Medios ({{ block.components.media.length }})</h3>
+      <h3>{{ t.panel.media }} ({{ block.components.media.length }})</h3>
       <ul><li v-for="(m, n) in block.components.media.slice(0, 20)" :key="n">{{ m.type }} <span class="muted">{{ m.src?.split('/').pop() }}</span></li></ul>
     </section>
     <section v-if="block.textExcerpt">
-      <h3>Texto</h3>
+      <h3>{{ t.panel.text }}</h3>
       <p class="excerpt">{{ block.textExcerpt }}</p>
     </section>
   </aside>

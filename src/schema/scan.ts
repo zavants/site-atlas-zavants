@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
-export const KindSchema = z.enum(['narrativa', 'visual', 'conversion']);
+export const KindSchema = z.enum(['narrative', 'visual', 'conversion']);
 export type Kind = z.infer<typeof KindSchema>;
+
+/** Reads v1 data, where the narrative kind was stored as `narrativa`. */
+export const StoredKindSchema = z.preprocess((v) => (v === 'narrativa' ? 'narrative' : v), KindSchema);
 
 export const ComponentsSchema = z.object({
   headings: z.array(z.object({ level: z.number(), text: z.string() })),
@@ -22,7 +25,7 @@ export const BlockSchema = z.object({
   tag: z.string(),
   order: z.number(),
   height: z.number(),
-  kind: KindSchema,
+  kind: StoredKindSchema,
   global: z.boolean(),
   fingerprint: z.string(),
   textExcerpt: z.string(),

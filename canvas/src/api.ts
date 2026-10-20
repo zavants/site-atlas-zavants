@@ -1,3 +1,4 @@
+import { t } from './strings';
 import type { BlockView, SiteMap } from '../../src/model/map.js';
 import type { OverlayOp } from '../../src/model/ops.js';
 
@@ -5,14 +6,14 @@ export type { BlockView, SiteMap, OverlayOp };
 
 export class ConflictError extends Error {
   constructor(readonly map: SiteMap) {
-    super('Alguien más cambió el mapa; se recargó.');
+    super(t.conflict);
   }
 }
 
 async function json<T>(res: Response): Promise<T> {
   const body = (await res.json().catch(() => ({}))) as T & { error?: string; map?: SiteMap };
   if (res.status === 409 && body.map) throw new ConflictError(body.map);
-  if (!res.ok) throw new Error(body.error ?? `Error ${res.status}`);
+  if (!res.ok) throw new Error(body.error ?? t.errorStatus(res.status));
   return body;
 }
 

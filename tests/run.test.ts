@@ -17,7 +17,7 @@ describe('runScan', () => {
   it('no guarda ni concilia si la página inicial no se pudo escanear', async () => {
     const store = new SiteStore(await mkdtemp(join(tmpdir(), 'site-atlas-test-')));
     await store.writeOverlay('demo', { ...(await store.readOverlay('demo')), plannedDeletions: ['/#top'] }, 0);
-    await expect(runScan(store, `${server.url}/nada.html`, { site: 'demo' })).rejects.toThrow(/No se pudo escanear/);
+    await expect(runScan(store, `${server.url}/nada.html`, { site: 'demo' })).rejects.toThrow(/Could not scan/);
     expect(await store.latestScan('demo')).toBeNull();
     expect((await store.readOverlay('demo')).rev).toBe(1);
   });

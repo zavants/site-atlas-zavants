@@ -57,9 +57,9 @@ describe('applyOp + buildMap', () => {
     expect(o.blockTags['/#top'] ?? []).toEqual([]);
   });
 
-  it('rechaza etiquetas y claves inexistentes con mensaje en español', () => {
-    expect(() => run({ type: 'setBlockTags', blockKey: '/#top', tagIds: ['nope'] })).toThrow(/etiqueta/i);
-    expect(() => run({ type: 'markDeleted', blockKey: '/#nada' })).toThrow(/bloque/i);
+  it('rechaza etiquetas y claves inexistentes con English message', () => {
+    expect(() => run({ type: 'setBlockTags', blockKey: '/#top', tagIds: ['nope'] })).toThrow(/tag/i);
+    expect(() => run({ type: 'markDeleted', blockKey: '/#nada' })).toThrow(/block/i);
   });
 
   it('marca y restaura eliminaciones', () => {
@@ -73,7 +73,7 @@ describe('applyOp + buildMap', () => {
     let o = run({ type: 'setKind', blockKey: '/~integraciones', kind: 'visual' });
     expect(view(o).pages[0]!.blocks.find((b) => b.key === '/~integraciones')).toMatchObject({ effectiveKind: 'visual', kindOverridden: true });
     o = applyOp(o, scan, { type: 'setKind', blockKey: '/~integraciones', kind: null });
-    expect(view(o).pages[0]!.blocks.find((b) => b.key === '/~integraciones')).toMatchObject({ effectiveKind: 'narrativa', kindOverridden: false });
+    expect(view(o).pages[0]!.blocks.find((b) => b.key === '/~integraciones')).toMatchObject({ effectiveKind: 'narrative', kindOverridden: false });
   });
 
   it('ignora claves globales que quedaron en el orden planificado', () => {

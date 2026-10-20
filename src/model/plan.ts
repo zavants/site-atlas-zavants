@@ -1,3 +1,4 @@
+import { en } from '../i18n/en.js';
 import type { SiteMap } from './map.js';
 import { displaced } from './order.js';
 
@@ -32,20 +33,20 @@ export function diffPlan(map: SiteMap): PlanDiff[] {
 }
 
 export function describePlan(diffs: PlanDiff[]): string {
-  if (!diffs.length) return 'El sitio ya coincide con el plan.';
+  if (!diffs.length) return en.plan.inSync;
   return diffs
     .map((d) => {
       switch (d.type) {
         case 'newPage':
-          return `Crear la página ${d.path} ("${d.title}")`;
+          return en.plan.newPage(d.path, d.title);
         case 'move':
-          return `Mover "${d.name}" de ${d.fromPage} a ${d.toPage} (posición ${d.index + 1})`;
+          return en.plan.move(d.name, d.fromPage, d.toPage, d.index + 1);
         case 'delete':
-          return `Eliminar "${d.name}" de ${d.page}`;
+          return en.plan.delete(d.name, d.page);
         case 'reorder': {
           const shifted = displaced(d.from, d.to);
-          const changes = d.to.flatMap((n, i) => (shifted.has(n) ? [`"${n}" pasa a la posición ${i + 1}`] : []));
-          return `Reordenar ${d.page}: ${changes.join('; ')}`;
+          const changes = d.to.flatMap((n, i) => (shifted.has(n) ? [en.plan.reorderChange(n, i + 1)] : []));
+          return en.plan.reorder(d.page, changes.join('; '));
         }
       }
     })

@@ -40,7 +40,7 @@ export function blockName(raw: RawBlock, ordinal: number): string {
 export function inferKind(raw: RawBlock): Kind {
   if (raw.hasForm) return 'conversion';
   if (raw.visualRatio >= 0.3) return 'visual';
-  return 'narrativa';
+  return 'narrative';
 }
 
 export function slug(text: string): string {
