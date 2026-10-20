@@ -3,7 +3,8 @@ import type { Scan } from '../schema/scan.js';
 import type { SiteStore } from '../store/store.js';
 import { buildMap, type SiteMap } from './map.js';
 import { applyOp, type OverlayOp } from './ops.js';
-import { describePlan, diffPlan, type PlanDiff } from './plan.js';
+import { deriveChanges, type Change, type ChangeStatus } from './changes.js';
+import { describePlan } from './plan.js';
 
 export class SiteNotFoundError extends Error {
   constructor(site: string) {
@@ -22,9 +23,18 @@ export async function getMap(store: SiteStore, site: string): Promise<SiteMap> {
   return buildMap(scan, await store.readOverlay(site));
 }
 
-export async function getPlan(store: SiteStore, site: string): Promise<{ diffs: PlanDiff[]; text: string }> {
-  const diffs = diffPlan(await getMap(store, site));
-  return { diffs, text: describePlan(diffs) };
+export interface Plan {
+  schemaVersion: 2;
+  changes: Change[];
+  markdown: string;
+}
+
+/** The plan derived from the latest scan and the user layer, optionally only the changes with one status. */
+export async function getPlan(store: SiteStore, site: string, status?: ChangeStatus): Promise<Plan> {
+  const scan = await requireScan(store, site);
+  const all = deriveChanges(scan, await store.readOverlay(site));
+  const changes = status ? all.filter((c) => c.status === status) : all;
+  return { changes, markdown: describePlan(scan, changes, status), schemaVersion: 2 };
 }
 
 /**

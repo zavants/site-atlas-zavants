@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { en } from '../i18n/en.js';
 import { OverlaySchema, TargetSchema, type Overlay, type Target } from '../schema/overlay.js';
+import { applyConfirmation } from './changes.js';
 import { externalOrigins, linkId } from './links.js';
 import type { Block, Kind, Scan } from '../schema/scan.js';
 
@@ -21,7 +22,9 @@ export type OverlayOp =
   | { type: 'removeLink'; linkId: string; by?: string }
   | { type: 'removePlannedPage'; path: string; by?: string }
   | { type: 'setLayout'; id: string; x: number; y: number; by?: string }
-  | { type: 'replacePlanFields'; fields: PlanFields; by?: string };
+  | { type: 'replacePlanFields'; fields: PlanFields; by?: string }
+  | { type: 'confirmChange'; changeId: string; note: string; by: string }
+  | { type: 'reopenChange'; changeId: string; note: string; by: string };
 
 export type PlanFields = Pick<Overlay, 'plannedOrder' | 'plannedPages' | 'plannedDeletions' | 'layout' | 'linkEdits' | 'addedLinks'>;
 
@@ -69,7 +72,7 @@ function requireTag(overlay: Overlay, tagId: string) {
   return tag;
 }
 
-function sameTarget(a: Target, b: Target): boolean {
+export function sameTarget(a: Target, b: Target): boolean {
   return 'block' in a ? 'block' in b && a.block === b.block : 'page' in b && a.page === b.page;
 }
 
@@ -248,11 +251,18 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
       const { plannedOrder, plannedPages, plannedDeletions, layout, linkEdits, addedLinks } = op.fields;
       return { ...overlay, plannedOrder, plannedPages, plannedDeletions, layout, linkEdits, addedLinks };
     }
+    case 'confirmChange':
+    case 'reopenChange':
+      return applyConfirmation(overlay, scan, op);
   }
 }
 
 const by = z.string().default('canvas');
 const KindOrNull = z.enum(['narrative', 'visual', 'conversion']).nullable();
+/**
+ * Ops the canvas may send over HTTP. `confirmChange` / `reopenChange` are left out on purpose:
+ * only agents (MCP, CLI) confirm changes; the canvas only shows their status (spec §8.3).
+ */
 export const OverlayOpSchema: z.ZodType<OverlayOp> = z.discriminatedUnion('type', [
   z.object({ type: z.literal('createTag'), name: z.string(), color: z.string().optional() }),
   z.object({ type: z.literal('renameTag'), tagId: z.string(), name: z.string() }),

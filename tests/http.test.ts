@@ -77,7 +77,10 @@ describe('API HTTP', () => {
   it('describe el plan', async () => {
     await post(`/api/sites/${SITE}/ops`, { rev: 0, op: move });
     const plan = await (await app.request(`/api/sites/${SITE}/plan`)).json();
-    expect(plan.text).toContain('Move "Integraciones"');
-    expect(plan.diffs).toHaveLength(1);
+    expect(plan.schemaVersion).toBe(2);
+    expect(plan.markdown).toContain('Move "Integraciones"');
+    expect(plan.changes).toHaveLength(1);
+    const confirm = { type: 'confirmChange', changeId: plan.changes[0].id, note: 'done', by: 'canvas' };
+    expect((await post(`/api/sites/${SITE}/ops`, { rev: 1, op: confirm })).status).toBe(400);
   });
 });
