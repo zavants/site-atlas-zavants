@@ -83,4 +83,20 @@ describe('getPlan', () => {
     const pending = await getPlan(store, site, 'pending');
     expect(pending.changes.map((c) => c.type)).toEqual(['delete']);
   });
+
+  it('counts every change in the summary even when the plan is filtered by status', async () => {
+    const store = new SiteStore(await mkdtemp(join(tmpdir(), 'site-atlas-test-')));
+    const site = 'localhost-4405-demo';
+    await store.saveScan(sampleScan());
+    await mutate(store, site, { type: 'moveBlock', blockKey: '/~integraciones', toPage: '/otra', index: 0 });
+    await mutate(store, site, { type: 'markDeleted', blockKey: '/otra#precios' });
+    await mutate(store, site, { type: 'markDeleted', blockKey: '/#cotizacion' });
+    const [move] = (await getPlan(store, site)).changes;
+    await mutate(store, site, { type: 'confirmChange', changeId: move!.id, note: 'Done', by: 'cli' });
+    expect((await getPlan(store, site)).markdown).toContain('· 2 pending, 1 applied. Page paths');
+    const applied = await getPlan(store, site, 'applied');
+    expect(applied.changes).toHaveLength(1);
+    expect(applied.markdown).toContain('· 2 pending, 1 applied (showing applied). Page paths');
+    expect((await getPlan(store, site, 'pending')).markdown).toContain('· 2 pending, 1 applied (showing pending). Page paths');
+  });
 });

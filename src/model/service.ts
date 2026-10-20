@@ -34,7 +34,7 @@ export async function getPlan(store: SiteStore, site: string, status?: ChangeSta
   const scan = await requireScan(store, site);
   const all = deriveChanges(scan, await store.readOverlay(site));
   const changes = status ? all.filter((c) => c.status === status) : all;
-  return { changes, markdown: describePlan(scan, changes, status), schemaVersion: 2 };
+  return { changes, markdown: describePlan(scan, all, status), schemaVersion: 2 };
 }
 
 /**

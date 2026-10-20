@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { TargetSchema, type Target } from '../schema/overlay.js';
 import { en } from '../i18n/en.js';
 import type { BlockView, SiteMap } from '../model/map.js';
 import { OpError, type OverlayOp } from '../model/ops.js';
@@ -66,6 +67,12 @@ export function createMcpServer(store: SiteStore): McpServer {
       }
     };
 
+  const clientName = () => server.server.getClientVersion()?.name ?? 'mcp';
+  const record = async (site: string, op: OverlayOp) => {
+    await mutate(store, site, op);
+    return plain(en.mcp.planUpdated);
+  };
+  const target = (description: string) => TargetSchema.describe(description);
   const apply = async (site: string, op: OverlayOp) => siteText(formatMap(await mutate(store, site, op)));
   const resolveTagIds = async (site: string, tags: string[]) => {
     const overlay = await store.readOverlay(site);
@@ -207,12 +214,95 @@ export function createMcpServer(store: SiteStore): McpServer {
     'atlas_get_plan',
     {
       description: en.mcp.tools.getPlan,
-      inputSchema: { site: z.string() },
+      inputSchema: { site: z.string(), status: z.enum(['pending', 'applied']).optional().describe(en.mcp.tools.getPlanStatus) },
     },
-    guard(async ({ site }) => {
-      const { markdown, changes, schemaVersion } = await getPlan(store, site);
-      return siteText(`${markdown}\n${JSON.stringify({ schemaVersion, changes }, null, 2)}`);
+    guard(async ({ site, status }) => {
+      const { markdown, changes, schemaVersion } = await getPlan(store, site, status);
+      return siteText(markdown, [{ type: 'text', text: JSON.stringify({ schemaVersion, changes }, null, 2) }]);
     }),
+  );
+
+  server.registerTool(
+    'atlas_confirm_change',
+    {
+      description: en.mcp.tools.confirmChange,
+      inputSchema: { site: z.string(), changeId: z.string().describe(en.mcp.tools.changeId), note: z.string().describe(en.mcp.tools.confirmNote) },
+    },
+    guard(async ({ site, changeId, note }) => {
+      await mutate(store, site, { type: 'confirmChange', changeId, note, by: clientName() });
+      return plain(en.mcp.confirmed(changeId));
+    }),
+  );
+
+  server.registerTool(
+    'atlas_reopen_change',
+    {
+      description: en.mcp.tools.reopenChange,
+      inputSchema: { site: z.string(), changeId: z.string().describe(en.mcp.tools.changeId), note: z.string().describe(en.mcp.tools.reopenNote) },
+    },
+    guard(async ({ site, changeId, note }) => {
+      await mutate(store, site, { type: 'reopenChange', changeId, note, by: clientName() });
+      return plain(en.mcp.reopened(changeId));
+    }),
+  );
+
+  server.registerTool(
+    'atlas_relink',
+    {
+      description: en.mcp.tools.relink,
+      inputSchema: {
+        site: z.string(),
+        owner: z.string().describe(en.mcp.tools.relinkOwner),
+        linkText: z.string().describe(en.mcp.tools.relinkText),
+        linkHref: z.string().describe(en.mcp.tools.relinkHref),
+        to: target(en.mcp.tools.relinkTo),
+      },
+    },
+    guard(async ({ site, owner, linkText, linkHref, to }) => record(site, { type: 'relink', owner, linkText, linkHref, to: to as Target, by: clientName() })),
+  );
+
+  server.registerTool(
+    'atlas_add_link',
+    {
+      description: en.mcp.tools.addLink,
+      inputSchema: {
+        site: z.string(),
+        owner: z.string().describe(en.mcp.tools.addLinkOwner),
+        to: target(en.mcp.tools.addLinkTo),
+        label: z.string().optional().describe(en.mcp.tools.addLinkLabel),
+      },
+    },
+    guard(async ({ site, owner, to, label }) => record(site, { type: 'addLink', owner, to: to as Target, label, by: clientName() })),
+  );
+
+  server.registerTool(
+    'atlas_remove_link',
+    {
+      description: en.mcp.tools.removeLink,
+      inputSchema: { site: z.string(), linkId: z.string().describe(en.mcp.tools.removeLinkId) },
+    },
+    guard(async ({ site, linkId }) => record(site, { type: 'removeLink', linkId, by: clientName() })),
+  );
+
+  server.registerTool(
+    'atlas_remove_planned_page',
+    {
+      description: en.mcp.tools.removePlannedPage,
+      inputSchema: { site: z.string(), path: z.string().describe(en.mcp.tools.removePlannedPagePath) },
+    },
+    guard(async ({ site, path }) => record(site, { type: 'removePlannedPage', path, by: clientName() })),
+  );
+
+  server.registerTool(
+    'atlas_mark_deleted',
+    { description: en.mcp.tools.markDeleted, inputSchema: { site: z.string(), blockKey: z.string() } },
+    guard(async ({ site, blockKey }) => apply(site, { type: 'markDeleted', blockKey })),
+  );
+
+  server.registerTool(
+    'atlas_restore',
+    { description: en.mcp.tools.restore, inputSchema: { site: z.string(), blockKey: z.string() } },
+    guard(async ({ site, blockKey }) => apply(site, { type: 'restore', blockKey })),
   );
 
   server.registerTool(

@@ -38,14 +38,18 @@ function bullets(obj: Record<string, unknown>, indent = ''): string[] {
   });
 }
 
-/** The plan as Markdown for any AI: header, fixed instructions, then each change. Site text is always inline code. */
-export function describePlan(scan: Scan, changes: Change[], status?: ChangeStatus): string {
+/**
+ * The plan as Markdown for any AI: header, fixed instructions, then each change. Site text is always inline code.
+ * Pass every change: with `status` only those are listed, but the summary line still counts all of them.
+ */
+export function describePlan(scan: Scan, all: Change[], status?: ChangeStatus): string {
   const { origin, basePath } = scan.environment;
-  const count = (s: ChangeStatus) => changes.filter((c) => c.status === s).length;
+  const count = (s: ChangeStatus) => all.filter((c) => c.status === s).length;
+  const changes = status ? all.filter((c) => c.status === status) : all;
   const lines = [
     en.plan.title(oneLine(scan.site)),
     '',
-    en.plan.scanLine(scan.scanId, origin + basePath, count('pending'), count('applied')),
+    en.plan.scanLine(scan.scanId, origin + basePath, count('pending'), count('applied'), status),
     '',
     en.plan.instructions,
     '',

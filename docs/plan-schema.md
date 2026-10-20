@@ -39,6 +39,8 @@ Read it with `atlas_get_plan { site, status? }` (MCP), `site-atlas plan <site> [
 
 `id = type + ':' + sha1(parts.join('\n')).slice(0, 10)`. The parts never include positions, so moving other sections around does not change an id. Changing what a change means (for example, another target page) gives a new id, which starts as `pending`.
 
+Ids are content hashes, nothing more: the user layer keeps each confirmation under its id. If a change is confirmed, later disappears (the plan or the site moved on), and the identical change is proposed again, it gets the same id and shows up as `applied` right away, with the old confirmation. Check `confirmation.at` and `note`, and use `atlas_reopen_change` / `site-atlas reopen` if it no longer holds.
+
 | Type | Parts |
 |---|---|
 | `newPage` | path |
@@ -75,7 +77,7 @@ Page paths (`/`, `/otra`) are relative to the scan's base URL (`origin + basePat
 
 ## Markdown
 
-1. `# Site Atlas plan — <site>` and a line with the scan id, the base URL and the pending/applied counts.
+1. `# Site Atlas plan — <site>` and a line with the scan id, the base URL and the pending/applied counts. The counts always cover every change; when the plan is filtered by status, the line ends with `(showing <status>)` (for example `3 pending, 1 applied (showing applied)`), so an empty filtered list never reads as "nothing left to do".
 2. A fixed paragraph of instructions for AI agents.
 3. Per change: `## <status> · <id>`, the summary, a bullet list with every `details` key plus `by`, `observed` and `confirmation`, and `Done when:`.
 

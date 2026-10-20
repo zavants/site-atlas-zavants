@@ -62,6 +62,20 @@ describe('link ops', () => {
     );
   });
 
+  it('relink rejects a link the owner does not have, matching the text trimmed and the href exactly', () => {
+    const o0 = base();
+    const id = owner(header('/'), o0);
+    const to = { page: '/otra' };
+    expect(() => run(o0, { type: 'relink', owner: id, linkText: 'Nope', linkHref: '#productos', to })).toThrow(new OpError(`No link "Nope" → #productos in ${id}.`));
+    expect(() => run(o0, { type: 'relink', owner: id, linkText: 'Productos', linkHref: '#otro', to })).toThrow(
+      new OpError(`No link "Productos" → #otro in ${id}.`),
+    );
+    expect(() => run(o0, { type: 'relink', owner: '/#top', linkText: 'Productos', linkHref: '#productos', to })).toThrow(OpError);
+    expect(Object.keys(run(o0, { type: 'relink', owner: id, linkText: '  Productos', linkHref: '#productos', to }).linkEdits)).toEqual([
+      linkId(id, '#productos', 'Productos'),
+    ]);
+  });
+
   it('rejects unknown pages and accepts seen external origins', () => {
     const o = base();
     const id = owner(header('/'), o);

@@ -114,7 +114,10 @@ args = ["/path/to/site-atlas-zavants/dist/cli.js", "mcp"]
 | `atlas_list_issues` | Issues from the latest scan |
 | `atlas_tags` · `atlas_set_block_tags` | Create, rename, delete and assign tags |
 | `atlas_move_block` · `atlas_add_planned_page` | Rearrange the planned order |
-| `atlas_get_plan` | Differences between the real site and the plan, ready to implement |
+| `atlas_get_plan` | The plan (Markdown + JSON, optional `status`): what to change in the site's code |
+| `atlas_confirm_change` · `atlas_reopen_change` | Mark a change applied (with a note) or set it back to pending |
+| `atlas_relink` · `atlas_add_link` · `atlas_remove_link` | Propose, change or drop links |
+| `atlas_mark_deleted` · `atlas_restore` · `atlas_remove_planned_page` | Propose deleting a section, undo it, remove a planned page |
 | `atlas_open_canvas` | Canvas URL |
 
 Example prompt for an agent:
