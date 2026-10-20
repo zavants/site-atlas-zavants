@@ -17,7 +17,7 @@ export const ComponentsSchema = z.object({
 });
 export type Components = z.infer<typeof ComponentsSchema>;
 
-export const BlockSchema = z.object({
+const BaseBlockSchema = z.object({
   key: z.string(),
   name: z.string(),
   heading: z.string().nullable(),
@@ -27,12 +27,19 @@ export const BlockSchema = z.object({
   height: z.number(),
   kind: StoredKindSchema,
   global: z.boolean(),
+  isComponent: z.boolean(),
   fingerprint: z.string(),
   textExcerpt: z.string(),
   components: ComponentsSchema,
   shot: z.string().nullable(),
 });
-export type Block = z.infer<typeof BlockSchema>;
+/** Reads v1 scans, which lack `isComponent`: header/footer tags and global blocks count as components. */
+export const BlockSchema = z.preprocess((v) => {
+  if (typeof v !== 'object' || v === null || 'isComponent' in v) return v;
+  const b = v as { tag?: unknown; global?: unknown };
+  return { ...b, isComponent: b.tag === 'header' || b.tag === 'footer' || b.global === true };
+}, BaseBlockSchema);
+export type Block = z.infer<typeof BaseBlockSchema>;
 
 export const PageSchema = z.object({
   path: z.string(),

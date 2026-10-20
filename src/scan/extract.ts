@@ -81,6 +81,7 @@ const IN_PAGE = String.raw`(() => {
     const forms = [...el.querySelectorAll('form')];
     return {
       tag: el.tagName.toLowerCase(),
+      landmark: el.matches('header, [role=banner], footer, [role=contentinfo]') && !el.parentElement?.closest('section, article, aside'),
       atlasName: el.getAttribute('data-atlas-block') || null,
       ariaLabel: el.getAttribute('aria-label') || null,
       kicker: heading ? findKicker(heading, el) : null,

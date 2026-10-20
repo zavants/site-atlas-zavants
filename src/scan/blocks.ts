@@ -13,6 +13,8 @@ export interface RawBlock {
   text: string;
   childTags: string[];
   hasForm: boolean;
+  /** Top-level header/footer/banner/contentinfo element. */
+  landmark: boolean;
   /** Área del canvas/video más grande ÷ área del bloque. */
   visualRatio: number;
   components: Components;
