@@ -82,7 +82,7 @@ describe('deriveChanges', () => {
     expect(new Set(changes.map((c) => c.id)).size).toBe(changes.length);
   });
 
-  it('relink suggests an anchor href and is observed when the owner already links there', () => {
+  it('relink suggests an anchor href and is not observed while the edited link is still there', () => {
     const s = linkedScan();
     const o0 = withComponents(s);
     const o = run(o0, s, { type: 'relink', owner: '/#top', linkText: 'Ver', linkHref: 'http://localhost:4405/no-existe', to: { block: '/#cotizacion' }, by: 'agent' });
@@ -92,7 +92,8 @@ describe('deriveChanges', () => {
     expect(relink!.details).toMatchObject({ linkText: 'Ver', currentHref: 'http://localhost:4405/no-existe', suggestedHref: '/#cotizacion' });
 
     const toPrecios = run(o0, s, { type: 'relink', owner: '/#top', linkText: 'Ver', linkHref: 'http://localhost:4405/no-existe', to: { block: '/otra#precios' } });
-    expect(deriveChanges(s, toPrecios)[0]).toMatchObject({ observed: true, details: { suggestedHref: '/otra#precios' } });
+    // The owner already links to /otra#precios ("Precios"), but "Ver" itself is unchanged: not observed (§10b ruling).
+    expect(deriveChanges(s, toPrecios)[0]).toMatchObject({ observed: false, details: { suggestedHref: '/otra#precios' } });
 
     const demo = linkedScan('/demo/');
     const onDemo = run(withComponents(demo), demo, { type: 'relink', owner: '/#top', linkText: 'Ver', linkHref: 'http://localhost:4405/no-existe', to: { block: '/otra#precios' } });

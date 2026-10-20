@@ -208,13 +208,18 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
       delete blockTags[op.orphanKey];
       const kindOverrides = { ...rest.kindOverrides };
       delete kindOverrides[op.orphanKey];
-      const linkEdits = { ...rest.linkEdits };
-      delete linkEdits[op.orphanKey];
+      // A link orphan's key is its linkId; a block orphan also takes the links it owns or receives.
+      const key = op.orphanKey;
+      const isKey = (t: Target) => 'block' in t && t.block === key;
+      const linkEdits = Object.fromEntries(
+        Object.entries(rest.linkEdits).filter(([id, edit]) => id !== key && !id.startsWith(`${key}|`) && !isKey(edit)),
+      );
       return {
         ...rest,
         blockTags,
         kindOverrides,
         linkEdits,
+        addedLinks: rest.addedLinks.filter((l) => l.from !== key && !isKey(l.to)),
         plannedDeletions: rest.plannedDeletions.filter((k) => k !== op.orphanKey),
         plannedOrder: Object.fromEntries(Object.entries(rest.plannedOrder).map(([p, ks]) => [p, ks.filter((k) => k !== op.orphanKey)])),
       };

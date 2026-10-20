@@ -1,7 +1,7 @@
 import type { Orphan, Overlay, Target } from '../schema/overlay.js';
 import type { Block, Scan } from '../schema/scan.js';
 import { similarity } from '../scan/blocks.js';
-import { observedLink } from './changes.js';
+import { observedLink, relinkObserved } from './changes.js';
 import { assignComponents } from './components.js';
 import { linkId, owner } from './links.js';
 import { renameKey } from './ops.js';
@@ -143,7 +143,7 @@ export function reconcile(overlay: Overlay, prev: Scan | null, next: Scan): Over
   for (const [id, edit] of Object.entries(o.linkEdits)) {
     const { by: _by, ...target } = edit;
     const ownerId = ownerOfLink(id);
-    if (observedLink(next, o, ownerId, target as Target)) {
+    if (!present.has(id) && relinkObserved(next, o, id, target as Target)) {
       observed.add(id);
       continue;
     }

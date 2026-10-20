@@ -1,7 +1,7 @@
 import type { Overlay } from '../schema/overlay.js';
 import type { Block, Issue, Kind, Scan } from '../schema/scan.js';
 import { pagePath } from '../store/paths.js';
-import { assignComponents, componentOf } from './components.js';
+import { componentOf } from './components.js';
 import { effectiveLinks, externalOrigins, type EffectiveLink } from './links.js';
 import { effectiveOrders, indexScan } from './ops.js';
 import { displaced } from './order.js';
@@ -83,10 +83,8 @@ function buildTargets(scan: Scan): TargetView[] {
   ];
 }
 
-export function buildMap(scan: Scan, rawOverlay: Overlay): SiteMap {
-  // Components are reconciled on every scan; naming them here too keeps the map complete for
-  // overlays that haven't been through a scan since they were created or migrated.
-  const overlay: Overlay = { ...rawOverlay, components: assignComponents(rawOverlay, scan) };
+/** The overlay's components must already be reconciled with `scan` (the service layer ensures it). */
+export function buildMap(scan: Scan, overlay: Overlay): SiteMap {
   const idx = indexScan(scan);
   const orders = effectiveOrders(scan, overlay, idx);
   const deleted = new Set(overlay.plannedDeletions);
