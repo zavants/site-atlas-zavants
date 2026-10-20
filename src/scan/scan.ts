@@ -1,4 +1,5 @@
 import { mkdir } from 'node:fs/promises';
+import { en } from '../i18n/en.js';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import picomatch from 'picomatch';
@@ -117,7 +118,7 @@ export async function scanSite(url: string, opts: ScanOptions): Promise<Scan> {
       const current = queue.shift()!;
       let path = pathOf(current)!;
       const isStart = pages.length === 0 && current === start;
-      opts.onProgress?.(`Escaneando ${path}`);
+      opts.onProgress?.(en.scan.scanning(path));
       if (pages.length > 0 && !local) await sleep(1000);
 
       let prepared: Awaited<ReturnType<typeof preparePage>>;
@@ -152,7 +153,7 @@ export async function scanSite(url: string, opts: ScanOptions): Promise<Scan> {
           }
         }
         if (status >= 400 || !finalUrl || !inScope(finalUrl, env)) {
-          const error = status >= 400 ? `HTTP ${status}` : `Redirige fuera del sitio: ${page.url()}`;
+          const error = status >= 400 ? `HTTP ${status}` : en.scan.redirectsOutside(page.url());
           pages.push({ path, url: current, title: '', status, error, blocks: [] });
           continue;
         }

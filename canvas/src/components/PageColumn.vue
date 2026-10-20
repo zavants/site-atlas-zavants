@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { VueDraggable, type SortableEvent } from 'vue-draggable-plus';
 import type { BlockView, SiteMap } from '../api';
 import type { PageView } from '../../../src/model/map.js';
+import { t } from '../strings';
 import BlockCard from './BlockCard.vue';
 
 const props = defineProps<{
@@ -37,7 +38,7 @@ function onDrop(e: SortableEvent) {
   <section class="column" data-testid="page-column" :data-path="page.path">
     <header>
       <strong>{{ page.title || page.path }}</strong>
-      <span class="muted path">{{ page.path }}{{ page.planned ? ' · planificada' : '' }}</span>
+      <span class="muted path">{{ page.path }}{{ page.planned ? ` · ${t.column.planned}` : '' }}</span>
       <span v-if="page.status && page.status >= 400" class="pill err">HTTP {{ page.status }}</span>
     </header>
     <VueDraggable
@@ -65,7 +66,7 @@ function onDrop(e: SortableEvent) {
         @restore="(k) => emit('restore', k)"
       />
     </VueDraggable>
-    <p v-if="!list.length" class="muted empty">{{ planned ? 'Arrastra bloques aquí' : 'Sin bloques' }}</p>
+    <p v-if="!list.length" class="muted empty">{{ planned ? t.column.dropHere : t.column.noBlocks }}</p>
   </section>
 </template>
 

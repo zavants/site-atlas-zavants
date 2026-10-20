@@ -1,3 +1,4 @@
+import { en } from '../i18n/en.js';
 import type { Scan } from '../schema/scan.js';
 import type { SiteStore } from '../store/store.js';
 import { buildMap, type SiteMap } from './map.js';
@@ -6,7 +7,7 @@ import { describePlan, diffPlan, type PlanDiff } from './plan.js';
 
 export class SiteNotFoundError extends Error {
   constructor(site: string) {
-    super(`El sitio "${site}" no tiene escaneos. Escanéalo primero con atlas_scan.`);
+    super(en.site.notScanned(site));
   }
 }
 

@@ -22,15 +22,15 @@ describe('diffPlan', () => {
     expect(diffs[1]).toEqual({ type: 'move', blockKey: '/~integraciones', name: 'Integraciones', fromPage: '/', toPage: '/soluciones', index: 0 });
     expect(diffs[3]).toEqual({ type: 'reorder', page: '/', from: ['Hero', 'Cierre'], to: ['Cierre', 'Hero'] });
     const text = describePlan(diffs);
-    expect(text).toContain('Mover "Integraciones" de / a /soluciones (posición 1)');
+    expect(text).toContain('Move "Integraciones" from / to /soluciones (position 1)');
     expect(text.split('\n')).toHaveLength(4);
-    expect(text).toContain('Reordenar /: "Cierre" pasa a la posición 1');
+    expect(text).toContain('Reorder /: "Cierre" moves to position 1');
     expect(text).not.toContain('antes:');
   });
 
   it('no reporta nada si el plan coincide con el sitio', () => {
     const diffs = diffPlan(mapAfter({ type: 'moveBlock', blockKey: '/#top', toPage: '/', index: 0 }));
     expect(diffs).toEqual([]);
-    expect(describePlan([])).toBe('El sitio ya coincide con el plan.');
+    expect(describePlan([])).toBe('The site already matches the plan.');
   });
 });

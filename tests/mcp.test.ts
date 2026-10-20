@@ -47,7 +47,7 @@ describe('servidor MCP', () => {
   it('mueve un bloque y lo describe en el plan', async () => {
     const moved = await call('atlas_move_block', { site: SITE, blockKey: '/~integraciones', toPage: '/otra', index: 0 });
     expect(moved.isError).toBeFalsy();
-    expect(text(await call('atlas_get_plan', { site: SITE }))).toContain('Mover "Integraciones" de / a /otra');
+    expect(text(await call('atlas_get_plan', { site: SITE }))).toContain('Move "Integraciones" from / to /otra');
   });
 
   it('marca como no confiable el contenido del sitio y lo pone después del aviso', async () => {
@@ -61,10 +61,10 @@ describe('servidor MCP', () => {
   it('devuelve errores legibles', async () => {
     const r = await call('atlas_set_block_tags', { site: SITE, blockKey: '/#top', tags: ['nope'] });
     expect(r.isError).toBe(true);
-    expect(text(r)).toMatch(/No existe la etiqueta/);
+    expect(text(r)).toMatch(/does not exist/);
     const missing = await call('atlas_get_map', { site: 'nada' });
     expect(missing.isError).toBe(true);
-    expect(text(missing)).toMatch(/no tiene escaneos/);
+    expect(text(missing)).toMatch(/no scans/);
   });
 
   it('crea etiquetas y las asigna por nombre o id', async () => {

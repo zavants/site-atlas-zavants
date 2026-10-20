@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { KindSchema } from './scan.js';
+import { StoredKindSchema } from './scan.js';
 
 export const TagSchema = z.object({ id: z.string(), name: z.string(), color: z.string() });
 export type Tag = z.infer<typeof TagSchema>;
@@ -16,7 +16,7 @@ export const OverlaySchema = z.object({
   rev: z.number().int().nonnegative(),
   tags: z.array(TagSchema),
   blockTags: z.record(z.string(), z.array(z.string())),
-  kindOverrides: z.record(z.string(), KindSchema),
+  kindOverrides: z.record(z.string(), StoredKindSchema),
   plannedPages: z.array(z.object({ path: z.string(), title: z.string() })),
   plannedOrder: z.record(z.string(), z.array(z.string())),
   plannedDeletions: z.array(z.string()),

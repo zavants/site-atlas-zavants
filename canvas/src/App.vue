@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { VueDraggable, type SortableEvent } from 'vue-draggable-plus';
 import { ConflictError, getMap, getSites, rescan, sendOp, subscribe, type BlockView, type OverlayOp, type SiteMap } from './api';
+import { t } from './strings';
 import BlockCard from './components/BlockCard.vue';
 import BlockPanel from './components/BlockPanel.vue';
 import PageColumn from './components/PageColumn.vue';
@@ -58,16 +59,16 @@ function onTrash(e: SortableEvent) {
 }
 
 function addPage() {
-  const path = window.prompt('Ruta de la página planificada (por ejemplo /soluciones)')?.trim();
+  const path = window.prompt(t.head.pathPrompt)?.trim();
   if (!path) return;
-  const title = window.prompt('Título de la página', path.replace(/^\//, ''))?.trim() ?? path;
+  const title = window.prompt(t.head.titlePrompt, path.replace(/^\//, ''))?.trim() ?? path;
   void op({ type: 'addPlannedPage', path, title });
 }
 
 async function startRescan() {
   try {
     await rescan(site);
-    notice.value = 'Escaneo en curso…';
+    notice.value = t.head.scanning;
   } catch (e) {
     notice.value = (e as Error).message;
   }
@@ -82,7 +83,7 @@ onMounted(async () => {
   unsubscribe = subscribe(site, (type, data) => {
     if (type === 'progress') notice.value = String(data.msg ?? '');
     else if (type === 'scan') {
-      notice.value = 'Escaneo terminado.';
+      notice.value = t.head.scanDone;
       void reload();
     } else if (type === 'overlay' && map.value && Number(data.rev) !== map.value.rev) void reload();
   });
@@ -93,7 +94,7 @@ onBeforeUnmount(() => unsubscribe?.());
 <template>
   <main v-if="!site" class="home">
     <h1>Site Atlas</h1>
-    <p v-if="!sites.length" class="muted">Todavía no hay sitios escaneados. Ejecuta <code>site-atlas scan &lt;url&gt;</code> o usa la herramienta MCP <code>atlas_scan</code>.</p>
+    <p v-if="!sites.length" class="muted">{{ t.home.empty }}<code>site-atlas scan &lt;url&gt;</code>{{ t.home.emptyOr }}<code>atlas_scan</code>.</p>
     <ul>
       <li v-for="s in sites" :key="s.site"><a :href="`/s/${encodeURIComponent(s.site)}`">{{ s.site }}</a> <span class="muted">{{ s.lastScan }}</span></li>
     </ul>
@@ -103,20 +104,20 @@ onBeforeUnmount(() => unsubscribe?.());
     <header class="head">
       <div class="title">
         <h1>{{ map.site }}</h1>
-        <span class="muted">{{ map.environment.origin }}{{ map.environment.basePath }} · escaneo {{ map.scanId }}</span>
+        <span class="muted">{{ map.environment.origin }}{{ map.environment.basePath }} · {{ t.head.scan }} {{ map.scanId }}</span>
         <span class="counts">
-          <span class="pill err">{{ map.issueCount.error }} errores</span>
-          <span class="pill warn">{{ map.issueCount.warn }} avisos</span>
-          <span class="pill info">{{ map.issueCount.info }} info</span>
+          <span class="pill err">{{ map.issueCount.error }} {{ t.head.errors }}</span>
+          <span class="pill warn">{{ map.issueCount.warn }} {{ t.head.warnings }}</span>
+          <span class="pill info">{{ map.issueCount.info }} {{ t.head.info }}</span>
         </span>
       </div>
       <div class="actions">
-        <div class="seg" role="group" aria-label="Vista">
-          <button type="button" :aria-pressed="!planned" @click="planned = false">Real</button>
-          <button type="button" data-testid="toggle-planned" :aria-pressed="planned" @click="planned = true">Planificado</button>
+        <div class="seg" role="group" :aria-label="t.head.view">
+          <button type="button" :aria-pressed="!planned" @click="planned = false">{{ t.head.real }}</button>
+          <button type="button" data-testid="toggle-planned" :aria-pressed="planned" @click="planned = true">{{ t.head.planned }}</button>
         </div>
-        <button type="button" @click="addPage">+ Página planificada</button>
-        <button type="button" data-testid="rescan" @click="startRescan">Re-escanear</button>
+        <button type="button" @click="addPage">{{ t.head.addPage }}</button>
+        <button type="button" data-testid="rescan" @click="startRescan">{{ t.head.rescan }}</button>
       </div>
       <TagBar
         :map="map"
@@ -127,11 +128,11 @@ onBeforeUnmount(() => unsubscribe?.());
         @remove="(tagId) => op({ type: 'deleteTag', tagId })"
       />
       <p v-if="notice" class="notice" role="status">{{ notice }}</p>
-      <p v-if="!planned" class="muted hint">Cambia a Planificado para reorganizar.</p>
+      <p v-if="!planned" class="muted hint">{{ t.head.switchHint }}</p>
     </header>
 
-    <section v-if="map.globals.length" class="globals" data-testid="global-lane" aria-label="Bloques globales">
-      <span class="muted label">Global</span>
+    <section v-if="map.globals.length" class="globals" data-testid="global-lane" :aria-label="t.globals.aria">
+      <span class="muted label">{{ t.globals.label }}</span>
       <BlockCard
         v-for="(b, i) in map.globals"
         :key="b.key"
@@ -144,15 +145,15 @@ onBeforeUnmount(() => unsubscribe?.());
       />
     </section>
 
-    <section v-if="map.orphans.length" class="orphans" aria-label="Huérfanos">
-      <strong>Huérfanos</strong>
-      <span class="muted">Bloques organizados que ya no aparecen en el sitio.</span>
+    <section v-if="map.orphans.length" class="orphans" :aria-label="t.orphans.title">
+      <strong>{{ t.orphans.title }}</strong>
+      <span class="muted">{{ t.orphans.hint }}</span>
       <div v-for="o in map.orphans" :key="o.key" class="orphan">
         <span>{{ o.lastSeen.name }} <span class="muted">({{ o.lastSeen.page }})</span></span>
         <button v-if="o.suggestion" type="button" @click="op({ type: 'resolveOrphan', orphanKey: o.key, action: 'assign', targetKey: o.suggestion })">
-          Asignar a {{ blockIndex.get(o.suggestion)?.name ?? o.suggestion }}
+          {{ t.orphans.assignTo(blockIndex.get(o.suggestion)?.name ?? o.suggestion) }}
         </button>
-        <button type="button" @click="op({ type: 'resolveOrphan', orphanKey: o.key, action: 'discard' })">Descartar</button>
+        <button type="button" @click="op({ type: 'resolveOrphan', orphanKey: o.key, action: 'discard' })">{{ t.orphans.discard }}</button>
       </div>
     </section>
 
@@ -171,7 +172,7 @@ onBeforeUnmount(() => unsubscribe?.());
         @restore="(k) => op({ type: 'restore', blockKey: k })"
       />
       <div v-if="planned" class="trash" data-testid="trash-zone">
-        <p class="muted">Suelta aquí para marcar como eliminado</p>
+        <p class="muted">{{ t.trash }}</p>
         <VueDraggable
           v-model="trash"
           class="trash-drop"
@@ -192,7 +193,7 @@ onBeforeUnmount(() => unsubscribe?.());
   </main>
 
   <main v-else class="home">
-    <p :class="error ? 'error' : 'muted'">{{ error || 'Cargando…' }}</p>
+    <p :class="error ? 'error' : 'muted'">{{ error || t.home.loading }}</p>
   </main>
 </template>
 

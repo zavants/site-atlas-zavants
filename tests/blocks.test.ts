@@ -49,7 +49,7 @@ describe('inferKind', () => {
   });
   it('visual desde 30 % de área', () => {
     expect(inferKind(raw({ visualRatio: 0.3 }))).toBe('visual');
-    expect(inferKind(raw({ visualRatio: 0.29 }))).toBe('narrativa');
+    expect(inferKind(raw({ visualRatio: 0.29 }))).toBe('narrative');
   });
 });
 

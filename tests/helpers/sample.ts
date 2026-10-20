@@ -8,7 +8,7 @@ function block(partial: Partial<Block> & Pick<Block, 'key' | 'name' | 'order'>):
     anchor: null,
     tag: 'section',
     height: 400,
-    kind: 'narrativa',
+    kind: 'narrative',
     global: false,
     fingerprint: `fp-${partial.key}`,
     textExcerpt: `Texto de ${partial.name}`,

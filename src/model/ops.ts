@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
+import { en } from '../i18n/en.js';
 import type { Overlay } from '../schema/overlay.js';
 import type { Block, Kind, Scan } from '../schema/scan.js';
 
@@ -49,13 +50,13 @@ export function effectiveOrders(scan: Scan, overlay: Overlay, idx = indexScan(sc
 
 function requireBlock(idx: ScanIndex, key: string): { block: Block; page: string } {
   const found = idx.blocks.get(key);
-  if (!found) throw new OpError(`No existe el bloque ${key} en el último escaneo.`);
+  if (!found) throw new OpError(en.op.noBlock(key));
   return found;
 }
 
 function requireTag(overlay: Overlay, tagId: string) {
   const tag = overlay.tags.find((t) => t.id === tagId);
-  if (!tag) throw new OpError(`No existe la etiqueta ${tagId}.`);
+  if (!tag) throw new OpError(en.op.noTag(tagId));
   return tag;
 }
 
@@ -90,7 +91,7 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
   switch (op.type) {
     case 'createTag': {
       const name = op.name.trim();
-      if (!name) throw new OpError('La etiqueta necesita un nombre.');
+      if (!name) throw new OpError(en.op.tagNeedsName);
       const color = op.color ?? TAG_COLORS[overlay.tags.length % TAG_COLORS.length]!;
       return { ...overlay, tags: [...overlay.tags, { id: randomUUID().slice(0, 8), name, color }] };
     }
@@ -120,9 +121,9 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
     case 'moveBlock': {
       const { block } = requireBlock(idx, op.blockKey);
       const orders = effectiveOrders(scan, overlay, idx);
-      if (!orders.has(op.toPage)) throw new OpError(`No existe la página ${op.toPage}.`);
+      if (!orders.has(op.toPage)) throw new OpError(en.op.noPage(op.toPage));
       const from = [...orders].find(([, keys]) => keys.includes(op.blockKey))?.[0];
-      if (block.global) throw new OpError(`"${block.name}" es un bloque global: se comparte entre páginas y no se mueve.`);
+      if (block.global) throw new OpError(en.op.globalBlock(block.name));
       const plannedOrder = { ...overlay.plannedOrder };
       if (from) plannedOrder[from] = orders.get(from)!.filter((k) => k !== op.blockKey);
       const target = (from === op.toPage ? plannedOrder[op.toPage] : orders.get(op.toPage))!.filter((k) => k !== op.blockKey);
@@ -134,7 +135,7 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
     case 'addPlannedPage': {
       const path = '/' + op.path.trim().replace(/^\/+/, '').replace(/\/+$/, '');
       if (idx.realOrder.has(path) || overlay.plannedPages.some((p) => p.path === path)) {
-        throw new OpError(`Ya existe la página ${path}.`);
+        throw new OpError(en.op.pageExists(path));
       }
       return { ...overlay, plannedPages: [...overlay.plannedPages, { path, title: op.title.trim() || path }] };
     }
@@ -148,11 +149,11 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
     }
     case 'resolveOrphan': {
       const orphan = overlay.orphans.find((o) => o.key === op.orphanKey);
-      if (!orphan) throw new OpError(`No existe el huérfano ${op.orphanKey}.`);
+      if (!orphan) throw new OpError(en.op.noOrphan(op.orphanKey));
       const rest = { ...overlay, orphans: overlay.orphans.filter((o) => o.key !== op.orphanKey) };
       if (op.action === 'assign') {
         const target = op.targetKey ?? orphan.suggestion;
-        if (!target) throw new OpError('Falta el bloque al que asignar el huérfano.');
+        if (!target) throw new OpError(en.op.orphanNeedsTarget);
         requireBlock(idx, target);
         return renameKey(rest, op.orphanKey, target);
       }
@@ -171,7 +172,7 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
   }
 }
 
-const KindOrNull = z.enum(['narrativa', 'visual', 'conversion']).nullable();
+const KindOrNull = z.enum(['narrative', 'visual', 'conversion']).nullable();
 export const OverlayOpSchema: z.ZodType<OverlayOp> = z.discriminatedUnion('type', [
   z.object({ type: z.literal('createTag'), name: z.string(), color: z.string().optional() }),
   z.object({ type: z.literal('renameTag'), tagId: z.string(), name: z.string() }),

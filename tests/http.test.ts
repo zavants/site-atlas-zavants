@@ -41,13 +41,13 @@ describe('API HTTP', () => {
     expect(stale.status).toBe(409);
     const body = await stale.json();
     expect(body.map.rev).toBe(1);
-    expect(body.error).toMatch(/cambió/);
+    expect(body.error).toMatch(/changed/);
   });
 
-  it('responde 400 con mensaje en español ante operaciones inválidas', async () => {
+  it('responde 400 con English message ante operaciones inválidas', async () => {
     const bad = await post(`/api/sites/${SITE}/ops`, { rev: 0, op: { type: 'markDeleted', blockKey: '/#nada' } });
     expect(bad.status).toBe(400);
-    expect((await bad.json()).error).toMatch(/No existe el bloque/);
+    expect((await bad.json()).error).toMatch(/does not exist/);
     expect((await post(`/api/sites/${SITE}/ops`, { rev: 0, op: { type: 'volar' } })).status).toBe(400);
   });
 
@@ -77,7 +77,7 @@ describe('API HTTP', () => {
   it('describe el plan', async () => {
     await post(`/api/sites/${SITE}/ops`, { rev: 0, op: move });
     const plan = await (await app.request(`/api/sites/${SITE}/plan`)).json();
-    expect(plan.text).toContain('Mover "Integraciones"');
+    expect(plan.text).toContain('Move "Integraciones"');
     expect(plan.diffs).toHaveLength(1);
   });
 });

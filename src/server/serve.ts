@@ -1,4 +1,5 @@
 import { serve, type ServerType } from '@hono/node-server';
+import { en } from '../i18n/en.js';
 import type { SiteStore } from '../store/store.js';
 import { createApp } from './http.js';
 
@@ -53,5 +54,5 @@ export async function startCanvasServer(
       app.closeEvents();
     }
   }
-  throw new Error(`No hay puertos libres entre ${first} y ${LAST_PORT} para el lienzo.`);
+  throw new Error(en.http.noFreePort(first, LAST_PORT));
 }

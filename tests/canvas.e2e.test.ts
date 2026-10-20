@@ -59,7 +59,7 @@ describe('lienzo', () => {
     await expect.poll(() => page.getByTestId('global-lane').getByTestId('block-card').count()).toBe(2);
   });
 
-  it('mueve un bloque a otra página arrastrando en modo Planificado', async () => {
+  it('mueve un bloque a otra página arrastrando en Planned mode', async () => {
     await page.getByTestId('toggle-planned').click();
     await drag('[data-testid="block-card"][data-key="/~integraciones"]', '[data-testid="page-column"][data-path="/otra"] [data-testid="block-card"]');
     await expect.poll(async () => (await serverMap('demo')).pages[1].blocks.some((b: { key: string }) => b.key === '/~integraciones')).toBe(true);

@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import type { BlockView, SiteMap } from '../api';
 import { shotUrl } from '../api';
+import { t } from '../strings';
 
 const props = defineProps<{
   block: BlockView;
@@ -17,7 +18,6 @@ const emit = defineEmits<{
 }>();
 
 const editing = ref(false);
-const KIND = { narrativa: 'narrativa', visual: 'visual', conversion: 'conversión' } as const;
 const tagsById = computed(() => new Map(props.map.tags.map((t) => [t.id, t])));
 const dim = computed(() => props.filterTag !== null && !props.block.tags.includes(props.filterTag));
 const shot = computed(() => shotUrl(props.map, props.block));
@@ -39,7 +39,7 @@ function toggle(tagId: string, on: boolean) {
     <div class="top">
       <span class="n">{{ String(index + 1).padStart(2, '0') }}</span>
       <strong class="name" :title="block.name">{{ block.name }}</strong>
-      <span class="pill kind" :class="block.effectiveKind">{{ KIND[block.effectiveKind] }}</span>
+      <span class="pill kind" :class="block.effectiveKind">{{ t.kind[block.effectiveKind] }}</span>
     </div>
     <img v-if="shot" class="shot" :src="shot" alt="" loading="lazy" draggable="false" />
     <div class="meta">
@@ -50,22 +50,22 @@ function toggle(tagId: string, on: boolean) {
         :style="{ '--c': tagsById.get(id)?.color ?? '#888' }"
       >{{ tagsById.get(id)?.name ?? id }}</span>
       <span v-if="block.issues.length" class="pill issues" :title="block.issues.map((i) => i.message).join('\n')">⚠ {{ block.issues.length }}</span>
-      <span v-if="block.isNew" class="pill flag">nuevo</span>
-      <span v-if="showMoved && block.moved" class="pill flag">movido</span>
+      <span v-if="block.isNew" class="pill flag">{{ t.card.new }}</span>
+      <span v-if="showMoved && block.moved" class="pill flag">{{ t.card.moved }}</span>
       <button
         v-if="!block.global"
         class="edit"
         type="button"
         data-testid="edit-tags"
         :aria-expanded="editing"
-        aria-label="Editar etiquetas"
+        :aria-label="t.card.editTags"
         @click.stop="editing = !editing"
-      >{{ editing ? 'listo' : '+' }}</button>
-      <button v-if="block.deleted" type="button" class="edit" @click.stop="emit('restore', block.key)">Restaurar</button>
+      >{{ editing ? t.card.done : '+' }}</button>
+      <button v-if="block.deleted" type="button" class="edit" @click.stop="emit('restore', block.key)">{{ t.card.restore }}</button>
     </div>
     <fieldset v-if="editing" class="tag-menu" @click.stop>
-      <legend class="muted">Etiquetas</legend>
-      <span v-if="!map.tags.length" class="muted">Crea una etiqueta en la barra superior.</span>
+      <legend class="muted">{{ t.card.tags }}</legend>
+      <span v-if="!map.tags.length" class="muted">{{ t.card.createTagHint }}</span>
       <label v-for="t in map.tags" :key="t.id">
         <input type="checkbox" :checked="block.tags.includes(t.id)" @change="toggle(t.id, ($event.target as HTMLInputElement).checked)" />
         {{ t.name }}
