@@ -210,8 +210,8 @@ export function createMcpServer(store: SiteStore): McpServer {
       inputSchema: { site: z.string() },
     },
     guard(async ({ site }) => {
-      const { diffs, text } = await getPlan(store, site);
-      return siteText(`${text}\n\n${JSON.stringify(diffs, null, 2)}`);
+      const { markdown, changes, schemaVersion } = await getPlan(store, site);
+      return siteText(`${markdown}\n${JSON.stringify({ schemaVersion, changes }, null, 2)}`);
     }),
   );
 
