@@ -1,4 +1,3 @@
-import { execSync } from 'node:child_process';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,7 +16,6 @@ let store: SiteStore;
 let page: Page;
 
 beforeAll(async () => {
-  execSync('pnpm exec vite build canvas', { stdio: 'ignore' });
   fixture = await startStatic('tests/fixtures/site');
   store = new SiteStore(await mkdtemp(join(tmpdir(), 'site-atlas-test-')));
   await runScan(store, `${fixture.url}/index.html`, { site: 'demo', maxPages: 2 });
