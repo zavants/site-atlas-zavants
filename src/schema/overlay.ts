@@ -33,6 +33,8 @@ export const OverlaySchema = z.object({
   linkEdits: z.record(z.string(), z.intersection(TargetSchema, z.object({ by: z.string() }))),
   addedLinks: z.array(z.object({ id: z.string(), from: z.string(), to: TargetSchema, label: z.string().optional(), by: z.string() })),
   confirmations: z.record(z.string(), z.object({ at: z.string(), by: z.string(), note: z.string() })),
+  /** Who proposed each change: keys `move|<blockKey>`, `delete|<blockKey>`, `newPage|<path>`, `reorder|<page>`. Missing means the canvas. */
+  authors: z.record(z.string(), z.string()).default({}),
 });
 export type Overlay = z.infer<typeof OverlaySchema>;
 
@@ -53,6 +55,7 @@ export function emptyOverlay(): Overlay {
     linkEdits: {},
     addedLinks: [],
     confirmations: {},
+    authors: {},
   };
 }
 

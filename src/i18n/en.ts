@@ -44,6 +44,10 @@ export const en = {
     linkLabel: 'text of the new link',
     delete: 'Propose deleting a section.',
     restore: 'Cancel the proposal to delete a section.',
+    mangledPath: (arg: string) =>
+      `Argument "${arg}" looks like a path rewritten by Git Bash. Run with MSYS_NO_PATHCONV=1 (see README).`,
+    helpWindows:
+      '\nOn Windows with Git Bash, start the command with MSYS_NO_PATHCONV=1 so that arguments such as /~hero are not rewritten as file paths.',
     needTarget: 'Give exactly one of --to-block or --to-page.',
     planUpdated: (site: string) => `Plan updated. Read it with: site-atlas plan ${site}`,
     confirmed: (id: string) => `Change ${id} is now applied.`,

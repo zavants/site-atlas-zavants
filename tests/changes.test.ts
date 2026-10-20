@@ -29,6 +29,41 @@ const linkedScan = (basePath = '/'): Scan => {
 };
 const withComponents = (s: Scan): Overlay => ({ ...emptyOverlay(), components: assignComponents(emptyOverlay(), s) });
 
+describe('authors', () => {
+  const byOf = (o: Overlay, type: Change['type']) => only(deriveChanges(scan, o), type).map((c) => c.by);
+
+  it('records who proposed moves, reorders, deletions and pages, and defaults to canvas', () => {
+    const o = after(
+      { type: 'addPlannedPage', path: '/nueva', title: 'Nueva', by: 'claude-code' },
+      { type: 'moveBlock', blockKey: '/~integraciones', toPage: '/otra', index: 0, by: 'claude-code' },
+      { type: 'moveBlock', blockKey: '/#cotizacion', toPage: '/', index: 0, by: 'cursor' },
+      { type: 'markDeleted', blockKey: '/otra#precios', by: 'cli' },
+    );
+    expect(byOf(o, 'newPage')).toEqual(['claude-code']);
+    expect(byOf(o, 'move')).toEqual(['claude-code']);
+    expect(byOf(o, 'reorder')).toEqual(['cursor']);
+    expect(byOf(o, 'delete')).toEqual(['cli']);
+    expect(o.authors).toEqual({
+      'newPage|/nueva': 'claude-code',
+      'move|/~integraciones': 'claude-code',
+      'reorder|/': 'cursor',
+      'delete|/otra#precios': 'cli',
+    });
+  });
+
+  it('an op without by (the canvas) is attributed to canvas', () => {
+    const o = after(moveIntegraciones, { type: 'markDeleted', blockKey: '/otra#precios' }, { type: 'addPlannedPage', path: '/nueva', title: 'Nueva' });
+    expect([...byOf(o, 'move'), ...byOf(o, 'delete'), ...byOf(o, 'newPage')]).toEqual(['canvas', 'canvas', 'canvas']);
+  });
+
+  it('restore and removePlannedPage drop the author; a later proposal by someone else takes over', () => {
+    const o = after({ type: 'markDeleted', blockKey: '/otra#precios', by: 'cli' }, { type: 'addPlannedPage', path: '/nueva', title: 'Nueva', by: 'cli' });
+    const cleared = run(o, scan, { type: 'restore', blockKey: '/otra#precios' }, { type: 'removePlannedPage', path: '/nueva' });
+    expect(cleared.authors).toEqual({});
+    expect(byOf(run(o, scan, { type: 'markDeleted', blockKey: '/otra#precios', by: 'cursor' }), 'delete')).toEqual(['cursor']);
+  });
+});
+
 describe('changeId', () => {
   it('is the type plus a short sha1 of the parts', () => {
     const sha = createHash('sha1').update('/~integraciones\n/otra').digest('hex').slice(0, 10);

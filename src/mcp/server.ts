@@ -198,7 +198,7 @@ export function createMcpServer(store: SiteStore): McpServer {
       description: en.mcp.tools.moveBlock,
       inputSchema: { site: z.string(), blockKey: z.string(), toPage: z.string(), index: z.number().int().min(0) },
     },
-    guard(async ({ site, blockKey, toPage, index }) => apply(site, { type: 'moveBlock', blockKey, toPage, index })),
+    guard(async ({ site, blockKey, toPage, index }) => apply(site, { type: 'moveBlock', blockKey, toPage, index, by: clientName() })),
   );
 
   server.registerTool(
@@ -207,7 +207,7 @@ export function createMcpServer(store: SiteStore): McpServer {
       description: en.mcp.tools.addPlannedPage,
       inputSchema: { site: z.string(), path: z.string(), title: z.string() },
     },
-    guard(async ({ site, path, title }) => apply(site, { type: 'addPlannedPage', path, title })),
+    guard(async ({ site, path, title }) => apply(site, { type: 'addPlannedPage', path, title, by: clientName() })),
   );
 
   server.registerTool(
@@ -296,13 +296,13 @@ export function createMcpServer(store: SiteStore): McpServer {
   server.registerTool(
     'atlas_mark_deleted',
     { description: en.mcp.tools.markDeleted, inputSchema: { site: z.string(), blockKey: z.string() } },
-    guard(async ({ site, blockKey }) => apply(site, { type: 'markDeleted', blockKey })),
+    guard(async ({ site, blockKey }) => apply(site, { type: 'markDeleted', blockKey, by: clientName() })),
   );
 
   server.registerTool(
     'atlas_restore',
     { description: en.mcp.tools.restore, inputSchema: { site: z.string(), blockKey: z.string() } },
-    guard(async ({ site, blockKey }) => apply(site, { type: 'restore', blockKey })),
+    guard(async ({ site, blockKey }) => apply(site, { type: 'restore', blockKey, by: clientName() })),
   );
 
   server.registerTool(
