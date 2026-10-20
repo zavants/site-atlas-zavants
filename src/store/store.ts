@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, open, readdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { emptyOverlay, OverlaySchema, type Overlay } from '../schema/overlay.js';
+import { emptyOverlay, migrateOverlay, type Overlay } from '../schema/overlay.js';
 import { en } from '../i18n/en.js';
 import { ScanSchema, type Scan } from '../schema/scan.js';
 import { atlasHome, siteDir } from './paths.js';
@@ -161,9 +161,11 @@ export class SiteStore {
     const file = this.overlayFile(site);
     const raw = await readJson(file);
     if (raw === undefined) return emptyOverlay();
-    const parsed = OverlaySchema.safeParse(raw);
-    if (!parsed.success) throw new Error(en.store.invalidOverlay(file, parsed.error.message));
-    return parsed.data;
+    try {
+      return migrateOverlay(raw);
+    } catch (err) {
+      throw new Error(en.store.invalidOverlay(file, (err as Error).message));
+    }
   }
 
   /**

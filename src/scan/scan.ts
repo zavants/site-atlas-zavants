@@ -176,6 +176,7 @@ export async function scanSite(url: string, opts: ScanOptions): Promise<Scan> {
             height: raw.height,
             kind: inferKind(raw),
             global: false,
+            isComponent: raw.landmark,
             fingerprint: fingerprint(raw),
             textExcerpt: raw.text.slice(0, 200),
             components: raw.components,
@@ -215,7 +216,10 @@ export async function scanSite(url: string, opts: ScanOptions): Promise<Scan> {
 
   const counts = new Map<string, number>();
   for (const p of pages) for (const fp of new Set(p.blocks.map((b) => b.fingerprint))) counts.set(fp, (counts.get(fp) ?? 0) + 1);
-  for (const p of pages) for (const b of p.blocks) b.global = (counts.get(b.fingerprint) ?? 0) >= 2;
+  for (const p of pages) for (const b of p.blocks) {
+    b.global = (counts.get(b.fingerprint) ?? 0) >= 2;
+    b.isComponent = b.isComponent || b.global;
+  }
 
   const issues = computeIssues(pages, { linkStatus, idsByPath, pageInfo, pathOf });
   return {

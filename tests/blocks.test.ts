@@ -13,6 +13,7 @@ function raw(partial: Partial<RawBlock> = {}): RawBlock {
     text: '',
     childTags: [],
     hasForm: false,
+    landmark: false,
     visualRatio: 0,
     components: { headings: [], links: [], buttons: [], forms: [], media: [] },
     ...partial,
