@@ -12,12 +12,17 @@ function kindWord(block: Block): string {
   return 'Component';
 }
 
-function find(block: Block, components: Components): string | null {
-  const exact = Object.entries(components).find(([, c]) => c.fingerprint === block.fingerprint);
-  if (exact) return exact[0];
+function exactId(block: Block, components: Components): string | null {
+  return Object.entries(components).find(([, c]) => c.fingerprint === block.fingerprint)?.[0] ?? null;
+}
+
+function find(block: Block, components: Components, claimed: ReadonlySet<string> = new Set()): string | null {
+  const exact = exactId(block, components);
+  if (exact) return exact;
   let best: string | null = null;
   let bestScore = MATCH;
   for (const [id, c] of Object.entries(components)) {
+    if (claimed.has(id)) continue;
     const score = similarity(block.textExcerpt, c.excerpt);
     if (score >= bestScore) {
       best = id;
@@ -29,23 +34,39 @@ function find(block: Block, components: Components): string | null {
 
 /**
  * Reconciles shared components against a scan. Existing ids and names are kept
- * (fingerprint and text follow the latest match); new ones are named per kind.
+ * (fingerprint and text follow the latest match); new ones are named per kind. Exact fingerprints
+ * are claimed first; similarity only matches an id no other fingerprint of this scan claimed, so
+ * two variants in one scan stay apart.
  */
 export function assignComponents(overlay: Overlay, scan: Scan): Components {
   const out: Components = { ...overlay.components };
+  const blocks = new Map<string, Block>();
   for (const page of scan.pages) {
-    for (const block of page.blocks) {
-      if (!block.isComponent) continue;
-      const id = find(block, out);
-      if (id) {
-        out[id] = { ...out[id]!, fingerprint: block.fingerprint, excerpt: block.textExcerpt };
-        continue;
-      }
-      const word = kindWord(block);
-      const used = Object.values(out).map((c) => new RegExp(`^${word} ([0-9]+)$`).exec(c.name)?.[1]);
-      const next = Math.max(0, ...used.map((n) => Number(n ?? 0))) + 1;
-      out[`c:${block.fingerprint}`] = { fingerprint: block.fingerprint, name: `${word} ${next}`, excerpt: block.textExcerpt };
+    for (const block of page.blocks) if (block.isComponent && !blocks.has(block.fingerprint)) blocks.set(block.fingerprint, block);
+  }
+  const claimed = new Set<string>();
+  const pending: Block[] = [];
+  for (const block of blocks.values()) {
+    const id = exactId(block, out);
+    if (!id) {
+      pending.push(block);
+      continue;
     }
+    claimed.add(id);
+    out[id] = { ...out[id]!, excerpt: block.textExcerpt };
+  }
+  for (const block of pending) {
+    const id = find(block, out, claimed);
+    if (id) {
+      claimed.add(id);
+      out[id] = { ...out[id]!, fingerprint: block.fingerprint, excerpt: block.textExcerpt };
+      continue;
+    }
+    const word = kindWord(block);
+    const used = Object.values(out).map((c) => new RegExp(`^${word} ([0-9]+)$`).exec(c.name)?.[1]);
+    const next = Math.max(0, ...used.map((n) => Number(n ?? 0))) + 1;
+    out[`c:${block.fingerprint}`] = { fingerprint: block.fingerprint, name: `${word} ${next}`, excerpt: block.textExcerpt };
+    claimed.add(`c:${block.fingerprint}`);
   }
   return out;
 }
