@@ -140,7 +140,8 @@ function draw() {
       if (link.added) color = 'added';
       if (link.removed && props.planned) color = 'removed';
       const p = anchorPoint(sR, rectOf(dst), row);
-      out.push({ id: link.id, from: link.owner, to, color, d: curve(x1, y1, p.x, p.y, p.side, lane++), x: p.x, y: p.y });
+      const edge = p.side === 'loop' ? rectOf(home).x + rectOf(home).w : undefined;
+      out.push({ id: link.id, from: link.owner, to, color, d: curve(x1, y1, p.x, p.y, p.side, lane++, edge), x: p.x, y: p.y });
       sources.set(link.id, { el, link, diagram: home.dataset.id! });
     }
   }
@@ -230,6 +231,9 @@ function startConnector(e: PointerEvent, el: HTMLElement, piece: PieceModel) {
 }
 
 /* ---------- moving diagrams ---------- */
+/** Diagram being dragged over the trash, when the trash would take it. */
+const trashOverBy = ref<string | null>(null);
+const overTrash = (ev: PointerEvent) => document.elementsFromPoint(ev.clientX, ev.clientY).some((el) => (el as HTMLElement).dataset?.id === TRASH);
 function startMoveNode(e: PointerEvent, d: DiagramModel) {
   if (e.button !== 0 || !props.planned) return;
   e.stopPropagation();
@@ -238,12 +242,15 @@ function startMoveNode(e: PointerEvent, d: DiagramModel) {
   const p0 = toStage(e.clientX, e.clientY);
   const o = { ...pos(d.id) };
   let moved = false;
+  // A planned page, or a NOT FOUND / external target (its links), can go to the trash; a real page can't.
+  const deletable = d.kind === 'planned' || d.kind === 'missing' || d.kind === 'external';
   movingId.value = d.id;
   document.body.classList.add('dragging');
   const move = (ev: PointerEvent) => {
     const p = toStage(ev.clientX, ev.clientY);
     livePos[d.id] = { x: Math.round(o.x + (p.x - p0.x) / XF.value), y: Math.round(o.y + p.y - p0.y) };
     moved = true;
+    trashOverBy.value = deletable && overTrash(ev) ? d.id : null;
     scheduleDraw();
   };
   const up = async (ev: PointerEvent) => {
@@ -253,9 +260,10 @@ function startMoveNode(e: PointerEvent, d: DiagramModel) {
     movingId.value = null;
     document.body.classList.remove('dragging');
     const at = livePos[d.id];
-    // Dropped on Delete: a diagram there would hide behind it. Snap back; a planned page asks to be deleted.
-    const onTrash = d.id !== TRASH && document.elementsFromPoint(ev.clientX, ev.clientY).some((el) => (el as HTMLElement).dataset?.id === TRASH);
-    if (onTrash && d.kind === 'planned') askDeletePage(d);
+    trashOverBy.value = null;
+    // Dropped on the trash: a diagram there would hide behind it. It snaps back; a deletable one asks to be deleted.
+    const onTrash = overTrash(ev);
+    if (onTrash && deletable) askDeletePage(d);
     else if (moved && at && !onTrash) await props.act([{ type: 'setLayout', id: d.id, x: at.x, y: at.y }]);
     delete livePos[d.id];
     scheduleDraw();
@@ -583,7 +591,7 @@ const changeCount = computed(() => props.changes.length);
         :x="0"
         :y="0"
         :moving="false"
-        :drop-target="pieceDrag.over.value === trash.id"
+        :drop-target="pieceDrag.over.value === trash.id || trashOverBy !== null"
         :settled="pieceDrag.drag.value?.settled ?? false"
       />
     </div>
@@ -607,6 +615,7 @@ const changeCount = computed(() => props.changes.length);
         :x="Math.round(pos(d.id).x * XF)"
         :y="pos(d.id).y"
         :moving="movingId === d.id"
+        :doomed="trashOverBy === d.id"
         :drop-target="pieceDrag.over.value === d.id"
         :settled="pieceDrag.drag.value?.settled ?? false"
         @title-down="(e: PointerEvent) => startMoveNode(e, d)"

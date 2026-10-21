@@ -15,6 +15,8 @@ const props = defineProps<{
   x: number;
   y: number;
   moving: boolean;
+  /** Dragged over the trash, which would take it. */
+  doomed?: boolean;
   dropTarget: boolean;
   /** The dragged piece was released and its op is on its way: show it in place, not as a gap. */
   settled: boolean;
@@ -59,7 +61,7 @@ const kindTag = computed(() => {
     :data-kind="d.kind"
     :data-linkable="d.linkable"
     :data-droppable="d.droppable"
-    :class="[`d-${d.kind}`, { small: d.small, moving, snap, open, target: dropTarget }]"
+    :class="[`d-${d.kind}`, { small: d.small, moving, snap, open, target: dropTarget, doomed }]"
     :style="d.kind === 'trash' ? undefined : { left: `${x}px`, top: `${y}px` }"
   >
     <template v-if="d.kind === 'trash'">
@@ -157,6 +159,7 @@ const kindTag = computed(() => {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--line-blue) 22%, transparent), 0 6px 20px color-mix(in srgb, var(--line-blue) 18%, transparent);
 }
 .diagram.moving { z-index: 6; }
+.diagram.doomed { border-color: #e5484d; box-shadow: 0 0 0 4px color-mix(in srgb, #e5484d 25%, transparent), 0 6px 20px rgba(0, 0, 0, 0.25); }
 .title {
   margin: 0 -12px 4px;
   padding: 10px 12px 4px;
