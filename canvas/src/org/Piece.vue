@@ -2,7 +2,7 @@
 import { computed, inject } from 'vue';
 import { shotUrl, type BlockView } from '../api';
 import { t } from '../strings';
-import { autoTags, hasTag } from './autoTags';
+import { autoColors, autoTags, hasTag } from './autoTags';
 import { orgContextKey, PAGES, type PieceModel } from './diagrams';
 
 const props = defineProps<{ piece: PieceModel; diagramId: string; number: number; hole?: boolean; settled?: boolean }>();
@@ -65,7 +65,7 @@ function onTag(tagId: string, on: boolean) {
       </span>
       <span v-if="b.issues.length" class="warn" :title="t.piece.issues(b.issues.length)">⚠{{ b.issues.length }}</span>
       <span v-if="showLabel" class="tag comp-tag">{{ t.piece.component }}</span>
-      <span v-for="id in detected" :key="id" class="atag" :class="id.slice(5)" data-testid="detected-tag" :title="t.autoTags.hint">{{ t.autoTags[id] }}</span>
+      <span v-for="id in detected" :key="id" class="atag" :style="{ '--c': autoColors[id] }" data-testid="detected-tag" :title="t.autoTags.hint">{{ t.autoTags[id] }}</span>
     </div>
     <img v-if="shot" class="cap" :src="shot" alt="" loading="lazy" draggable="false" />
     <div v-else class="cap empty" />
@@ -164,9 +164,7 @@ function onTag(tagId: string, on: boolean) {
 .lh { display: flex; align-items: center; gap: 6px; padding: 6px 8px; }
 .lh b { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .n { font: 11px ui-monospace, monospace; color: var(--muted); }
-.atag { font-size: 9px; font-weight: 600; line-height: 14px; padding: 0 5px; border-radius: 7px; white-space: nowrap; border: 1px dashed var(--border); color: var(--muted); }
-.atag.form { color: var(--line-green); border-color: color-mix(in srgb, var(--line-green) 50%, transparent); }
-.atag.cta { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+.atag { font-size: 9px; font-weight: 600; line-height: 14px; padding: 0 5px; border-radius: 7px; white-space: nowrap; color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); background: color-mix(in srgb, var(--c) 12%, transparent); }
 .cnt { font-size: 10px; color: var(--muted); white-space: nowrap; display: inline-flex; gap: 4px; }
 .warn { color: var(--danger); font-size: 11px; }
 .tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 8px; }

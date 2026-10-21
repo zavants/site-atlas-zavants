@@ -1,3 +1,4 @@
+import { reactive } from 'vue';
 import type { BlockView } from '../api';
 
 /** Tags the canvas detects on its own, next to the person's tags. Ids never clash: user tag ids are not prefixed. */
@@ -23,3 +24,39 @@ export function autoTags(b: BlockView): AutoTag[] {
 
 export const hasTag = (b: BlockView, tag: string): boolean =>
   tag.startsWith('auto:') ? autoTags(b).includes(tag as AutoTag) : b.tags.includes(tag);
+
+/** Default stays gray; the others can be recolored from Options. */
+export const DEFAULT_AUTO_COLORS: Record<AutoTag, string> = {
+  'auto:nav': '#7f77dd',
+  'auto:hero': '#d4537e',
+  'auto:form': '#1d9e75',
+  'auto:cta': '#378add',
+  'auto:default': '#888780',
+};
+export const CONFIGURABLE: AutoTag[] = ['auto:nav', 'auto:hero', 'auto:form', 'auto:cta'];
+
+const KEY = 'site-atlas:auto-tag-colors';
+function load(): Partial<Record<AutoTag, string>> {
+  try {
+    return JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<Record<AutoTag, string>>;
+  } catch {
+    return {};
+  }
+}
+/** A per-browser preference: the colors are a way of looking at the map, not part of the plan. */
+export const autoColors = reactive<Record<AutoTag, string>>({
+  ...DEFAULT_AUTO_COLORS,
+  ...load(),
+  'auto:default': DEFAULT_AUTO_COLORS['auto:default'],
+});
+export function saveAutoColors() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(autoColors));
+  } catch {
+    // Storage blocked: the colors last for this visit only.
+  }
+}
+export function resetAutoColors() {
+  Object.assign(autoColors, DEFAULT_AUTO_COLORS);
+  saveAutoColors();
+}

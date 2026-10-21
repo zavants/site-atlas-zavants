@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
 import type { SiteMap } from '../api';
-import { AUTO_TAGS, autoTags } from '../org/autoTags';
+import { AUTO_TAGS, autoColors, autoTags } from '../org/autoTags';
 import { t } from '../strings';
 
-const props = defineProps<{ map: SiteMap; filterTag: string | null }>();
+const props = defineProps<{ map: SiteMap; filterTag: string | null; inline?: boolean }>();
 const autoCounts = computed(() => {
   const counts = new Map<string, number>(AUTO_TAGS.map((id) => [id, 0]));
   for (const page of props.map.pages) for (const b of page.blocks) for (const id of autoTags(b)) counts.set(id, counts.get(id)! + 1);
@@ -49,20 +49,21 @@ function remove(id: string) {
 </script>
 
 <template>
-  <div class="bar" role="toolbar" :aria-label="t.tags.aria">
-    <span class="muted">{{ t.tags.filter }}</span>
+  <div class="bar" :class="{ inline }" role="group" :aria-label="t.tags.aria">
+    <span class="head muted">{{ t.tags.detected }}</span>
     <button
       v-for="id in AUTO_TAGS"
       :key="id"
       type="button"
       class="auto"
       data-testid="auto-tag"
+      :style="{ '--c': autoColors[id] }"
       :data-id="id"
       :title="t.autoTags.hint"
       :aria-pressed="filterTag === id"
       @click="emit('filter', filterTag === id ? null : id)"
-    >{{ t.autoTags[id] }} <span class="muted">{{ autoCounts.get(id) }}</span></button>
-    <span class="sep" />
+    ><i class="dot" />{{ t.autoTags[id] }} <span class="muted n">{{ autoCounts.get(id) }}</span></button>
+    <span class="head muted">{{ t.tags.yours }}</span>
     <span v-for="tag in map.tags" :key="tag.id" class="tag">
       <input
         v-if="editing === tag.id"
@@ -111,14 +112,20 @@ function remove(id: string) {
 </template>
 
 <style scoped>
-.bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
-.tag { display: inline-flex; }
+.bar { display: grid; gap: 4px; font-size: 13px; }
+.bar.inline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.bar.inline .head { margin: 0 2px 0 6px; }
+.bar.inline .auto { border-color: var(--border); }
+.head { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 4px; }
+.auto { display: flex; align-items: center; gap: 8px; text-align: left; border-color: transparent; }
+.auto[aria-pressed='true'] { border-color: var(--c); }
+.auto .n { margin-left: auto; }
+.tag { display: flex; }
+.tag > button:first-child { flex: 1; }
 .tag > button:first-child,
 .tag > input:first-child { border-radius: 6px 0 0 6px; display: inline-flex; align-items: center; gap: 6px; }
 .x { border-left: none; border-radius: 0 6px 6px 0; padding: 4px 7px; color: var(--muted); }
 .x.armed { color: var(--danger); border-color: var(--danger); }
-.auto { border-style: dashed; }
-.sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 2px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); display: inline-block; }
 .name { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--accent); border-radius: 6px; padding: 4px 8px; width: 150px; }
 </style>
