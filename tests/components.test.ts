@@ -31,6 +31,18 @@ describe('assignComponents', () => {
     expect(Object.values(c).map((x) => x.name).sort()).toEqual(['Header 1', 'Header 2']);
   });
 
+  it('numbers similar headers with different fingerprints in one scan Header 1 and Header 2', () => {
+    const c = assignComponents(
+      emptyOverlay(),
+      scanOf(
+        hdr('/p0', 'aaa', 'Inicio Productos Servicios Nosotros Contacto'),
+        hdr('/p1', 'bbb', 'Inicio Productos Servicios Nosotros Contacto Blog'),
+      ),
+    );
+    expect(c['c:aaa']!.name).toBe('Header 1');
+    expect(c['c:bbb']!.name).toBe('Header 2');
+  });
+
   it('keeps id and name when the text changes slightly', () => {
     const first = assignComponents(emptyOverlay(), scanOf(hdr('/p0', 'aaa', 'Inicio Productos Servicios Nosotros Contacto')));
     const again = assignComponents(
