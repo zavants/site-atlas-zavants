@@ -108,6 +108,8 @@ export function usePieceDrag(opts: {
       // The diagram under the cursor (the floating piece doesn't catch the pointer).
       const under = document.elementFromPoint(ev.clientX, ev.clientY);
       const diagram = under?.closest<HTMLElement>('[data-testid="diagram"]');
+      // Over the trash the lifted piece turns red: releasing it marks it for deletion.
+      floating!.classList.toggle('doomed', diagram?.dataset.kind === 'trash');
       const target = diagram?.dataset.droppable === 'true' ? diagram.querySelector<HTMLElement>(':scope > [data-zone]') : null;
       if (!diagram || !target) {
         over.value = null;

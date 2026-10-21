@@ -15,7 +15,11 @@ export function anchorPoint(src: Rect, dst: Rect, row: boolean): Point & { side:
   return { x: dst.x + dst.w, y, side: 'loop' };
 }
 
-/** SVG path for an arrow. Loops bulge to the right by a lane-dependent amount (7 lanes). */
+/**
+ * SVG path for an arrow. A loop (a link within the same diagram) bulges right, past `edge` (the
+ * diagram's right border) by a margin that grows with its lane (7 lanes) and its height, so it never
+ * runs along the border.
+ */
 export function curve(
   x1: number,
   y1: number,
@@ -23,10 +27,14 @@ export function curve(
   y2: number,
   side: AnchorSide,
   lane: number,
+  edge = Math.max(x1, x2),
 ): string {
   if (side === 'loop') {
-    const b = 22 + (lane % 7) * 7;
-    return `M${x1} ${y1} C${x1 + b} ${y1}, ${x2 + b} ${y2}, ${x2} ${y2}`;
+    const x0 = Math.max(x1, x2);
+    const reach = Math.max(edge, x0) + 24 + (lane % 7) * 10 + Math.min(Math.abs(y2 - y1) * 0.1, 40);
+    // Both control points at c: the curve peaks at 3/4 of the way from x0 to c.
+    const c = Math.round(x0 + (reach - x0) / 0.75);
+    return `M${x1} ${y1} C${c} ${y1}, ${c} ${y2}, ${x2} ${y2}`;
   }
   const mx = (x1 + x2) / 2;
   return `M${x1} ${y1} C${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`;

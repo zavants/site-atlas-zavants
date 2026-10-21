@@ -150,6 +150,7 @@ function onTag(tagId: string, on: boolean) {
 .piece.snap { outline: 3px solid var(--line-blue); }
 .piece.hole { opacity: 0.35; outline: 2px dashed var(--line-blue); outline-offset: -2px; }
 .piece.deleted .lh b { text-decoration: line-through; }
+.piece.float.doomed { outline: 2px solid #e5484d; box-shadow: 0 0 0 4px color-mix(in srgb, #e5484d 25%, transparent), 0 10px 24px rgba(0, 0, 0, 0.22); }
 .piece.float {
   position: absolute;
   z-index: 20;
