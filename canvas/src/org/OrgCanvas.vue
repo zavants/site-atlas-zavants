@@ -140,7 +140,8 @@ function draw() {
       if (link.added) color = 'added';
       if (link.removed && props.planned) color = 'removed';
       const p = anchorPoint(sR, rectOf(dst), row);
-      out.push({ id: link.id, from: link.owner, to, color, d: curve(x1, y1, p.x, p.y, p.side, lane++), x: p.x, y: p.y });
+      const edge = p.side === 'loop' ? rectOf(home).x + rectOf(home).w : undefined;
+      out.push({ id: link.id, from: link.owner, to, color, d: curve(x1, y1, p.x, p.y, p.side, lane++, edge), x: p.x, y: p.y });
       sources.set(link.id, { el, link, diagram: home.dataset.id! });
     }
   }

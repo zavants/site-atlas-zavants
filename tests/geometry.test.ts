@@ -69,10 +69,13 @@ describe('curve', () => {
   it('draws a midpoint-controlled bezier for side links', () => {
     expect(curve(0, 0, 100, 50, 'left', 0)).toBe('M0 0 C50 0, 50 50, 100 50');
   });
-  it('offsets loops by a lane-dependent bulge', () => {
-    expect(curve(10, 0, 10, 50, 'loop', 0)).toBe('M10 0 C32 0, 32 50, 10 50');
+  it('offsets loops by a lane-dependent bulge that clears the diagram border', () => {
+    // Peak = 10 + 0.75 * (49 - 10) ≈ 39 = 10 + 24 + 50 * 0.1.
+    expect(curve(10, 0, 10, 50, 'loop', 0)).toBe('M10 0 C49 0, 49 50, 10 50');
     expect(curve(10, 0, 10, 50, 'loop', 7)).toBe(curve(10, 0, 10, 50, 'loop', 0));
-    expect(curve(10, 0, 10, 50, 'loop', 1)).toBe('M10 0 C39 0, 39 50, 10 50');
+    expect(curve(10, 0, 10, 50, 'loop', 1)).toBe('M10 0 C62 0, 62 50, 10 50');
+    // With the diagram's right border at x = 100, the loop peaks 29 px past it.
+    expect(curve(10, 0, 10, 50, 'loop', 0, 100)).toBe('M10 0 C169 0, 169 50, 10 50');
   });
 });
 
