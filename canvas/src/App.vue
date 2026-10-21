@@ -19,11 +19,15 @@ const filterTag = ref<string | null>(null);
 const notice = ref('');
 const error = ref('');
 const live = ref(false);
+/** Issue level whose list is open, from a click on its counter. */
+const issueLevel = ref<'error' | 'warn' | 'info' | null>(null);
+const shownIssues = computed(() => (map.value && issueLevel.value ? map.value.issues.filter((i) => i.level === issueLevel.value) : []));
+const toggleIssues = (level: 'error' | 'warn' | 'info') => (issueLevel.value = issueLevel.value === level ? null : level);
 let unsubscribe: (() => void) | null = null;
 
 const history = createHistory(() => map.value!.planFields);
 /** Reset target: no planned changes, so every page shows as the real site. */
-const EMPTY: PlanFields = { plannedOrder: {}, plannedPages: [], plannedDeletions: [], layout: {}, linkEdits: {}, addedLinks: [] };
+const EMPTY: PlanFields = { plannedOrder: {}, plannedPages: [], plannedDeletions: [], layout: {}, linkEdits: {}, addedLinks: [], removedLinks: {} };
 /** Revs this tab wrote: their SSE echo is not "another client". */
 const ownRevs = new Set<number>();
 
@@ -164,9 +168,9 @@ onBeforeUnmount(() => unsubscribe?.());
         <h1>{{ map.site }}</h1>
         <span class="muted">{{ map.environment.origin }}{{ map.environment.basePath }} · {{ t.head.scan }} {{ map.scanId }}</span>
         <span class="counts">
-          <span class="pill err">{{ map.issueCount.error }} {{ t.head.errors }}</span>
-          <span class="pill warn">{{ map.issueCount.warn }} {{ t.head.warnings }}</span>
-          <span class="pill info">{{ map.issueCount.info }} {{ t.head.info }}</span>
+          <button type="button" class="pill err" data-testid="issues-error" :aria-pressed="issueLevel === 'error'" @click="toggleIssues('error')">{{ map.issueCount.error }} {{ t.head.errors }}</button>
+          <button type="button" class="pill warn" data-testid="issues-warn" :aria-pressed="issueLevel === 'warn'" @click="toggleIssues('warn')">{{ map.issueCount.warn }} {{ t.head.warnings }}</button>
+          <button type="button" class="pill info" data-testid="issues-info" :aria-pressed="issueLevel === 'info'" @click="toggleIssues('info')">{{ map.issueCount.info }} {{ t.head.info }}</button>
         </span>
         <span class="grow" />
         <div class="seg" role="group" :aria-label="t.head.mode">
@@ -213,6 +217,16 @@ onBeforeUnmount(() => unsubscribe?.());
           <button type="button" @click="act([{ type: 'resolveOrphan', orphanKey: o.key, action: 'discard' }], false)">{{ t.orphans.discard }}</button>
         </div>
       </section>
+      <section v-if="issueLevel" class="issues" data-testid="issues-panel" :aria-label="t.issues.title[issueLevel]">
+        <strong>{{ t.issues.title[issueLevel] }}</strong>
+        <button type="button" class="close" :aria-label="t.issues.close" @click="issueLevel = null">×</button>
+        <ul>
+          <li v-for="i in shownIssues" :key="i.id">
+            {{ i.message }}
+            <span class="muted">· {{ i.blockKey ? blockName(i.blockKey) : '' }} {{ t.issues.page(i.page) }}</span>
+          </li>
+        </ul>
+      </section>
       <p v-if="notice" class="notice" role="status">{{ notice }}</p>
       <p class="muted hint">{{ planned ? t.head.legend : t.head.realHint }}</p>
     </header>
@@ -249,13 +263,19 @@ onBeforeUnmount(() => unsubscribe?.());
 .grow { flex: 1; }
 h1 { font-size: 18px; margin: 0; }
 .counts { display: inline-flex; gap: 4px; }
+.counts .pill { cursor: pointer; background: none; }
+.counts .pill[aria-pressed='true'] { background: var(--surface); }
+.issues { position: relative; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-size: 13px; }
+.issues ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 3px; }
+.issues .close { position: absolute; top: 6px; right: 8px; padding: 0 7px; }
 .err { color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); }
 .warn { color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); }
 .info { color: var(--muted); border: 1px solid var(--border); }
 .toolbar { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; font-size: 13px; }
 .seg { display: inline-flex; }
 .seg button:first-child { border-radius: 6px 0 0 6px; }
-.seg button:last-child { border-radius: 0 6px 6px 0; border-left: none; }
+.seg button:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
+.seg button[aria-pressed='true'] { position: relative; z-index: 1; }
 .check { display: inline-flex; gap: 6px; align-items: center; margin-left: 8px; }
 .notice { margin: 0; font-size: 13px; color: var(--accent); }
 .hint { margin: 0; font-size: 12px; }

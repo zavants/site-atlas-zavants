@@ -145,8 +145,12 @@ export function buildDiagrams(map: SiteMap, opts: DiagramOptions): DiagramModel[
 
   // A planned page with the same path as a NOT FOUND target replaces it: the target is that page's future.
   const planned = new Set(map.pages.filter((p) => p.planned).map((p) => p.path));
+  // In the plan, a target no link points to any more (all removed or relinked) goes away with them.
+  const linked = new Set<string>();
+  for (const p of map.pages) for (const b of p.blocks) for (const l of b.links) if (!l.removed && l.target && 'page' in l.target) linked.add(l.target.page);
   for (const target of map.targets) {
     if (target.kind === 'missing' && opts.planned && planned.has(target.id)) continue;
+    if (opts.planned && !linked.has(target.id)) continue;
     diagrams.push({
       id: target.id,
       kind: target.kind,

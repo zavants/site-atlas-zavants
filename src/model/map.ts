@@ -55,10 +55,11 @@ export interface SiteMap {
   pages: PageView[];
   orphans: Overlay['orphans'];
   issueCount: { error: number; warn: number; info: number };
+  issues: Issue[];
   components: ComponentView[];
   targets: TargetView[];
   layout: Overlay['layout'];
-  /** The six user-layer fields the canvas history snapshots and restores with `replacePlanFields` (spec §10b). */
+  /** The seven user-layer fields the canvas history snapshots and restores with `replacePlanFields` (spec §10b). */
   planFields: PlanFields;
 }
 
@@ -141,6 +142,7 @@ export function buildMap(scan: Scan, overlay: Overlay): SiteMap {
     ],
     orphans: overlay.orphans,
     issueCount,
+    issues: scan.issues,
     components: [...components.values()],
     targets: buildTargets(scan),
     layout: overlay.layout,
@@ -151,6 +153,7 @@ export function buildMap(scan: Scan, overlay: Overlay): SiteMap {
       layout: overlay.layout,
       linkEdits: overlay.linkEdits,
       addedLinks: overlay.addedLinks,
+      removedLinks: overlay.removedLinks,
     },
   };
 }

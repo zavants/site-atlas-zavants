@@ -8,6 +8,7 @@ const fresh = (): PlanFields => ({
   layout: {},
   linkEdits: {},
   addedLinks: [],
+  removedLinks: {},
 });
 
 describe('history', () => {
@@ -58,7 +59,7 @@ describe('history', () => {
     expect(h.canRedo).toBe(false);
   });
 
-  it('keeps only the six plan fields', () => {
+  it('keeps only the seven plan fields', () => {
     const state = { ...fresh(), rev: 9, tags: [{ id: 't' }] } as unknown as PlanFields;
     const h = createHistory(() => state);
     h.checkpoint();
@@ -70,6 +71,7 @@ describe('history', () => {
       'plannedDeletions',
       'plannedOrder',
       'plannedPages',
+      'removedLinks',
     ]);
   });
 

@@ -99,6 +99,7 @@ const IN_PAGE = String.raw`(() => {
           text: text(a),
           href: linkKind(a) === 'anchor' ? a.getAttribute('href') : a.href,
           kind: linkKind(a),
+          cta: a.matches('[role=button], .btn, .button, .cta, [class*="btn-"], [class*="btn_"], [class*="button-"], [class*="cta-"]'),
         })),
         buttons: [...el.querySelectorAll('button, [role=button], input[type=submit]')].slice(0, 50)
           .map((b) => text(b) || b.getAttribute('value') || b.getAttribute('aria-label') || ''),

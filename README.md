@@ -78,7 +78,7 @@ node dist/cli.js canvas
 | `confirm <site> <changeId> --note "<what you changed and where>"` · `reopen <site> <changeId> --note "<why>"` | Mark a change applied once it is in the code · set it back to pending |
 | `move <site> <blockKey> <toPage>` · `delete <site> <blockKey>` · `restore <site> <blockKey>` | Propose moving or deleting a section, or cancel the deletion |
 | `page add <site> <path>` · `page remove <site> <path>` | Planned pages |
-| `relink <site> <owner>` · `link add <site> <owner>` · `link remove <site> <linkId>` | Change, add or drop links |
+| `relink <site> <owner>` · `unlink <site> <owner>` · `link add <site> <owner>` · `link remove <site> <linkId>` | Change, remove, add or drop links |
 
 An agent without MCP can work from the terminal alone: `site-atlas plan my-site`, implement the pending changes, then `site-atlas confirm my-site <changeId> --note "<what you changed and where>"`.
 
@@ -112,7 +112,7 @@ args = ["/path/to/site-atlas-zavants/dist/cli.js", "mcp"]
 { "mcpServers": { "site-atlas": { "command": "node", "args": ["/path/to/site-atlas-zavants/dist/cli.js", "mcp"] } } }
 ```
 
-### Tools (19)
+### Tools (20)
 
 | Tool | Purpose |
 |---|---|
@@ -125,7 +125,7 @@ args = ["/path/to/site-atlas-zavants/dist/cli.js", "mcp"]
 | `atlas_move_block` · `atlas_add_planned_page` | Rearrange the planned order |
 | `atlas_get_plan` | The plan (Markdown + JSON, optional `status`): what to change in the site's code |
 | `atlas_confirm_change` · `atlas_reopen_change` | Mark a change applied (with a note) or set it back to pending |
-| `atlas_relink` · `atlas_add_link` · `atlas_remove_link` | Propose, change or drop links |
+| `atlas_relink` · `atlas_unlink` · `atlas_add_link` · `atlas_remove_link` | Propose changing, removing or adding links, or drop a link proposal |
 | `atlas_mark_deleted` · `atlas_restore` · `atlas_remove_planned_page` | Propose deleting a section, undo it, remove a planned page |
 | `atlas_open_canvas` | Canvas URL |
 
