@@ -140,7 +140,7 @@ Everything the user changes in the org chart is a **plan**. Any AI (Claude, Code
 
 **History**
 - Each operation is one step: moving a piece, moving a diagram, editing or creating a link, creating or deleting a page or a connector, Reset.
-- It lives in browser memory. Reset returns to the user layer as it was saved when the canvas was opened, not to an untouched v1.
+- It lives in browser memory. Reset discards every planned change (order, planned pages, deletions, link edits, added connectors and diagram positions) so the pages show as the real site; tags stay. Reset is one step, so Undo brings the plan back.
 
 ## 7. Data (user layer, `overlay.json`)
 
@@ -247,7 +247,7 @@ Text taken from the scanned site (section names, headings, excerpts) is shown as
 **History (Undo, Redo and Reset)**
 - Each step stores a snapshot of only the plan fields of the user layer: `plannedOrder`, `plannedPages`, `plannedDeletions`, `layout`, `linkEdits`, `addedLinks`.
 - Undo or Redo sends a `replacePlanFields` operation with the current `rev`. It never touches `confirmations`, `tags`, `blockTags`, `kindOverrides`, `componentNames` or orphans.
-- If an SSE notice says another client wrote (an AI, another tab, a re-scan), the canvas reloads the map, **clears the history** and shows "The map changed elsewhere; history was reset." Reset uses the snapshot taken at that moment.
+- If an SSE notice says another client wrote (an AI, another tab, a re-scan), the canvas reloads the map, **clears the history** and shows "The map changed elsewhere; history was reset."
 
 **Change identity** (the id never includes exact positions)
 
