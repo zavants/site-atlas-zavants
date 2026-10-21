@@ -73,7 +73,6 @@ export function effectiveLinks(block: Block, scan: Scan, overlay: Overlay): Effe
   return [...added, ...scanned];
 }
 
-/** Origins of every external link in the scan, to validate external targets. */
 /** Paths the scan found missing: `missingPages` and broken-link targets, minus scanned pages. */
 export function missingPaths(scan: Scan): Set<string> {
   const { origin, basePath } = scan.environment;
@@ -93,6 +92,7 @@ export function missingPaths(scan: Scan): Set<string> {
   return missing;
 }
 
+/** Origins of every external link in the scan, to validate external targets. */
 export function externalOrigins(scan: Scan): Set<string> {
   const out = new Set<string>();
   for (const page of scan.pages) {
