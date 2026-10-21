@@ -467,7 +467,7 @@ onBeforeUnmount(() => {
 });
 
 watch(
-  () => props.mode,
+  [() => props.mode, () => props.view],
   async () => {
     await nextTick();
     requestAnimationFrame(() => {
@@ -475,6 +475,7 @@ watch(
       scheduleDraw();
       clearTimeout(refitTimer);
       // Screenshots change the diagrams' height as they load: fit again once they settled.
+      if (props.mode !== 'shots') return;
       refitTimer = setTimeout(() => {
         refit();
         scheduleDraw();

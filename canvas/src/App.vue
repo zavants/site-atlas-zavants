@@ -51,8 +51,8 @@ async function changedElsewhere(message?: string) {
   await reload();
   history.clear();
   if (map.value) initial = snapshot();
-  if (message) notice.value = message;
-  else if (had) notice.value = t.historyReset;
+  const text = [message, had && t.historyReset].filter(Boolean).join(' ');
+  if (text) notice.value = text;
 }
 
 async function send(op: OverlayOp): Promise<boolean> {
@@ -64,13 +64,14 @@ async function send(op: OverlayOp): Promise<boolean> {
     return true;
   } catch (e) {
     if (e instanceof ConflictError) {
+      // A foreign write won the lock: with steps to lose, say that history was reset.
+      notice.value = history.canUndo || history.canRedo ? t.historyReset : e.message;
       map.value = e.map;
       history.clear();
       initial = snapshot();
-      notice.value = e.message;
     } else {
-      notice.value = (e as Error).message;
-      await reload();
+      // Unknown server state: a foreign write may land in the reload, so no step may undo over it.
+      await changedElsewhere((e as Error).message);
     }
     return false;
   }
@@ -133,7 +134,13 @@ onMounted(async () => {
   unsubscribe = subscribe(site, (type, data) => {
     if (type === 'ready') live.value = true;
     else if (type === 'progress') notice.value = String(data.msg ?? '');
-    else if (type === 'scan') void enqueue(() => changedElsewhere(t.head.scanDone));
+    else if (type === 'scan') {
+      // The rescan route and the file watcher both announce a scan: react to the first only.
+      void enqueue(async () => {
+        if (map.value && data.scanId === map.value.scanId) return;
+        await changedElsewhere(t.head.scanDone);
+      });
+    }
     else if (type === 'overlay') {
       void enqueue(async () => {
         const rev = Number(data.rev);

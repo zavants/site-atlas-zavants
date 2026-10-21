@@ -71,6 +71,8 @@ export function usePieceDrag(opts: {
     if (!root || !zone) return;
     e.stopPropagation();
     e.preventDefault();
+    // A drop still saving owns `drag`: its `finally` would end this new drag mid-way.
+    if (drag.value?.settled) return;
     window.getSelection()?.removeAllRanges();
     document.body.classList.add('dragging');
     const key = el.dataset.key!;

@@ -67,6 +67,26 @@ const piece = (diagramId: string, key: string) => diagram(diagramId).locator(`[d
 const serverMap = async (): Promise<SiteMap> => (await fetch(`${base}/api/sites/demo/map`)).json() as Promise<SiteMap>;
 const changes = async (): Promise<Change[]> => ((await (await fetch(`${base}/api/sites/demo/plan`)).json()) as { changes: Change[] }).changes;
 const pending = async (type: Change['type']) => (await changes()).filter((c) => c.type === type && c.status === 'pending');
+const allInsideViewport = () =>
+  page.evaluate(() => {
+    const vp = document.querySelector('[data-testid="viewport"]')!.getBoundingClientRect();
+    return Array.from(document.querySelectorAll('[data-testid="diagram"]')).every((el) => {
+      const r = el.getBoundingClientRect();
+      return r.left >= vp.left && r.top >= vp.top && r.right <= vp.right && r.bottom <= vp.bottom;
+    });
+  });
+/** Moves "/otra" by its title: one history step. Resolves once the tab's write is on the server. */
+async function moveOtra() {
+  const before = JSON.stringify((await serverMap()).layout['/otra']);
+  const title = diagram('/otra').getByTestId('diagram-title');
+  const a = await center(title);
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await glide(a, { x: a.x + 30, y: a.y + 30 }, 5);
+  await page.mouse.up();
+  await expect.poll(() => page.getByTestId('undo').isEnabled()).toBe(true);
+  await expect.poll(async () => JSON.stringify((await serverMap()).layout['/otra'])).not.toBe(before);
+}
 const center = async (sel: ReturnType<typeof diagram>) => {
   const b = (await sel.boundingBox())!;
   return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
@@ -114,6 +134,8 @@ describe('org chart canvas', () => {
   it('shows a component diagram with one line per link of the component', async () => {
     await page.locator(`[data-testid="show-component"][data-id="${header}"]`).click();
     await diagram(header).waitFor();
+    // Switching Show fits again: every diagram of the component view is inside the viewport.
+    await expect.poll(() => allInsideViewport()).toBe(true);
     const count = (await serverMap()).components.find((c) => c.id === header)!.block.links.length;
     await expect.poll(() => page.locator(`[data-testid="wire"][data-from="${header}"]`).count()).toBe(count);
     expect(await diagram(header).textContent()).toContain('/otra');
@@ -271,13 +293,7 @@ describe('org chart canvas', () => {
     await page.reload();
     await page.locator('[data-testid="viewport"][data-ready="true"][data-live="true"]').waitFor();
     await expect.poll(() => page.getByTestId('undo').isDisabled()).toBe(true);
-    const title = diagram('/otra').getByTestId('diagram-title');
-    const a = await center(title);
-    await page.mouse.move(a.x, a.y);
-    await page.mouse.down();
-    await glide(a, { x: a.x + 30, y: a.y + 30 }, 5);
-    await page.mouse.up();
-    await expect.poll(() => page.getByTestId('undo').isEnabled()).toBe(true);
+    await moveOtra();
 
     const r = await mcp.callTool({ name: 'atlas_add_planned_page', arguments: { site: 'demo', path: '/from-agent', title: 'From agent' } });
     expect(r.isError).toBeFalsy();
@@ -340,6 +356,16 @@ describe('org chart canvas', () => {
       }
     }
     await page.getByTestId('view-diagram').click();
+  });
+
+  it('says that history was reset when a re-scan finishes', async () => {
+    await moveOtra();
+    const r = await fetch(`${base}/api/sites/demo/rescan`, { method: 'POST' });
+    expect(r.ok).toBe(true);
+    const notice = page.locator('.notice');
+    await expect.poll(() => notice.textContent(), { timeout: 45_000 }).toContain(t.historyReset);
+    expect(await notice.textContent()).toContain(t.head.scanDone);
+    expect(await page.getByTestId('undo').isDisabled()).toBe(true);
   });
 
   it('shows hostile site content as text', async () => {
