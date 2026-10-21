@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { SiteMap } from '../api';
+import { t } from '../strings';
 
 defineProps<{ map: SiteMap; filterTag: string | null }>();
 const emit = defineEmits<{
@@ -10,34 +11,34 @@ const emit = defineEmits<{
 }>();
 
 function create() {
-  const name = window.prompt('Nombre de la etiqueta')?.trim();
+  const name = window.prompt(t.tags.name)?.trim();
   if (name) emit('create', name);
 }
 function rename(id: string, current: string) {
-  const name = window.prompt('Nuevo nombre', current)?.trim();
+  const name = window.prompt(t.tags.newName, current)?.trim();
   if (name && name !== current) emit('rename', id, name);
 }
 function remove(id: string, name: string) {
-  if (window.confirm(`¿Borrar la etiqueta "${name}"? Se quitará de todos los bloques.`)) emit('remove', id);
+  if (window.confirm(t.tags.confirmDelete(name))) emit('remove', id);
 }
 </script>
 
 <template>
-  <div class="bar" role="toolbar" aria-label="Etiquetas">
-    <span class="muted">Filtrar por etiqueta:</span>
-    <span v-for="t in map.tags" :key="t.id" class="tag">
+  <div class="bar" role="toolbar" :aria-label="t.tags.aria">
+    <span class="muted">{{ t.tags.filter }}</span>
+    <span v-for="tag in map.tags" :key="tag.id" class="tag">
       <button
         type="button"
         data-testid="tag-filter"
-        :aria-pressed="filterTag === t.id"
-        :style="{ '--c': t.color }"
-        title="Doble clic para renombrar"
-        @click="emit('filter', filterTag === t.id ? null : t.id)"
-        @dblclick="rename(t.id, t.name)"
-      ><i class="dot" />{{ t.name }}</button>
-      <button type="button" class="x" :aria-label="`Borrar ${t.name}`" @click="remove(t.id, t.name)">×</button>
+        :aria-pressed="filterTag === tag.id"
+        :style="{ '--c': tag.color }"
+        :title="t.tags.dblclick"
+        @click="emit('filter', filterTag === tag.id ? null : tag.id)"
+        @dblclick="rename(tag.id, tag.name)"
+      ><i class="dot" />{{ tag.name }}</button>
+      <button type="button" class="x" :aria-label="t.tags.delete(tag.name)" @click="remove(tag.id, tag.name)">×</button>
     </span>
-    <button type="button" data-testid="new-tag" @click="create">+ Etiqueta</button>
+    <button type="button" data-testid="new-tag" @click="create">{{ t.tags.add }}</button>
   </div>
 </template>
 

@@ -38,6 +38,14 @@ describe('scanSite', () => {
     expect(globals.sort()).toEqual(['/ Footer', '/ Header', '/otra Footer', '/otra Header']);
   });
 
+  it('marks landmarks as components', () => {
+    const home = scan.pages[0]!;
+    const flag = (key: string) => home.blocks.find((b) => b.key === key)!.isComponent;
+    expect(flag('/~header')).toBe(true);
+    expect(flag('/~footer')).toBe(true);
+    expect(flag('/#top')).toBe(false);
+  });
+
   it('genera alertas del sitio', () => {
     const r = scan.issues.map((i) => i.rule);
     expect(r).toEqual(expect.arrayContaining(['broken-link', 'missing-anchor', 'form-no-action', 'placeholder-image', 'block-no-anchor']));

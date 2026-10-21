@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
-import type { Overlay } from '../schema/overlay.js';
+import { en } from '../i18n/en.js';
+import { OverlaySchema, TargetSchema, type Overlay, type Target } from '../schema/overlay.js';
+import { applyConfirmation } from './changes.js';
+import { componentOf } from './components.js';
+import { externalOrigins, linkId, missingPaths, owner as ownerOf, resolveTarget } from './links.js';
 import type { Block, Kind, Scan } from '../schema/scan.js';
 
 export type OverlayOp =
@@ -9,11 +13,21 @@ export type OverlayOp =
   | { type: 'deleteTag'; tagId: string }
   | { type: 'setBlockTags'; blockKey: string; tagIds: string[] }
   | { type: 'setKind'; blockKey: string; kind: Kind | null }
-  | { type: 'moveBlock'; blockKey: string; toPage: string; index: number }
-  | { type: 'addPlannedPage'; path: string; title: string }
-  | { type: 'markDeleted'; blockKey: string }
-  | { type: 'restore'; blockKey: string }
-  | { type: 'resolveOrphan'; orphanKey: string; action: 'assign' | 'discard'; targetKey?: string };
+  | { type: 'moveBlock'; blockKey: string; toPage: string; index: number; by?: string }
+  | { type: 'addPlannedPage'; path: string; title: string; by?: string }
+  | { type: 'markDeleted'; blockKey: string; by?: string }
+  | { type: 'restore'; blockKey: string; by?: string }
+  | { type: 'resolveOrphan'; orphanKey: string; action: 'assign' | 'discard'; targetKey?: string }
+  | { type: 'relink'; owner: string; linkText: string; linkHref: string; to: Target; by?: string }
+  | { type: 'addLink'; owner: string; to: Target; label?: string; by?: string }
+  | { type: 'removeLink'; linkId: string; by?: string }
+  | { type: 'removePlannedPage'; path: string; by?: string }
+  | { type: 'setLayout'; id: string; x: number; y: number; by?: string }
+  | { type: 'replacePlanFields'; fields: PlanFields; by?: string }
+  | { type: 'confirmChange'; changeId: string; note: string; by: string }
+  | { type: 'reopenChange'; changeId: string; note: string; by: string };
+
+export type PlanFields = Pick<Overlay, 'plannedOrder' | 'plannedPages' | 'plannedDeletions' | 'layout' | 'linkEdits' | 'addedLinks'>;
 
 export class OpError extends Error {}
 
@@ -49,14 +63,40 @@ export function effectiveOrders(scan: Scan, overlay: Overlay, idx = indexScan(sc
 
 function requireBlock(idx: ScanIndex, key: string): { block: Block; page: string } {
   const found = idx.blocks.get(key);
-  if (!found) throw new OpError(`No existe el bloque ${key} en el último escaneo.`);
+  if (!found) throw new OpError(en.op.noBlock(key));
   return found;
 }
 
 function requireTag(overlay: Overlay, tagId: string) {
   const tag = overlay.tags.find((t) => t.id === tagId);
-  if (!tag) throw new OpError(`No existe la etiqueta ${tagId}.`);
+  if (!tag) throw new OpError(en.op.noTag(tagId));
   return tag;
+}
+
+/** Canonical planned page path, as the canvas `normPath`: lowercase, dashes for spaces, single slashes. */
+function normPagePath(raw: string): string {
+  return '/' + raw.trim().replace(/\s+/g, '-').toLowerCase().replace(/\/{2,}/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
+}
+
+export function sameTarget(a: Target, b: Target): boolean {
+  return 'block' in a ? 'block' in b && a.block === b.block : 'page' in b && a.page === b.page;
+}
+
+function requireOwner(idx: ScanIndex, overlay: Overlay, id: string): void {
+  if (!idx.blocks.has(id) && !(id in overlay.components)) throw new OpError(en.op.noBlock(id));
+}
+
+function requireTarget(idx: ScanIndex, scan: Scan, overlay: Overlay, to: Target): void {
+  if ('block' in to) {
+    requireBlock(idx, to.block);
+    return;
+  }
+  const known =
+    idx.realOrder.has(to.page) ||
+    overlay.plannedPages.some((p) => p.path === to.page) ||
+    scan.missingPages.includes(to.page) ||
+    externalOrigins(scan).has(to.page);
+  if (!known) throw new OpError(en.op.noPage(to.page));
 }
 
 export function renameKey(overlay: Overlay, from: string, to: string): Overlay {
@@ -74,6 +114,17 @@ export function renameKey(overlay: Overlay, from: string, to: string): Overlay {
   const plannedOrder = Object.fromEntries(
     Object.entries(overlay.plannedOrder).map(([p, keys]) => [p, [...new Set(keys.map(swap))]]),
   );
+  const swapTarget = <T extends Target>(t: T): T => ('block' in t && t.block === from ? { ...t, block: to } : t);
+  const linkEdits: Overlay['linkEdits'] = {};
+  for (const [id, edit] of Object.entries(overlay.linkEdits)) {
+    const renamed = id.startsWith(`${from}|`) ? to + id.slice(from.length) : id;
+    linkEdits[renamed] ??= swapTarget(edit);
+  }
+  const layout = { ...overlay.layout };
+  if (from in layout) {
+    layout[to] ??= layout[from]!;
+    delete layout[from];
+  }
   return {
     ...overlay,
     blockTags,
@@ -81,6 +132,9 @@ export function renameKey(overlay: Overlay, from: string, to: string): Overlay {
     plannedOrder,
     plannedDeletions: [...new Set(overlay.plannedDeletions.map(swap))],
     newKeys: overlay.newKeys.map(swap),
+    linkEdits,
+    addedLinks: overlay.addedLinks.map((l) => ({ ...l, from: swap(l.from), to: swapTarget(l.to) })),
+    layout,
   };
 }
 
@@ -90,7 +144,7 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
   switch (op.type) {
     case 'createTag': {
       const name = op.name.trim();
-      if (!name) throw new OpError('La etiqueta necesita un nombre.');
+      if (!name) throw new OpError(en.op.tagNeedsName);
       const color = op.color ?? TAG_COLORS[overlay.tags.length % TAG_COLORS.length]!;
       return { ...overlay, tags: [...overlay.tags, { id: randomUUID().slice(0, 8), name, color }] };
     }
@@ -120,39 +174,53 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
     case 'moveBlock': {
       const { block } = requireBlock(idx, op.blockKey);
       const orders = effectiveOrders(scan, overlay, idx);
-      if (!orders.has(op.toPage)) throw new OpError(`No existe la página ${op.toPage}.`);
+      if (!orders.has(op.toPage)) throw new OpError(en.op.noPage(op.toPage));
       const from = [...orders].find(([, keys]) => keys.includes(op.blockKey))?.[0];
-      if (block.global) throw new OpError(`"${block.name}" es un bloque global: se comparte entre páginas y no se mueve.`);
+      if (block.global) throw new OpError(en.op.globalBlock(block.name));
+      const component = componentOf(block, overlay.components);
+      if (component) throw new OpError(en.op.componentBlock(overlay.components[component]!.name));
       const plannedOrder = { ...overlay.plannedOrder };
       if (from) plannedOrder[from] = orders.get(from)!.filter((k) => k !== op.blockKey);
       const target = (from === op.toPage ? plannedOrder[op.toPage] : orders.get(op.toPage))!.filter((k) => k !== op.blockKey);
       const at = Math.max(0, Math.min(Math.trunc(op.index), target.length));
       target.splice(at, 0, op.blockKey);
       plannedOrder[op.toPage] = target;
-      return { ...overlay, plannedOrder };
+      const authorKey = idx.blocks.get(op.blockKey)!.page === op.toPage ? `reorder|${op.toPage}` : `move|${op.blockKey}`;
+      return { ...overlay, plannedOrder, authors: { ...overlay.authors, [authorKey]: op.by ?? 'canvas' } };
     }
     case 'addPlannedPage': {
-      const path = '/' + op.path.trim().replace(/^\/+/, '').replace(/\/+$/, '');
+      // A missing page keeps its exact path (links point there); others get the canvas `normPath` form.
+      const raw = op.path.trim();
+      const path = missingPaths(scan).has(raw) ? raw : normPagePath(raw);
       if (idx.realOrder.has(path) || overlay.plannedPages.some((p) => p.path === path)) {
-        throw new OpError(`Ya existe la página ${path}.`);
+        throw new OpError(en.op.pageExists(path));
       }
-      return { ...overlay, plannedPages: [...overlay.plannedPages, { path, title: op.title.trim() || path }] };
+      return {
+        ...overlay,
+        plannedPages: [...overlay.plannedPages, { path, title: op.title.trim() || path }],
+        authors: { ...overlay.authors, [`newPage|${path}`]: op.by ?? 'canvas' },
+      };
     }
     case 'markDeleted': {
       requireBlock(idx, op.blockKey);
-      return { ...overlay, plannedDeletions: [...new Set([...overlay.plannedDeletions, op.blockKey])] };
+      return {
+        ...overlay,
+        plannedDeletions: [...new Set([...overlay.plannedDeletions, op.blockKey])],
+        authors: { ...overlay.authors, [`delete|${op.blockKey}`]: op.by ?? 'canvas' },
+      };
     }
     case 'restore': {
       requireBlock(idx, op.blockKey);
-      return { ...overlay, plannedDeletions: overlay.plannedDeletions.filter((k) => k !== op.blockKey) };
+      const { [`delete|${op.blockKey}`]: _author, ...authors } = overlay.authors;
+      return { ...overlay, plannedDeletions: overlay.plannedDeletions.filter((k) => k !== op.blockKey), authors };
     }
     case 'resolveOrphan': {
       const orphan = overlay.orphans.find((o) => o.key === op.orphanKey);
-      if (!orphan) throw new OpError(`No existe el huérfano ${op.orphanKey}.`);
+      if (!orphan) throw new OpError(en.op.noOrphan(op.orphanKey));
       const rest = { ...overlay, orphans: overlay.orphans.filter((o) => o.key !== op.orphanKey) };
       if (op.action === 'assign') {
         const target = op.targetKey ?? orphan.suggestion;
-        if (!target) throw new OpError('Falta el bloque al que asignar el huérfano.');
+        if (!target) throw new OpError(en.op.orphanNeedsTarget);
         requireBlock(idx, target);
         return renameKey(rest, op.orphanKey, target);
       }
@@ -160,32 +228,128 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
       delete blockTags[op.orphanKey];
       const kindOverrides = { ...rest.kindOverrides };
       delete kindOverrides[op.orphanKey];
+      // A link orphan's key is its linkId; a block orphan also takes the links it owns or receives.
+      const key = op.orphanKey;
+      const isKey = (t: Target) => 'block' in t && t.block === key;
+      const linkEdits = Object.fromEntries(
+        Object.entries(rest.linkEdits).filter(([id, edit]) => id !== key && !id.startsWith(`${key}|`) && !isKey(edit)),
+      );
       return {
         ...rest,
         blockTags,
         kindOverrides,
+        linkEdits,
+        addedLinks: rest.addedLinks.filter((l) => l.from !== key && !isKey(l.to)),
         plannedDeletions: rest.plannedDeletions.filter((k) => k !== op.orphanKey),
         plannedOrder: Object.fromEntries(Object.entries(rest.plannedOrder).map(([p, ks]) => [p, ks.filter((k) => k !== op.orphanKey)])),
       };
     }
+    case 'relink': {
+      requireOwner(idx, overlay, op.owner);
+      requireTarget(idx, scan, overlay, op.to);
+      const text = op.linkText.trim();
+      const scanned = scan.pages.find((p) =>
+        p.blocks.some((b) => ownerOf(b, overlay) === op.owner && b.components.links.some((l) => l.href === op.linkHref && l.text.trim() === text)),
+      );
+      if (!scanned) throw new OpError(en.op.noScannedLink(text, op.linkHref, op.owner));
+      const id = linkId(op.owner, op.linkHref, text);
+      const original = resolveTarget(op.linkHref, scan, scanned.path);
+      if (original && sameTarget(original, op.to)) {
+        const { [id]: _edit, ...linkEdits } = overlay.linkEdits;
+        return { ...overlay, linkEdits };
+      }
+      return { ...overlay, linkEdits: { ...overlay.linkEdits, [id]: { ...op.to, by: op.by ?? 'canvas' } } };
+    }
+    case 'addLink': {
+      requireOwner(idx, overlay, op.owner);
+      requireTarget(idx, scan, overlay, op.to);
+      const link = { id: randomUUID().slice(0, 8), from: op.owner, to: op.to, ...(op.label ? { label: op.label } : {}), by: op.by ?? 'canvas' };
+      return { ...overlay, addedLinks: [...overlay.addedLinks, link] };
+    }
+    case 'removeLink': {
+      if (overlay.addedLinks.some((l) => l.id === op.linkId)) {
+        return { ...overlay, addedLinks: overlay.addedLinks.filter((l) => l.id !== op.linkId) };
+      }
+      if (op.linkId in overlay.linkEdits) {
+        const linkEdits = { ...overlay.linkEdits };
+        delete linkEdits[op.linkId];
+        return { ...overlay, linkEdits };
+      }
+      throw new OpError(en.op.noLink(op.linkId));
+    }
+    case 'removePlannedPage': {
+      // Exact match first, so pages stored before paths were normalized can still be removed.
+      const path = overlay.plannedPages.some((p) => p.path === op.path) ? op.path : normPagePath(op.path);
+      if (!overlay.plannedPages.some((p) => p.path === path)) throw new OpError(en.op.noPage(op.path));
+      const page: Target = { page: path };
+      const plannedOrder = { ...overlay.plannedOrder };
+      delete plannedOrder[path];
+      const layout = { ...overlay.layout };
+      delete layout[path];
+      const { [`newPage|${path}`]: _author, ...authors } = overlay.authors;
+      return {
+        ...overlay,
+        authors,
+        plannedPages: overlay.plannedPages.filter((p) => p.path !== path),
+        plannedOrder,
+        layout,
+        linkEdits: Object.fromEntries(
+          Object.entries(overlay.linkEdits).filter(([, { by: _by, ...t }]) => !sameTarget(t as Target, page)),
+        ),
+        addedLinks: overlay.addedLinks.filter((l) => !sameTarget(l.to, page) && l.from !== path),
+      };
+    }
+    case 'setLayout': {
+      if (!Number.isFinite(op.x) || !Number.isFinite(op.y)) throw new OpError(en.op.badLayout);
+      return { ...overlay, layout: { ...overlay.layout, [op.id]: { x: op.x, y: op.y } } };
+    }
+    case 'replacePlanFields': {
+      const { plannedOrder, plannedPages, plannedDeletions, layout, linkEdits, addedLinks } = op.fields;
+      return { ...overlay, plannedOrder, plannedPages, plannedDeletions, layout, linkEdits, addedLinks };
+    }
+    case 'confirmChange':
+    case 'reopenChange':
+      return applyConfirmation(overlay, scan, op);
   }
 }
 
-const KindOrNull = z.enum(['narrativa', 'visual', 'conversion']).nullable();
+const by = z.string().default('canvas');
+const KindOrNull = z.enum(['narrative', 'visual', 'conversion']).nullable();
+/**
+ * Ops the canvas may send over HTTP. `confirmChange` / `reopenChange` are left out on purpose:
+ * only agents (MCP, CLI) confirm changes; the canvas only shows their status (spec §8.3).
+ */
 export const OverlayOpSchema: z.ZodType<OverlayOp> = z.discriminatedUnion('type', [
   z.object({ type: z.literal('createTag'), name: z.string(), color: z.string().optional() }),
   z.object({ type: z.literal('renameTag'), tagId: z.string(), name: z.string() }),
   z.object({ type: z.literal('deleteTag'), tagId: z.string() }),
   z.object({ type: z.literal('setBlockTags'), blockKey: z.string(), tagIds: z.array(z.string()) }),
   z.object({ type: z.literal('setKind'), blockKey: z.string(), kind: KindOrNull }),
-  z.object({ type: z.literal('moveBlock'), blockKey: z.string(), toPage: z.string(), index: z.number() }),
-  z.object({ type: z.literal('addPlannedPage'), path: z.string(), title: z.string() }),
-  z.object({ type: z.literal('markDeleted'), blockKey: z.string() }),
-  z.object({ type: z.literal('restore'), blockKey: z.string() }),
+  z.object({ type: z.literal('moveBlock'), blockKey: z.string(), toPage: z.string(), index: z.number(), by }),
+  z.object({ type: z.literal('addPlannedPage'), path: z.string(), title: z.string(), by }),
+  z.object({ type: z.literal('markDeleted'), blockKey: z.string(), by }),
+  z.object({ type: z.literal('restore'), blockKey: z.string(), by }),
   z.object({
     type: z.literal('resolveOrphan'),
     orphanKey: z.string(),
     action: z.enum(['assign', 'discard']),
     targetKey: z.string().optional(),
+  }),
+  z.object({ type: z.literal('relink'), owner: z.string(), linkText: z.string(), linkHref: z.string(), to: TargetSchema, by }),
+  z.object({ type: z.literal('addLink'), owner: z.string(), to: TargetSchema, label: z.string().optional(), by }),
+  z.object({ type: z.literal('removeLink'), linkId: z.string(), by }),
+  z.object({ type: z.literal('removePlannedPage'), path: z.string(), by }),
+  z.object({ type: z.literal('setLayout'), id: z.string(), x: z.number(), y: z.number(), by }),
+  z.object({
+    type: z.literal('replacePlanFields'),
+    fields: OverlaySchema.pick({
+      plannedOrder: true,
+      plannedPages: true,
+      plannedDeletions: true,
+      layout: true,
+      linkEdits: true,
+      addedLinks: true,
+    }),
+    by,
   }),
 ]) as z.ZodType<OverlayOp>;

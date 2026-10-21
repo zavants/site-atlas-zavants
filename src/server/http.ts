@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
+import { en } from '../i18n/en.js';
 import { OpError, OverlayOpSchema } from '../model/ops.js';
 import { getMap, getPlan, mutate, SiteNotFoundError } from '../model/service.js';
 import { runScan } from '../run.js';
@@ -122,20 +123,20 @@ export function createApp(store: SiteStore, opts: { canvasDir?: string; keepAliv
     if (err instanceof SiteNotFoundError) return c.json({ error: err.message }, 404);
     if (err instanceof OpError) return c.json({ error: err.message }, 400);
     console.error(err);
-    return c.json({ error: 'Error interno del servidor.' }, 500);
+    return c.json({ error: en.http.internal }, 500);
   });
 
   // Solo el propio lienzo puede usar el servidor: Host local (contra DNS rebinding),
   // Origin local en escrituras y cuerpos JSON (contra CSRF desde cualquier página, incluida la escaneada).
   app.use('*', async (c, next) => {
     const host = (c.req.header('host') ?? new URL(c.req.url).host).replace(/:\d+$/, '').toLowerCase();
-    if (!LOCAL_HOSTS.has(host)) return c.json({ error: 'Host no permitido.' }, 403);
+    if (!LOCAL_HOSTS.has(host)) return c.json({ error: en.http.hostNotAllowed }, 403);
     if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
       const origin = c.req.header('origin');
-      if (origin && !isLocalOrigin(origin)) return c.json({ error: 'Origen no permitido.' }, 403);
+      if (origin && !isLocalOrigin(origin)) return c.json({ error: en.http.originNotAllowed }, 403);
       const type = c.req.header('content-type') ?? '';
       if (c.req.path.endsWith('/ops') && !type.startsWith('application/json')) {
-        return c.json({ error: 'Se esperaba application/json.' }, 415);
+        return c.json({ error: en.http.expectedJson }, 415);
       }
     }
     await next();
@@ -149,12 +150,14 @@ export function createApp(store: SiteStore, opts: { canvasDir?: string; keepAliv
   app.post('/api/sites/:site/ops', async (c) => {
     const site = c.req.param('site');
     const parsed = OpBody.safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) return c.json({ error: 'Operación inválida.' }, 400);
+    if (!parsed.success) return c.json({ error: en.http.invalidOp }, 400);
+    // Ops over HTTP come from the canvas: a body cannot attribute an edit to an agent.
+    const op = 'by' in parsed.data.op ? { ...parsed.data.op, by: 'canvas' } : parsed.data.op;
     try {
-      return c.json(await mutate(store, site, parsed.data.op, parsed.data.rev));
+      return c.json(await mutate(store, site, op, parsed.data.rev));
     } catch (err) {
       if (err instanceof StaleRevError) {
-        return c.json({ error: 'El mapa cambió mientras editabas; se recargó.', map: await getMap(store, site) }, 409);
+        return c.json({ error: en.http.mapChanged, map: await getMap(store, site) }, 409);
       }
       throw err;
     }
@@ -164,12 +167,12 @@ export function createApp(store: SiteStore, opts: { canvasDir?: string; keepAliv
     const site = c.req.param('site');
     const scan = await store.latestScan(site);
     if (!scan) throw new SiteNotFoundError(site);
-    if (rescans.has(site)) return c.json({ error: 'Ya hay un escaneo en curso.' }, 409);
+    if (rescans.has(site)) return c.json({ error: en.http.scanRunning }, 409);
     rescans.add(site);
     const { startUrl, ...options } = scan.options ?? { startUrl: scan.environment.origin + scan.environment.basePath };
     void runScan(store, startUrl, { ...options, site, onProgress: (msg) => events.emit(site, { event: 'progress', data: { msg } }) })
       .then(({ scan: s }) => events.emit(site, { event: 'scan', data: { scanId: s.scanId } }))
-      .catch((err: Error) => events.emit(site, { event: 'progress', data: { msg: `El escaneo falló: ${err.message}` } }))
+      .catch((err: Error) => events.emit(site, { event: 'progress', data: { msg: en.scan.failed(err.message) } }))
       .finally(() => rescans.delete(site));
     return c.json({ started: true }, 202);
   });
@@ -207,12 +210,12 @@ export function createApp(store: SiteStore, opts: { canvasDir?: string; keepAliv
 
   app.get('/shots/:site/:scanId/:file', async (c) => {
     const { site, scanId, file } = c.req.param();
-    if (![site, scanId, file].every((p) => SAFE.test(p) && !p.includes('..'))) return c.json({ error: 'Ruta inválida.' }, 400);
+    if (![site, scanId, file].every((p) => SAFE.test(p) && !p.includes('..'))) return c.json({ error: en.http.invalidPath }, 400);
     try {
       const data = await readFile(join(store.shotsDir(site, scanId), file));
       return c.body(data, 200, { 'content-type': 'image/webp', 'cache-control': 'max-age=31536000, immutable' });
     } catch {
-      return c.json({ error: 'No encontrada.' }, 404);
+      return c.json({ error: en.http.notFound }, 404);
     }
   });
 
@@ -228,7 +231,7 @@ export function createApp(store: SiteStore, opts: { canvasDir?: string; keepAliv
   app.get('/', (c) => c.redirect('/s/'));
   app.get('/s/*', async (c) => {
     const f = await sendCanvasFile('index.html');
-    return f ? c.body(f.data, 200, { 'content-type': f.type }) : c.text('Lienzo no compilado: ejecuta pnpm build.', 503);
+    return f ? c.body(f.data, 200, { 'content-type': f.type }) : c.text(en.http.canvasNotBuilt, 503);
   });
   app.get('/assets/*', async (c) => {
     const f = await sendCanvasFile(c.req.path.slice(1));

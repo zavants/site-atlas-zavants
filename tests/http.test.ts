@@ -41,13 +41,13 @@ describe('API HTTP', () => {
     expect(stale.status).toBe(409);
     const body = await stale.json();
     expect(body.map.rev).toBe(1);
-    expect(body.error).toMatch(/cambió/);
+    expect(body.error).toMatch(/changed/);
   });
 
-  it('responde 400 con mensaje en español ante operaciones inválidas', async () => {
+  it('responde 400 con English message ante operaciones inválidas', async () => {
     const bad = await post(`/api/sites/${SITE}/ops`, { rev: 0, op: { type: 'markDeleted', blockKey: '/#nada' } });
     expect(bad.status).toBe(400);
-    expect((await bad.json()).error).toMatch(/No existe el bloque/);
+    expect((await bad.json()).error).toMatch(/No section/);
     expect((await post(`/api/sites/${SITE}/ops`, { rev: 0, op: { type: 'volar' } })).status).toBe(400);
   });
 
@@ -77,7 +77,16 @@ describe('API HTTP', () => {
   it('describe el plan', async () => {
     await post(`/api/sites/${SITE}/ops`, { rev: 0, op: move });
     const plan = await (await app.request(`/api/sites/${SITE}/plan`)).json();
-    expect(plan.text).toContain('Mover "Integraciones"');
-    expect(plan.diffs).toHaveLength(1);
+    expect(plan.schemaVersion).toBe(2);
+    expect(plan.markdown).toContain('Move "Integraciones"');
+    expect(plan.changes).toHaveLength(1);
+    const confirm = { type: 'confirmChange', changeId: plan.changes[0].id, note: 'done', by: 'canvas' };
+    expect((await post(`/api/sites/${SITE}/ops`, { rev: 1, op: confirm })).status).toBe(400);
+  });
+
+  it('attributes canvas ops to the canvas even when the body names an agent', async () => {
+    await post(`/api/sites/${SITE}/ops`, { rev: 0, op: { ...move, by: 'claude-code' } });
+    const plan = await (await app.request(`/api/sites/${SITE}/plan`)).json();
+    expect(plan.changes[0].by).toBe('canvas');
   });
 });

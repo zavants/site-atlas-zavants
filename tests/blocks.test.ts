@@ -13,6 +13,7 @@ function raw(partial: Partial<RawBlock> = {}): RawBlock {
     text: '',
     childTags: [],
     hasForm: false,
+    landmark: false,
     visualRatio: 0,
     components: { headings: [], links: [], buttons: [], forms: [], media: [] },
     ...partial,
@@ -49,7 +50,7 @@ describe('inferKind', () => {
   });
   it('visual desde 30 % de área', () => {
     expect(inferKind(raw({ visualRatio: 0.3 }))).toBe('visual');
-    expect(inferKind(raw({ visualRatio: 0.29 }))).toBe('narrativa');
+    expect(inferKind(raw({ visualRatio: 0.29 }))).toBe('narrative');
   });
 });
 

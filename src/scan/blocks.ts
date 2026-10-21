@@ -13,6 +13,8 @@ export interface RawBlock {
   text: string;
   childTags: string[];
   hasForm: boolean;
+  /** Top-level header/footer/banner/contentinfo element. */
+  landmark: boolean;
   /** Área del canvas/video más grande ÷ área del bloque. */
   visualRatio: number;
   components: Components;
@@ -40,7 +42,7 @@ export function blockName(raw: RawBlock, ordinal: number): string {
 export function inferKind(raw: RawBlock): Kind {
   if (raw.hasForm) return 'conversion';
   if (raw.visualRatio >= 0.3) return 'visual';
-  return 'narrativa';
+  return 'narrative';
 }
 
 export function slug(text: string): string {

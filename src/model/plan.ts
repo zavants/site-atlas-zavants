@@ -1,53 +1,65 @@
-import type { SiteMap } from './map.js';
-import { displaced } from './order.js';
+import { en } from '../i18n/en.js';
+import type { Scan } from '../schema/scan.js';
+import type { Change, ChangeStatus } from './changes.js';
 
-export type PlanDiff =
-  | { type: 'newPage'; path: string; title: string }
-  | { type: 'move'; blockKey: string; name: string; fromPage: string; toPage: string; index: number }
-  | { type: 'delete'; blockKey: string; name: string; page: string }
-  | { type: 'reorder'; page: string; from: string[]; to: string[] };
-
-export function diffPlan(map: SiteMap): PlanDiff[] {
-  const newPages: PlanDiff[] = [];
-  const moves: PlanDiff[] = [];
-  const deletes: PlanDiff[] = [];
-  const reorders: PlanDiff[] = [];
-
-  for (const page of map.pages) {
-    if (page.planned) newPages.push({ type: 'newPage', path: page.path, title: page.title });
-    page.blocks.forEach((b, index) => {
-      if (b.page !== page.path) moves.push({ type: 'move', blockKey: b.key, name: b.name, fromPage: b.page, toPage: page.path, index });
-      if (b.deleted) deletes.push({ type: 'delete', blockKey: b.key, name: b.name, page: page.path });
-    });
-    const kept = page.blocks.filter((b) => b.page === page.path && !b.deleted);
-    const keptKeys = new Set(kept.map((b) => b.key));
-    const names = new Map(kept.map((b) => [b.key, b.name]));
-    const to = kept.map((b) => b.key);
-    const from = page.realOrder.filter((k) => keptKeys.has(k));
-    if (from.join('\n') !== to.join('\n')) {
-      reorders.push({ type: 'reorder', page: page.path, from: from.map((k) => names.get(k)!), to: to.map((k) => names.get(k)!) });
-    }
-  }
-  return [...newPages, ...moves, ...deletes, ...reorders];
+/** Site text on a single line that can never start a Markdown heading. */
+export function oneLine(s: string): string {
+  return s.replace(/[\r\n]+/g, ' ').replace(/^#+\s*/, '');
 }
 
-export function describePlan(diffs: PlanDiff[]): string {
-  if (!diffs.length) return 'El sitio ya coincide con el plan.';
-  return diffs
-    .map((d) => {
-      switch (d.type) {
-        case 'newPage':
-          return `Crear la página ${d.path} ("${d.title}")`;
-        case 'move':
-          return `Mover "${d.name}" de ${d.fromPage} a ${d.toPage} (posición ${d.index + 1})`;
-        case 'delete':
-          return `Eliminar "${d.name}" de ${d.page}`;
-        case 'reorder': {
-          const shifted = displaced(d.from, d.to);
-          const changes = d.to.flatMap((n, i) => (shifted.has(n) ? [`"${n}" pasa a la posición ${i + 1}`] : []));
-          return `Reordenar ${d.page}: ${changes.join('; ')}`;
-        }
-      }
-    })
-    .join('\n');
+/** Inline code span that holds `s` on one line, with a fence longer than any backtick run inside it. */
+function code(s: string): string {
+  const text = oneLine(s);
+  if (!text) return en.plan.empty;
+  const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length));
+  const fence = '`'.repeat(longest + 1);
+  const pad = text.startsWith('`') || text.endsWith('`') ? ' ' : '';
+  return `${fence}${pad}${text}${pad}${fence}`;
+}
+
+function scalar(v: unknown): string {
+  if (v === null || v === undefined) return en.plan.none;
+  if (typeof v === 'string') return code(v);
+  return String(v);
+}
+
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** Every value as a nested bullet list; every string is wrapped in a code span. */
+function bullets(obj: Record<string, unknown>, indent = ''): string[] {
+  return Object.entries(obj).flatMap(([key, v]) => {
+    if (isObject(v)) return [`${indent}- ${key}:`, ...bullets(v, `${indent}  `)];
+    if (Array.isArray(v)) {
+      if (!v.length) return [`${indent}- ${key}: ${en.plan.none}`];
+      if (!v.some(isObject)) return [`${indent}- ${key}: ${v.map(scalar).join(', ')}`];
+      return [`${indent}- ${key}:`, ...v.flatMap((item, i) => [`${indent}  - ${i + 1}:`, ...(isObject(item) ? bullets(item, `${indent}    `) : [`${indent}    - ${scalar(item)}`])])];
+    }
+    return [`${indent}- ${key}: ${scalar(v)}`];
+  });
+}
+
+/**
+ * The plan as Markdown for any AI: header, fixed instructions, then each change. Site text is always inline code.
+ * Pass every change: with `status` only those are listed, but the summary line still counts all of them.
+ */
+export function describePlan(scan: Scan, all: Change[], status?: ChangeStatus): string {
+  const { origin, basePath } = scan.environment;
+  const count = (s: ChangeStatus) => all.filter((c) => c.status === s).length;
+  const changes = status ? all.filter((c) => c.status === status) : all;
+  const lines = [
+    en.plan.title(oneLine(scan.site)),
+    '',
+    en.plan.scanLine(scan.scanId, origin + basePath, count('pending'), count('applied'), status),
+    '',
+    en.plan.instructions,
+    '',
+    en.plan.siteText,
+  ];
+  if (!changes.length) lines.push('', status ? en.plan.noneWithStatus(status) : en.plan.inSync);
+  for (const c of changes) {
+    const meta: Record<string, unknown> = { by: c.by, observed: c.observed };
+    if (c.confirmation) meta.confirmation = c.confirmation;
+    lines.push('', `## ${c.status} · ${c.id}`, '', code(c.summary), '', ...bullets({ ...c.details, ...meta }), '', `${en.plan.doneWhen} ${code(c.doneWhen)}`);
+  }
+  return lines.join('\n') + '\n';
 }

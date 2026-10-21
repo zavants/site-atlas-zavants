@@ -21,6 +21,7 @@ beforeEach(async () => {
   const store = new SiteStore(await mkdtemp(join(tmpdir(), 'site-atlas-test-')));
   const scan = sampleScan({ heroName: HOSTILE });
   scan.pages[0]!.blocks[1]!.shot = 'hero.webp';
+  scan.pages[0]!.blocks[1]!.components.links = [{ text: 'Ver', href: 'http://localhost:4405/no-existe', kind: 'internal' }];
   await store.saveScan(scan);
   await mkdir(store.shotsDir(SITE, scan.scanId), { recursive: true });
   await sharp({ create: { width: 4, height: 4, channels: 3, background: '#0497db' } })
@@ -34,20 +35,98 @@ beforeEach(async () => {
 });
 
 describe('servidor MCP', () => {
-  it('expone las 11 herramientas del diseño', async () => {
+  it('exposes the 19 tools', async () => {
     const names = (await client.listTools()).tools.map((t) => t.name).sort();
     expect(names).toEqual(
       [
         'atlas_add_planned_page', 'atlas_get_block', 'atlas_get_map', 'atlas_get_plan', 'atlas_list_issues', 'atlas_list_sites',
         'atlas_move_block', 'atlas_open_canvas', 'atlas_scan', 'atlas_set_block_tags', 'atlas_tags',
+        'atlas_confirm_change', 'atlas_reopen_change', 'atlas_relink', 'atlas_add_link', 'atlas_remove_link',
+        'atlas_remove_planned_page', 'atlas_mark_deleted', 'atlas_restore',
       ].sort(),
     );
+    expect(names).toHaveLength(19);
+  });
+
+  it('describes atlas_get_plan for plan v2 with an optional status', async () => {
+    const tool = (await client.listTools()).tools.find((t) => t.name === 'atlas_get_plan')!;
+    expect(tool.description).toMatch(/confirm/i);
+    expect(Object.keys(tool.inputSchema.properties ?? {})).toEqual(['site', 'status']);
+    expect(tool.inputSchema.required).toEqual(['site']);
+  });
+
+  it('proposes a link, reads it in the plan as the client, then confirms it', async () => {
+    const added = await call('atlas_add_link', { site: SITE, owner: '/#top', to: { page: '/otra' }, label: 'Otra' });
+    expect(added.isError).toBeFalsy();
+    const plan = await call('atlas_get_plan', { site: SITE });
+    expect(plan._meta?.['site-atlas/untrusted']).toBe(true);
+    expect(text(plan).startsWith(UNTRUSTED_NOTICE)).toBe(true);
+    const json = JSON.parse(plan.content.at(-1)!.text!) as { schemaVersion: number; changes: { id: string; type: string; status: string; by: string }[] };
+    expect(json.schemaVersion).toBe(2);
+    expect(json.changes).toHaveLength(1);
+    expect(json.changes[0]).toMatchObject({ type: 'addLink', status: 'pending', by: 'test' });
+    expect(plan.content[0]!.text).toContain(`## pending · ${json.changes[0]!.id}`);
+
+    const confirmed = await call('atlas_confirm_change', { site: SITE, changeId: json.changes[0]!.id, note: 'Added in src/pages/index.astro' });
+    expect(confirmed.isError).toBeFalsy();
+    const applied = JSON.parse((await call('atlas_get_plan', { site: SITE, status: 'applied' })).content.at(-1)!.text!) as typeof json;
+    expect(applied.changes).toHaveLength(1);
+    expect(applied.changes[0]).toMatchObject({ id: json.changes[0]!.id, status: 'applied' });
+    expect(text(await call('atlas_get_plan', { site: SITE, status: 'pending' }))).toContain('No pending changes.');
+
+    const reopened = await call('atlas_reopen_change', { site: SITE, changeId: json.changes[0]!.id, note: 'It was not deployed' });
+    expect(reopened.isError).toBeFalsy();
+    expect(text(await call('atlas_get_plan', { site: SITE, status: 'applied' }))).toContain('No applied changes.');
+  });
+
+  it('rejects confirming a change that is not in the plan', async () => {
+    const r = await call('atlas_confirm_change', { site: SITE, changeId: 'move:0000000000', note: 'x' });
+    expect(r.isError).toBe(true);
+    expect(text(r)).toMatch(/is not in the current plan/);
+    await call('atlas_mark_deleted', { site: SITE, blockKey: '/otra#precios' });
+    const noNote = await call('atlas_confirm_change', { site: SITE, changeId: 'delete:0000000000', note: ' ' });
+    expect(noNote.isError).toBe(true);
+    expect(text(noNote)).toMatch(/note is required/);
+  });
+
+  it('marks and restores deletions, and records page, link and relink edits', async () => {
+    const plan = async () => JSON.parse((await call('atlas_get_plan', { site: SITE })).content.at(-1)!.text!) as { changes: { type: string; id: string }[] };
+    expect((await call('atlas_mark_deleted', { site: SITE, blockKey: '/otra#precios' })).isError).toBeFalsy();
+    expect((await plan()).changes.map((c) => c.type)).toEqual(['delete']);
+    expect((await call('atlas_restore', { site: SITE, blockKey: '/otra#precios' })).isError).toBeFalsy();
+    expect((await plan()).changes).toEqual([]);
+
+    expect((await call('atlas_add_planned_page', { site: SITE, path: '/nueva', title: 'Nueva' })).isError).toBeFalsy();
+    const unknown = await call('atlas_relink', { site: SITE, owner: '/#top', linkText: 'x', linkHref: '#x', to: { page: '/nueva' } });
+    expect(unknown.isError).toBe(true);
+    expect(text(unknown)).toContain('No link "x" → #x in /#top.');
+    const relinked = await call('atlas_relink', { site: SITE, owner: '/#top', linkText: 'Ver', linkHref: 'http://localhost:4405/no-existe', to: { page: '/nueva' } });
+    expect(relinked.isError).toBeFalsy();
+    expect((await plan()).changes.map((c) => c.type)).toEqual(['newPage', 'relink']);
+    expect((await call('atlas_remove_planned_page', { site: SITE, path: '/nueva' })).isError).toBeFalsy();
+    expect((await plan()).changes).toEqual([]);
+
+    await call('atlas_add_link', { site: SITE, owner: '/#top', to: { block: '/#cotizacion' } });
+    const [link] = (await plan()).changes;
+    const linkId = (link as unknown as { details: { linkId: string } }).details.linkId;
+    expect((await call('atlas_remove_link', { site: SITE, linkId })).isError).toBeFalsy();
+    expect((await plan()).changes).toEqual([]);
+    const bad = await call('atlas_remove_link', { site: SITE, linkId: 'nope' });
+    expect(bad.isError).toBe(true);
   });
 
   it('mueve un bloque y lo describe en el plan', async () => {
     const moved = await call('atlas_move_block', { site: SITE, blockKey: '/~integraciones', toPage: '/otra', index: 0 });
     expect(moved.isError).toBeFalsy();
-    expect(text(await call('atlas_get_plan', { site: SITE }))).toContain('Mover "Integraciones" de / a /otra');
+    expect(text(await call('atlas_get_plan', { site: SITE }))).toContain('Move "Integraciones" from / to /otra');
+  });
+
+  it('attributes moves, deletions and pages to the MCP client', async () => {
+    await call('atlas_move_block', { site: SITE, blockKey: '/~integraciones', toPage: '/otra', index: 0 });
+    await call('atlas_mark_deleted', { site: SITE, blockKey: '/otra#precios' });
+    await call('atlas_add_planned_page', { site: SITE, path: '/nueva', title: 'Nueva' });
+    const plan = JSON.parse((await call('atlas_get_plan', { site: SITE })).content.at(-1)!.text!) as { changes: { type: string; by: string }[] };
+    expect(plan.changes.map((c) => [c.type, c.by])).toEqual([['newPage', 'test'], ['move', 'test'], ['delete', 'test']]);
   });
 
   it('marca como no confiable el contenido del sitio y lo pone después del aviso', async () => {
@@ -61,10 +140,10 @@ describe('servidor MCP', () => {
   it('devuelve errores legibles', async () => {
     const r = await call('atlas_set_block_tags', { site: SITE, blockKey: '/#top', tags: ['nope'] });
     expect(r.isError).toBe(true);
-    expect(text(r)).toMatch(/No existe la etiqueta/);
+    expect(text(r)).toMatch(/does not exist/);
     const missing = await call('atlas_get_map', { site: 'nada' });
     expect(missing.isError).toBe(true);
-    expect(text(missing)).toMatch(/no tiene escaneos/);
+    expect(text(missing)).toMatch(/no scans/);
   });
 
   it('crea etiquetas y las asigna por nombre o id', async () => {
