@@ -41,7 +41,8 @@ describe('applyOp + buildMap', () => {
     const s = sampleScan();
     s.pages[0]!.blocks.find((b) => b.key === '/~integraciones')!.isComponent = true;
     const o = { ...emptyOverlay(), components: assignComponents(emptyOverlay(), s) };
-    expect(() => applyOp(o, s, { type: 'moveBlock', blockKey: '/~integraciones', toPage: '/otra', index: 0 })).toThrow(/component/);
+    expect(() => applyOp(o, s, { type: 'moveBlock', blockKey: '/~integraciones', toPage: '/otra', index: 0 })).toThrow('"Component 1" is a shared component and cannot be moved.');
+    expect(() => applyOp(o, s, { type: 'moveBlock', blockKey: '/~integraciones', toPage: '/', index: 0 })).toThrow(/Component 1/);
   });
 
   it('crea páginas planificadas al final', () => {
