@@ -27,6 +27,8 @@ export const t = {
     screenshots: 'Screenshots',
     show: 'Show:',
     pages: 'Pages',
+    renameComponent: 'New component name',
+    renameComponentHint: 'Double-click to rename',
     anchors: 'Show links within the page (#anchors)',
     legend: 'Blue: to another section · Red: page that does not exist · Gray: external · Dashed green: edited link · Dotted violet: new connector (drag from the ＋ of a piece).',
   },

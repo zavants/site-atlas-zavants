@@ -13,6 +13,7 @@ export type OverlayOp =
   | { type: 'deleteTag'; tagId: string }
   | { type: 'setBlockTags'; blockKey: string; tagIds: string[] }
   | { type: 'setKind'; blockKey: string; kind: Kind | null }
+  | { type: 'renameComponent'; componentId: string; name: string }
   | { type: 'moveBlock'; blockKey: string; toPage: string; index: number; by?: string }
   | { type: 'addPlannedPage'; path: string; title: string; by?: string }
   | { type: 'markDeleted'; blockKey: string; by?: string }
@@ -171,6 +172,13 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
       else kindOverrides[op.blockKey] = op.kind;
       return { ...overlay, kindOverrides };
     }
+    case 'renameComponent': {
+      const component = overlay.components[op.componentId];
+      if (!component) throw new OpError(en.op.noComponent(op.componentId));
+      const name = op.name.trim();
+      if (!name) throw new OpError(en.op.componentNeedsName);
+      return { ...overlay, components: { ...overlay.components, [op.componentId]: { ...component, name } } };
+    }
     case 'moveBlock': {
       const { block } = requireBlock(idx, op.blockKey);
       const orders = effectiveOrders(scan, overlay, idx);
@@ -325,6 +333,7 @@ export const OverlayOpSchema: z.ZodType<OverlayOp> = z.discriminatedUnion('type'
   z.object({ type: z.literal('deleteTag'), tagId: z.string() }),
   z.object({ type: z.literal('setBlockTags'), blockKey: z.string(), tagIds: z.array(z.string()) }),
   z.object({ type: z.literal('setKind'), blockKey: z.string(), kind: KindOrNull }),
+  z.object({ type: z.literal('renameComponent'), componentId: z.string(), name: z.string() }),
   z.object({ type: z.literal('moveBlock'), blockKey: z.string(), toPage: z.string(), index: z.number(), by }),
   z.object({ type: z.literal('addPlannedPage'), path: z.string(), title: z.string(), by }),
   z.object({ type: z.literal('markDeleted'), blockKey: z.string(), by }),

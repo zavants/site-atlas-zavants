@@ -140,6 +140,16 @@ program
   .action((site: string, blockKey: string) => propose(site, { type: 'restore', blockKey, by: BY }));
 
 program
+  .command('component')
+  .description(en.cli.component)
+  .command('rename <site> <componentId> <name>')
+  .description(en.cli.componentRename)
+  .action(async (site: string, componentId: string, name: string) => {
+    await mutate(store(), site, { type: 'renameComponent', componentId, name });
+    console.log(en.cli.componentRenamed(componentId, name.trim()));
+  });
+
+program
   .command('mcp')
   .description(en.cli.mcp)
   .action(async () => {

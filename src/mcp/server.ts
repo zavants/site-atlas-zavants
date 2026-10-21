@@ -306,6 +306,22 @@ export function createMcpServer(store: SiteStore): McpServer {
   );
 
   server.registerTool(
+    'atlas_rename_component',
+    {
+      description: en.mcp.tools.renameComponent,
+      inputSchema: {
+        site: z.string(),
+        componentId: z.string().describe(en.mcp.tools.renameComponentId),
+        name: z.string().describe(en.mcp.tools.renameComponentName),
+      },
+    },
+    guard(async ({ site, componentId, name }) => {
+      await mutate(store, site, { type: 'renameComponent', componentId, name });
+      return plain(en.mcp.componentRenamed(componentId, name.trim()));
+    }),
+  );
+
+  server.registerTool(
     'atlas_open_canvas',
     { description: en.mcp.tools.openCanvas, inputSchema: { site: z.string() } },
     guard(async ({ site }) => {

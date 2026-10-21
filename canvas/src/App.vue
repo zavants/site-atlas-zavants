@@ -120,6 +120,11 @@ watch(
 
 const components = computed(() => map.value?.components ?? []);
 const blockName = (key: string) => (map.value ? blockIndex(map.value).get(key)?.name : undefined) ?? key;
+/** Not an undo step: history only snapshots plan fields, and component names are not one (spec §10b). */
+function renameComponent(id: string, current: string) {
+  const name = window.prompt(t.head.renameComponent, current)?.trim();
+  if (name && name !== current) void act([{ type: 'renameComponent', componentId: id, name }], false);
+}
 watch(components, (list) => {
   if (view.value !== PAGES && !list.some((c) => c.id === view.value)) view.value = PAGES;
 });
@@ -194,7 +199,9 @@ onBeforeUnmount(() => unsubscribe?.());
           data-testid="show-component"
           :data-id="c.id"
           :aria-pressed="view === c.id"
+          :title="t.head.renameComponentHint"
           @click="view = c.id"
+          @dblclick="renameComponent(c.id, c.name)"
         >{{ c.name }}</button>
         <label class="check"><input v-model="showAnchors" type="checkbox" data-testid="anchors-toggle" /> {{ t.head.anchors }}</label>
       </div>

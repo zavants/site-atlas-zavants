@@ -64,6 +64,17 @@ describe('assignComponents', () => {
     expect(componentOf(both.pages[1]!.blocks[0]!, c)).toBe('c:aaa:2');
   });
 
+  it('keeps a renamed component through re-scans and numbers new ones without counting custom names', () => {
+    const first = assignComponents(emptyOverlay(), scanOf(hdr('/p0', 'aaa', 'Inicio Productos Contacto')));
+    const renamed = { ...first, 'c:aaa': { ...first['c:aaa']!, name: 'Main header' } };
+    const next = assignComponents(
+      { ...emptyOverlay(), components: renamed },
+      scanOf(hdr('/p0', 'aaa', 'Inicio Productos Contacto'), hdr('/p1', 'bbb', 'Zzzz qqqq wwww xxxx yyyy')),
+    );
+    expect(next['c:aaa']!.name).toBe('Main header');
+    expect(next['c:bbb']!.name).toBe('Header 1');
+  });
+
   it('keeps components that no longer appear and numbers footers apart', () => {
     const first = assignComponents(emptyOverlay(), scanOf(hdr('/p0', 'aaa', 'Inicio Productos')));
     const footer: Block = { ...hdr('/p0', 'fff', 'Derechos reservados'), tag: 'footer', key: '/p0~footer' };
