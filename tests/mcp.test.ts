@@ -35,17 +35,17 @@ beforeEach(async () => {
 });
 
 describe('servidor MCP', () => {
-  it('exposes the 19 tools', async () => {
+  it('exposes the 20 tools', async () => {
     const names = (await client.listTools()).tools.map((t) => t.name).sort();
     expect(names).toEqual(
       [
         'atlas_add_planned_page', 'atlas_get_block', 'atlas_get_map', 'atlas_get_plan', 'atlas_list_issues', 'atlas_list_sites',
         'atlas_move_block', 'atlas_open_canvas', 'atlas_scan', 'atlas_set_block_tags', 'atlas_tags',
         'atlas_confirm_change', 'atlas_reopen_change', 'atlas_relink', 'atlas_add_link', 'atlas_remove_link',
-        'atlas_remove_planned_page', 'atlas_mark_deleted', 'atlas_restore',
+        'atlas_remove_planned_page', 'atlas_mark_deleted', 'atlas_restore', 'atlas_rename_component',
       ].sort(),
     );
-    expect(names).toHaveLength(19);
+    expect(names).toHaveLength(20);
   });
 
   it('describes atlas_get_plan for plan v2 with an optional status', async () => {
@@ -152,6 +152,15 @@ describe('servidor MCP', () => {
     const r = await call('atlas_set_block_tags', { site: SITE, blockKey: '/#top', tags: ['Confianza'] });
     expect(r.isError).toBeFalsy();
     expect(text(await call('atlas_get_map', { site: SITE }))).toContain('#Confianza');
+  });
+
+  it('renames a shared component and rejects an unknown id', async () => {
+    const r = await call('atlas_rename_component', { site: SITE, componentId: 'c:fp-header', name: 'Main header' });
+    expect(r.isError).toBeFalsy();
+    expect(text(r)).toBe('Component c:fp-header is now "Main header".');
+    const bad = await call('atlas_rename_component', { site: SITE, componentId: 'c:nope', name: 'X' });
+    expect(bad.isError).toBe(true);
+    expect(text(bad)).toBe('Component c:nope does not exist.');
   });
 
   it('entrega la miniatura como imagen', async () => {

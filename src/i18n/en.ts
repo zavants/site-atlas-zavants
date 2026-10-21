@@ -52,6 +52,9 @@ export const en = {
     planUpdated: (site: string) => `Plan updated. Read it with: site-atlas plan ${site}`,
     confirmed: (id: string) => `Change ${id} is now applied.`,
     reopened: (id: string) => `Change ${id} is pending again.`,
+    component: 'Shared components (headers, footers).',
+    componentRename: 'Rename a shared component, for example "Header 1" to "Main header".',
+    componentRenamed: (id: string, name: string) => `Component ${id} is now "${name}".`,
   },
 
   mcp: {
@@ -76,6 +79,7 @@ export const en = {
     missingNewName: 'The new name is missing.',
     confirmed: (id: string) => `Change ${id} is now applied.`,
     reopened: (id: string) => `Change ${id} is pending again.`,
+    componentRenamed: (id: string, name: string) => `Component ${id} is now "${name}".`,
     planUpdated: 'Plan updated. Read it with atlas_get_plan.',
     tools: {
       scan: 'Scan a website (localhost, staging or production), split it into blocks and save the map. Reconciles any earlier organization.',
@@ -118,6 +122,9 @@ export const en = {
       markDeleted: 'Propose deleting a block from the site. Does not modify the site.',
       restore: 'Cancel the proposal to delete a block.',
       openCanvas: 'Start the local canvas and return its URL.',
+      renameComponent: 'Rename a shared component (a header or footer), for example "Header 1" to "Main header". The name is kept across scans. Does not modify the site.',
+      renameComponentId: 'Component id: the componentId that atlas_get_block shows for a header or footer (for example c:1a2b3c4d)',
+      renameComponentName: 'New name',
     },
   },
 
@@ -176,6 +183,8 @@ export const en = {
     badLayout: 'The position needs finite x and y values.',
     noTag: (id: string) => `Tag ${id} does not exist.`,
     tagNeedsName: 'A tag needs a name.',
+    noComponent: (id: string) => `Component ${id} does not exist.`,
+    componentNeedsName: 'A component needs a name.',
     noPage: (path: string) => `Page ${path} does not exist.`,
     globalBlock: (name: string) => `"${name}" is a global block: it is shared across pages and cannot be moved.`,
     componentBlock: (name: string) => `"${name}" is a shared component and cannot be moved.`,

@@ -93,6 +93,14 @@ describe('applyOp + buildMap', () => {
     expect(() => run({ type: 'markDeleted', blockKey: '/#nada' })).toThrow(/No section/);
   });
 
+  it('renames a shared component, trimmed, and rejects an empty name or an unknown id', () => {
+    const o = { ...emptyOverlay(), components: assignComponents(emptyOverlay(), scan) };
+    const renamed = applyOp(o, scan, { type: 'renameComponent', componentId: 'c:fp-header', name: '  Main header ' });
+    expect(renamed.components['c:fp-header']).toMatchObject({ name: 'Main header', fingerprint: 'fp-header' });
+    expect(() => applyOp(o, scan, { type: 'renameComponent', componentId: 'c:fp-header', name: '  ' })).toThrow('A component needs a name.');
+    expect(() => applyOp(o, scan, { type: 'renameComponent', componentId: 'c:nope', name: 'X' })).toThrow('Component c:nope does not exist.');
+  });
+
   it('marca y restaura eliminaciones', () => {
     let o = run({ type: 'markDeleted', blockKey: '/#top' });
     expect(view(o).pages[0]!.blocks.find((b) => b.key === '/#top')!.deleted).toBe(true);
