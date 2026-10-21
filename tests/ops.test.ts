@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyOp, OpError, type OverlayOp } from '../src/model/ops.js';
 import { deriveChanges } from '../src/model/changes.js';
+import { assignComponents } from '../src/model/components.js';
 import { buildMap } from '../src/model/map.js';
 import { emptyOverlay, type Overlay } from '../src/schema/overlay.js';
 import { sampleScan } from './helpers/sample.js';
@@ -34,6 +35,13 @@ describe('applyOp + buildMap', () => {
 
   it('no mueve bloques globales a otra página', () => {
     expect(() => run({ type: 'moveBlock', blockKey: '/~header', toPage: '/otra', index: 0 })).toThrow(OpError);
+  });
+
+  it('does not move a block of a shared component, even on one page', () => {
+    const s = sampleScan();
+    s.pages[0]!.blocks.find((b) => b.key === '/~integraciones')!.isComponent = true;
+    const o = { ...emptyOverlay(), components: assignComponents(emptyOverlay(), s) };
+    expect(() => applyOp(o, s, { type: 'moveBlock', blockKey: '/~integraciones', toPage: '/otra', index: 0 })).toThrow(/component/);
   });
 
   it('crea páginas planificadas al final', () => {
