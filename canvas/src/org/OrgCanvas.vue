@@ -336,6 +336,8 @@ provide(orgContextKey, {
     if (!piece.movable) return;
     pieceDrag.start(e, el, diagramId, () => {
       open.delete(openId(diagramId, piece.key));
+      // The trash list would cover the drop targets: close it once the piece is lifted.
+      open.delete(openId(TRASH, ''));
       dragged.value = piece;
     });
   },
@@ -413,11 +415,34 @@ function askDeletePage(d: DiagramModel) {
   deleting.value = d;
   delPageDlg.value?.showModal();
 }
+/** Site links that still point at a NOT FOUND or external target: removing them all makes the target go away. */
+const linksTo = (id: string): EffectiveLink[] => {
+  const seen = new Set<string>();
+  const out: EffectiveLink[] = [];
+  for (const p of props.map.pages) {
+    for (const b of p.blocks) {
+      for (const l of b.links) {
+        if (l.removed || seen.has(l.id) || !l.target || !('page' in l.target) || l.target.page !== id) continue;
+        seen.add(l.id);
+        out.push(l);
+      }
+    }
+  }
+  return out;
+};
+const deletingTarget = computed(() => deleting.value && deleting.value.kind !== 'planned');
 function confirmDeletePage() {
   delPageDlg.value?.close();
   const d = deleting.value;
   deleting.value = null;
-  if (d) void props.act([{ type: 'removePlannedPage', path: d.id }]);
+  if (!d) return;
+  if (d.kind === 'planned') return void props.act([{ type: 'removePlannedPage', path: d.id }]);
+  // A new connector is dropped; a site link becomes a planned removal.
+  void props.act(
+    linksTo(d.id).map((l): OverlayOp =>
+      l.added ? { type: 'removeLink', linkId: l.id } : { type: 'unlink', owner: l.owner, linkText: l.text, linkHref: l.href },
+    ),
+  );
 }
 
 const delConnDlg = ref<HTMLDialogElement | null>(null);
@@ -609,10 +634,11 @@ const changeCount = computed(() => props.changes.length);
   </dialog>
 
   <dialog ref="delPageDlg" data-testid="delete-page-dialog">
-    <p>{{ deleting ? t.dialogs.deletePageMsg(deleting.title, deleting.zone?.length ?? 0) : '' }}</p>
+    <p v-if="deleting && deletingTarget">{{ t.dialogs.removeTargetMsg(deleting.title, linksTo(deleting.id).length) }}</p>
+    <p v-else>{{ deleting ? t.dialogs.deletePageMsg(deleting.title, deleting.zone?.length ?? 0) : '' }}</p>
     <div class="row">
       <button type="button" @click="delPageDlg?.close()">{{ t.dialogs.cancel }}</button>
-      <button type="button" class="danger" @click="confirmDeletePage">{{ t.dialogs.deletePage }}</button>
+      <button type="button" class="danger" @click="confirmDeletePage">{{ deletingTarget ? t.dialogs.removeLinks : t.dialogs.deletePage }}</button>
     </div>
   </dialog>
 
