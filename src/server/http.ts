@@ -151,8 +151,10 @@ export function createApp(store: SiteStore, opts: { canvasDir?: string; keepAliv
     const site = c.req.param('site');
     const parsed = OpBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ error: en.http.invalidOp }, 400);
+    // Ops over HTTP come from the canvas: a body cannot attribute an edit to an agent.
+    const op = 'by' in parsed.data.op ? { ...parsed.data.op, by: 'canvas' } : parsed.data.op;
     try {
-      return c.json(await mutate(store, site, parsed.data.op, parsed.data.rev));
+      return c.json(await mutate(store, site, op, parsed.data.rev));
     } catch (err) {
       if (err instanceof StaleRevError) {
         return c.json({ error: en.http.mapChanged, map: await getMap(store, site) }, 409);

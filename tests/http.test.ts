@@ -83,4 +83,10 @@ describe('API HTTP', () => {
     const confirm = { type: 'confirmChange', changeId: plan.changes[0].id, note: 'done', by: 'canvas' };
     expect((await post(`/api/sites/${SITE}/ops`, { rev: 1, op: confirm })).status).toBe(400);
   });
+
+  it('attributes canvas ops to the canvas even when the body names an agent', async () => {
+    await post(`/api/sites/${SITE}/ops`, { rev: 0, op: { ...move, by: 'claude-code' } });
+    const plan = await (await app.request(`/api/sites/${SITE}/plan`)).json();
+    expect(plan.changes[0].by).toBe('canvas');
+  });
 });
