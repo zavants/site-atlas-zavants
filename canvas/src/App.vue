@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ConflictError, getMap, getPlan, getSites, rescan, sendOp, subscribe, type Change, type OverlayOp, type PlanFields, type SiteMap } from './api';
 import { t } from './strings';
 import TagBar from './components/TagBar.vue';
@@ -136,6 +136,24 @@ watch(
 
 const components = computed(() => map.value?.components ?? []);
 const blockName = (key: string) => (map.value ? blockIndex(map.value).get(key)?.name : undefined) ?? key;
+/** Component being renamed inline (window.prompt is not available in embedded browsers). */
+const renaming = ref<string | null>(null);
+const renameDraft = ref('');
+async function startRename(id: string, current: string) {
+  renaming.value = id;
+  renameDraft.value = current;
+  await nextTick();
+  const el = document.querySelector<HTMLInputElement>('[data-testid="rename-component"]');
+  el?.focus();
+  el?.select();
+}
+/** Not an undo step: history only snapshots plan fields, and component names are not one (spec §10b). */
+function renameComponent(id: string, current: string) {
+  if (renaming.value !== id) return;
+  renaming.value = null;
+  const name = renameDraft.value.trim();
+  if (name && name !== current) void act([{ type: 'renameComponent', componentId: id, name }], false);
+}
 watch(components, (list) => {
   if (view.value !== PAGES && !list.some((c) => c.id === view.value)) view.value = PAGES;
 });
@@ -203,15 +221,28 @@ onBeforeUnmount(() => unsubscribe?.());
         </div>
         <span class="muted">{{ t.head.show }}</span>
         <button type="button" data-testid="show-pages" :aria-pressed="view === PAGES" @click="view = PAGES">{{ t.head.pages }}</button>
-        <button
-          v-for="c in components"
-          :key="c.id"
-          type="button"
-          data-testid="show-component"
-          :data-id="c.id"
-          :aria-pressed="view === c.id"
-          @click="view = c.id"
-        >{{ c.name }}</button>
+        <template v-for="c in components" :key="c.id">
+          <input
+            v-if="renaming === c.id"
+            v-model="renameDraft"
+            class="rename"
+            data-testid="rename-component"
+            :aria-label="t.head.renameComponent"
+            @keydown.enter="renameComponent(c.id, c.name)"
+            @keydown.esc="renaming = null"
+            @blur="renameComponent(c.id, c.name)"
+          />
+          <button
+            v-else
+            type="button"
+            data-testid="show-component"
+            :data-id="c.id"
+            :aria-pressed="view === c.id"
+            :title="t.head.renameComponentHint"
+            @click="view = c.id"
+            @dblclick="startRename(c.id, c.name)"
+          >{{ c.name }}</button>
+        </template>
         <label class="check"><input v-model="showAnchors" type="checkbox" data-testid="anchors-toggle" /> {{ t.head.anchors }}</label>
       </div>
       <TagBar
@@ -295,6 +326,7 @@ h1 { font-size: 18px; margin: 0; }
 .seg button:first-child { border-radius: 6px 0 0 6px; }
 .seg button:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
 .seg button[aria-pressed='true'] { position: relative; z-index: 1; }
+.rename { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--accent); border-radius: 6px; padding: 4px 8px; width: 160px; }
 .check { display: inline-flex; gap: 6px; align-items: center; margin-left: 8px; }
 .notice { margin: 0; font-size: 13px; color: var(--accent); }
 .hint { margin: 0; font-size: 12px; }

@@ -79,6 +79,7 @@ node dist/cli.js canvas
 | `move <site> <blockKey> <toPage>` · `delete <site> <blockKey>` · `restore <site> <blockKey>` | Propose moving or deleting a section, or cancel the deletion |
 | `page add <site> <path>` · `page remove <site> <path>` | Planned pages |
 | `relink <site> <owner>` · `unlink <site> <owner>` · `link add <site> <owner>` · `link remove <site> <linkId>` | Change, remove, add or drop links |
+| `component rename <site> <componentId> <name>` | Rename a shared component (header, footer) |
 
 An agent without MCP can work from the terminal alone: `site-atlas plan my-site`, implement the pending changes, then `site-atlas confirm my-site <changeId> --note "<what you changed and where>"`.
 
@@ -112,7 +113,7 @@ args = ["/path/to/site-atlas-zavants/dist/cli.js", "mcp"]
 { "mcpServers": { "site-atlas": { "command": "node", "args": ["/path/to/site-atlas-zavants/dist/cli.js", "mcp"] } } }
 ```
 
-### Tools (20)
+### Tools (21)
 
 | Tool | Purpose |
 |---|---|
@@ -127,6 +128,7 @@ args = ["/path/to/site-atlas-zavants/dist/cli.js", "mcp"]
 | `atlas_confirm_change` · `atlas_reopen_change` | Mark a change applied (with a note) or set it back to pending |
 | `atlas_relink` · `atlas_unlink` · `atlas_add_link` · `atlas_remove_link` | Propose changing, removing or adding links, or drop a link proposal |
 | `atlas_mark_deleted` · `atlas_restore` · `atlas_remove_planned_page` | Propose deleting a section, undo it, remove a planned page |
+| `atlas_rename_component` | Rename a shared component, e.g. "Header 1" to "Main header" |
 | `atlas_open_canvas` | Canvas URL |
 
 Changes proposed on the canvas, by the CLI or by an agent stay **pending** in the plan. After implementing one in the code, the agent calls `atlas_confirm_change` (or `site-atlas confirm`) and the change moves to **applied**.
