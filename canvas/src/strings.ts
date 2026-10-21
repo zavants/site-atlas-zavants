@@ -69,6 +69,7 @@ export const t = {
     usedOn: (pages: string[]) => `used on: ${pages.join(', ')}`,
     trash: 'Delete',
     trashHint: 'Drop pieces here to mark them for deletion',
+    trashLabel: (n: number) => `Delete: ${n} marked for deletion`,
     dropHere: 'Drop pieces here',
     externalSite: 'External site',
     deletePage: 'Delete page',

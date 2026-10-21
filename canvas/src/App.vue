@@ -255,7 +255,8 @@ h1 { font-size: 18px; margin: 0; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; font-size: 13px; }
 .seg { display: inline-flex; }
 .seg button:first-child { border-radius: 6px 0 0 6px; }
-.seg button:last-child { border-radius: 0 6px 6px 0; border-left: none; }
+.seg button:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
+.seg button[aria-pressed='true'] { position: relative; z-index: 1; }
 .check { display: inline-flex; gap: 6px; align-items: center; margin-left: 8px; }
 .notice { margin: 0; font-size: 13px; color: var(--accent); }
 .hint { margin: 0; font-size: 12px; }
