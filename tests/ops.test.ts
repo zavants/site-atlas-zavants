@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyOp, OpError, type OverlayOp } from '../src/model/ops.js';
+import { deriveChanges } from '../src/model/changes.js';
 import { buildMap } from '../src/model/map.js';
 import { emptyOverlay, type Overlay } from '../src/schema/overlay.js';
 import { sampleScan } from './helpers/sample.js';
@@ -87,6 +88,17 @@ describe('applyOp + buildMap', () => {
     expect(m.pages[0]!.realOrder).toEqual(['/#top', '/~integraciones', '/#cotizacion']);
     expect(m.issueCount).toEqual({ error: 1, warn: 1, info: 1 });
     expect(m.pages[0]!.blocks[0]!.issues.map((i) => i.rule)).toEqual(['broken-link']);
+  });
+
+  it('relinking back to the original target drops the edit', () => {
+    const s = sampleScan();
+    s.pages[0]!.blocks[1]!.components.links = [{ text: 'Quote', href: '#cotizacion', kind: 'anchor' }];
+    const relink = (to: { block: string }): OverlayOp => ({ type: 'relink', owner: '/#top', linkText: 'Quote', linkHref: '#cotizacion', to });
+    const edited = applyOp(emptyOverlay(), s, relink({ block: '/otra#precios' }));
+    expect(Object.keys(edited.linkEdits)).toHaveLength(1);
+    const back = applyOp(edited, s, relink({ block: '/#cotizacion' }));
+    expect(back.linkEdits).toEqual({});
+    expect(deriveChanges(s, back).filter((c) => c.type === 'relink')).toEqual([]);
   });
 
   it('asigna un huérfano a otro bloque', () => {
