@@ -8,7 +8,15 @@ export const StoredKindSchema = z.preprocess((v) => (v === 'narrativa' ? 'narrat
 
 export const ComponentsSchema = z.object({
   headings: z.array(z.object({ level: z.number(), text: z.string() })),
-  links: z.array(z.object({ text: z.string(), href: z.string(), kind: z.enum(['internal', 'external', 'anchor']) })),
+  links: z.array(
+    z.object({
+      text: z.string(),
+      href: z.string(),
+      kind: z.enum(['internal', 'external', 'anchor']),
+      /** Styled as a button (btn/button/cta class or role=button). Missing in older scans. */
+      cta: z.boolean().optional(),
+    }),
+  ),
   buttons: z.array(z.string()),
   forms: z.array(z.object({ fields: z.number(), action: z.string().nullable(), method: z.string() })),
   media: z.array(

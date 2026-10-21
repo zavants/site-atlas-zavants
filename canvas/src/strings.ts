@@ -137,6 +137,17 @@ export const t = {
     resetAll: 'Undo all',
   },
 
+  autoTags: {
+    'auto:form': 'Form',
+    'auto:cta': 'Call to action',
+    'auto:default': 'Default',
+    hint: 'Detected by Atlas from the scan',
+  },
+  issues: {
+    title: { error: 'Errors', warn: 'Warnings', info: 'Info' },
+    close: 'Close',
+    page: (path: string) => `page ${path}`,
+  },
   tags: {
     aria: 'Tags',
     filter: 'Filter by tag:',
