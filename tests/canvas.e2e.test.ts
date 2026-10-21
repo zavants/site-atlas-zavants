@@ -291,6 +291,27 @@ describe('org chart canvas', () => {
     await expect.poll(async () => (await serverMap()).layout['/precios/nuevos']).toBeTruthy();
   });
 
+  it('does not park a diagram behind Delete: a page snaps back, a planned page asks to be deleted', async () => {
+    const dropOnTrash = async (id: string) => {
+      const a = await center(diagram(id).getByTestId('diagram-title'));
+      const b = await center(diagram('~delete'));
+      await page.mouse.move(a.x, a.y);
+      await page.mouse.down();
+      await glide(a, b, 10);
+      await page.mouse.up();
+    };
+    await page.getByTestId("zoom-fit").click();
+    const before = (await serverMap()).layout;
+    await dropOnTrash('/otra');
+    await dropOnTrash('/precios/nuevos');
+    const dialog = page.getByTestId('delete-page-dialog');
+    await expect.poll(() => dialog.evaluate((d) => (d as HTMLDialogElement).open)).toBe(true);
+    await dialog.getByRole('button', { name: t.dialogs.cancel }).click();
+    const after = (await serverMap()).layout;
+    expect(after['/otra']).toEqual(before['/otra']);
+    expect(after['/precios/nuevos']).toEqual(before['/precios/nuevos']);
+  });
+
   it('resets the history notice when another client writes: reload, clear history, show the notice', async () => {
     await page.reload();
     await page.locator('[data-testid="viewport"][data-ready="true"][data-live="true"]').waitFor();

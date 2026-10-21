@@ -130,7 +130,8 @@ const kindTag = computed(() => {
 }
 .title .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 22px; }
 .title .sub { font-size: 11px; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.remove { position: absolute; top: 8px; right: 8px; font-size: 12px; padding: 1px 7px; color: var(--danger); }
+.remove { position: absolute; top: 6px; right: 6px; font-size: 18px; font-weight: 600; line-height: 1; padding: 4px 9px; color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, var(--surface)); border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
+.remove:hover { background: color-mix(in srgb, var(--danger) 28%, var(--surface)); border-color: var(--danger); }
 .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
 .tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 8px; background: var(--column); color: var(--muted); }
 .tag.count, .tag.planned { background: color-mix(in srgb, var(--line-blue) 16%, transparent); color: var(--accent); }
