@@ -2,6 +2,9 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { buildMap } from '../src/model/map.js';
+import { reconcile } from '../src/model/reconcile.js';
+import { emptyOverlay } from '../src/schema/overlay.js';
 import { scanSite } from '../src/scan/scan.js';
 
 const url = process.env.ATLAS_BETA1_URL;
@@ -42,5 +45,15 @@ describe.skipIf(!url)('aceptación: SCAP Tech Beta 1', () => {
     expect(has('placeholder-image', byName('Gestión tecnológica'))).toBe(true);
     expect(has('form-no-action', byName('Solicite una propuesta'))).toBe(true);
     expect(elapsed).toBeLessThan(30_000);
+
+    // Org chart (spec §11.1): lines out of the pieces of `/`, and the shared header.
+    const map = buildMap(scan, reconcile(emptyOverlay(), null, scan));
+    const home = map.pages.find((p) => p.path === '/')!;
+    const lines = home.blocks.filter((b) => !b.componentId).flatMap((b) => b.links.map((l) => ({ from: b.key, target: l.target })));
+    expect(lines).toHaveLength(4);
+    expect(lines.filter((l) => l.from === '/#top')).toHaveLength(2);
+    expect(lines.map((l) => l.target)).toContainEqual({ page: '/es/soluciones/brokers' });
+    expect(lines.map((l) => l.target)).toContainEqual({ page: 'https://scapbroker.com' });
+    expect(map.components.find((c) => c.name === 'Header 1')!.block.links).toHaveLength(7);
   }, 60_000);
 });
