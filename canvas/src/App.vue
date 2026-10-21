@@ -1,30 +1,40 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { VueDraggable, type SortableEvent } from 'vue-draggable-plus';
-import { ConflictError, getMap, getSites, rescan, sendOp, subscribe, type BlockView, type OverlayOp, type SiteMap } from './api';
-import BlockCard from './components/BlockCard.vue';
-import BlockPanel from './components/BlockPanel.vue';
-import PageColumn from './components/PageColumn.vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { ConflictError, getMap, getPlan, getSites, rescan, sendOp, subscribe, type Change, type OverlayOp, type PlanFields, type SiteMap } from './api';
+import { t } from './strings';
 import TagBar from './components/TagBar.vue';
+import OrgCanvas from './org/OrgCanvas.vue';
+import { createHistory } from './org/history';
+import { blockIndex, PAGES, type Mode } from './org/diagrams';
 
 const site = decodeURIComponent(location.pathname.replace(/^\/s\/?/, '').replace(/\/$/, ''));
 const map = ref<SiteMap | null>(null);
+const changes = ref<Change[]>([]);
 const sites = ref<{ site: string; lastScan: string | null }[]>([]);
-const planned = ref(false);
+const planned = ref(true);
+const mode = ref<Mode>('diagram');
+const view = ref<string>(PAGES);
+const showAnchors = ref(true);
 const filterTag = ref<string | null>(null);
-const selectedKey = ref<string | null>(null);
 const notice = ref('');
 const error = ref('');
-const trash = ref<BlockView[]>([]);
+const live = ref(false);
 let unsubscribe: (() => void) | null = null;
 
-const blockIndex = computed(() => {
-  const m = new Map<string, BlockView>();
-  for (const b of map.value?.globals ?? []) m.set(b.key, b);
-  for (const p of map.value?.pages ?? []) for (const b of p.blocks) m.set(b.key, b);
-  return m;
-});
-const selected = computed(() => (selectedKey.value ? blockIndex.value.get(selectedKey.value) ?? null : null));
+const history = createHistory(() => map.value!.planFields);
+/** Reset target: the plan fields when the canvas opened, or when another client last changed them. */
+let initial: PlanFields | null = null;
+const snapshot = (): PlanFields => JSON.parse(JSON.stringify(map.value!.planFields)) as PlanFields;
+/** Revs this tab wrote: their SSE echo is not "another client". */
+const ownRevs = new Set<number>();
+
+/** Every write and every SSE check runs in order, so an echo is never compared against a stale rev. */
+let chain: Promise<unknown> = Promise.resolve();
+function enqueue<T>(fn: () => Promise<T>): Promise<T> {
+  const run = chain.then(fn, fn);
+  chain = run.catch(() => undefined);
+  return run;
+}
 
 async function reload() {
   try {
@@ -35,43 +45,84 @@ async function reload() {
   }
 }
 
-async function op(o: OverlayOp) {
-  if (!map.value) return;
+/** Another client (an agent, another tab, a re-scan) changed the map: reload and start a new history. */
+async function changedElsewhere(message?: string) {
+  const had = history.canUndo || history.canRedo;
+  await reload();
+  history.clear();
+  if (map.value) initial = snapshot();
+  const text = [message, had && t.historyReset].filter(Boolean).join(' ');
+  if (text) notice.value = text;
+}
+
+async function send(op: OverlayOp): Promise<boolean> {
+  if (!map.value) return false;
   try {
-    map.value = await sendOp(site, map.value.rev, o);
-    notice.value = '';
+    const next = await sendOp(site, map.value.rev, op);
+    ownRevs.add(next.rev);
+    map.value = next;
+    return true;
   } catch (e) {
     if (e instanceof ConflictError) {
+      // A foreign write won the lock: with steps to lose, say that history was reset.
+      notice.value = history.canUndo || history.canRedo ? t.historyReset : e.message;
       map.value = e.map;
-      notice.value = e.message;
+      history.clear();
+      initial = snapshot();
     } else {
-      notice.value = (e as Error).message;
-      await reload();
+      // Unknown server state: a foreign write may land in the reload, so no step may undo over it.
+      await changedElsewhere((e as Error).message);
     }
+    return false;
   }
 }
 
-function onTrash(e: SortableEvent) {
-  const key = (e.item as HTMLElement).dataset.key;
-  trash.value = [];
-  if (key) void op({ type: 'markDeleted', blockKey: key });
+function act(ops: OverlayOp[], step = true): Promise<boolean> {
+  return enqueue(async () => {
+    if (!map.value) return false;
+    if (step) history.checkpoint();
+    for (const op of ops) if (!(await send(op))) return false;
+    if (notice.value === t.historyReset || notice.value === t.conflict) notice.value = '';
+    return true;
+  });
 }
 
-function addPage() {
-  const path = window.prompt('Ruta de la página planificada (por ejemplo /soluciones)')?.trim();
-  if (!path) return;
-  const title = window.prompt('Título de la página', path.replace(/^\//, ''))?.trim() ?? path;
-  void op({ type: 'addPlannedPage', path, title });
-}
+const apply = (fields: PlanFields | null) => (fields ? send({ type: 'replacePlanFields', fields }) : Promise.resolve(false));
+const undo = () => void enqueue(() => apply(history.undo()));
+const redo = () => void enqueue(() => apply(history.redo()));
+const reset = () =>
+  void enqueue(async () => {
+    if (!map.value || !initial || JSON.stringify(snapshot()) === JSON.stringify(initial)) return false;
+    history.checkpoint();
+    return apply(initial);
+  });
 
 async function startRescan() {
   try {
     await rescan(site);
-    notice.value = 'Escaneo en curso…';
+    notice.value = t.head.scanning;
   } catch (e) {
     notice.value = (e as Error).message;
   }
 }
+
+watch(
+  () => (map.value ? `${map.value.scanId}|${map.value.rev}` : ''),
+  async (k) => {
+    if (!k) return;
+    try {
+      changes.value = (await getPlan(site)).changes;
+    } catch {
+      // The panel keeps the last list; the next change refreshes it.
+    }
+  },
+);
+
+const components = computed(() => map.value?.components ?? []);
+const blockName = (key: string) => (map.value ? blockIndex(map.value).get(key)?.name : undefined) ?? key;
+watch(components, (list) => {
+  if (view.value !== PAGES && !list.some((c) => c.id === view.value)) view.value = PAGES;
+});
 
 onMounted(async () => {
   if (!site) {
@@ -79,12 +130,24 @@ onMounted(async () => {
     return;
   }
   await reload();
+  if (map.value) initial = snapshot();
   unsubscribe = subscribe(site, (type, data) => {
-    if (type === 'progress') notice.value = String(data.msg ?? '');
+    if (type === 'ready') live.value = true;
+    else if (type === 'progress') notice.value = String(data.msg ?? '');
     else if (type === 'scan') {
-      notice.value = 'Escaneo terminado.';
-      void reload();
-    } else if (type === 'overlay' && map.value && Number(data.rev) !== map.value.rev) void reload();
+      // The rescan route and the file watcher both announce a scan: react to the first only.
+      void enqueue(async () => {
+        if (map.value && data.scanId === map.value.scanId) return;
+        await changedElsewhere(t.head.scanDone);
+      });
+    }
+    else if (type === 'overlay') {
+      void enqueue(async () => {
+        const rev = Number(data.rev);
+        if (!map.value || rev === map.value.rev || ownRevs.has(rev)) return;
+        await changedElsewhere();
+      });
+    }
   });
 });
 onBeforeUnmount(() => unsubscribe?.());
@@ -93,7 +156,7 @@ onBeforeUnmount(() => unsubscribe?.());
 <template>
   <main v-if="!site" class="home">
     <h1>Site Atlas</h1>
-    <p v-if="!sites.length" class="muted">Todavía no hay sitios escaneados. Ejecuta <code>site-atlas scan &lt;url&gt;</code> o usa la herramienta MCP <code>atlas_scan</code>.</p>
+    <p v-if="!sites.length" class="muted">{{ t.home.empty }}<code>site-atlas scan &lt;url&gt;</code>{{ t.home.emptyOr }}<code>atlas_scan</code>.</p>
     <ul>
       <li v-for="s in sites" :key="s.site"><a :href="`/s/${encodeURIComponent(s.site)}`">{{ s.site }}</a> <span class="muted">{{ s.lastScan }}</span></li>
     </ul>
@@ -103,123 +166,105 @@ onBeforeUnmount(() => unsubscribe?.());
     <header class="head">
       <div class="title">
         <h1>{{ map.site }}</h1>
-        <span class="muted">{{ map.environment.origin }}{{ map.environment.basePath }} · escaneo {{ map.scanId }}</span>
+        <span class="muted">{{ map.environment.origin }}{{ map.environment.basePath }} · {{ t.head.scan }} {{ map.scanId }}</span>
         <span class="counts">
-          <span class="pill err">{{ map.issueCount.error }} errores</span>
-          <span class="pill warn">{{ map.issueCount.warn }} avisos</span>
-          <span class="pill info">{{ map.issueCount.info }} info</span>
+          <span class="pill err">{{ map.issueCount.error }} {{ t.head.errors }}</span>
+          <span class="pill warn">{{ map.issueCount.warn }} {{ t.head.warnings }}</span>
+          <span class="pill info">{{ map.issueCount.info }} {{ t.head.info }}</span>
         </span>
-      </div>
-      <div class="actions">
-        <div class="seg" role="group" aria-label="Vista">
-          <button type="button" :aria-pressed="!planned" @click="planned = false">Real</button>
-          <button type="button" data-testid="toggle-planned" :aria-pressed="planned" @click="planned = true">Planificado</button>
+        <span class="grow" />
+        <div class="seg" role="group" :aria-label="t.head.mode">
+          <button type="button" data-testid="toggle-real" :aria-pressed="!planned" @click="planned = false">{{ t.head.real }}</button>
+          <button type="button" data-testid="toggle-planned" :aria-pressed="planned" @click="planned = true">{{ t.head.planned }}</button>
         </div>
-        <button type="button" @click="addPage">+ Página planificada</button>
-        <button type="button" data-testid="rescan" @click="startRescan">Re-escanear</button>
+        <button type="button" data-testid="rescan" @click="startRescan">{{ t.head.rescan }}</button>
+      </div>
+      <div class="toolbar">
+        <span class="muted">{{ t.head.view }}</span>
+        <div class="seg">
+          <button type="button" data-testid="view-diagram" :aria-pressed="mode === 'diagram'" @click="mode = 'diagram'">{{ t.head.diagram }}</button>
+          <button type="button" data-testid="view-screenshots" :aria-pressed="mode === 'shots'" @click="mode = 'shots'">{{ t.head.screenshots }}</button>
+        </div>
+        <span class="muted">{{ t.head.show }}</span>
+        <button type="button" data-testid="show-pages" :aria-pressed="view === PAGES" @click="view = PAGES">{{ t.head.pages }}</button>
+        <button
+          v-for="c in components"
+          :key="c.id"
+          type="button"
+          data-testid="show-component"
+          :data-id="c.id"
+          :aria-pressed="view === c.id"
+          @click="view = c.id"
+        >{{ c.name }}</button>
+        <label class="check"><input v-model="showAnchors" type="checkbox" data-testid="anchors-toggle" /> {{ t.head.anchors }}</label>
       </div>
       <TagBar
         :map="map"
         :filter-tag="filterTag"
-        @filter="(t) => (filterTag = t)"
-        @create="(name) => op({ type: 'createTag', name })"
-        @rename="(tagId, name) => op({ type: 'renameTag', tagId, name })"
-        @remove="(tagId) => op({ type: 'deleteTag', tagId })"
+        @filter="(id) => (filterTag = id)"
+        @create="(name) => act([{ type: 'createTag', name }], false)"
+        @rename="(tagId, name) => act([{ type: 'renameTag', tagId, name }], false)"
+        @remove="(tagId) => act([{ type: 'deleteTag', tagId }], false)"
       />
+      <section v-if="map.orphans.length" class="orphans" :aria-label="t.orphans.title">
+        <strong>{{ t.orphans.title }}</strong>
+        <span class="muted">{{ t.orphans.hint }}</span>
+        <div v-for="o in map.orphans" :key="o.key" class="orphan">
+          <span>{{ o.lastSeen.name }} <span class="muted">({{ o.lastSeen.page }})</span></span>
+          <button v-if="o.suggestion" type="button" @click="act([{ type: 'resolveOrphan', orphanKey: o.key, action: 'assign', targetKey: o.suggestion }], false)">
+            {{ t.orphans.assignTo(blockName(o.suggestion)) }}
+          </button>
+          <button type="button" @click="act([{ type: 'resolveOrphan', orphanKey: o.key, action: 'discard' }], false)">{{ t.orphans.discard }}</button>
+        </div>
+      </section>
       <p v-if="notice" class="notice" role="status">{{ notice }}</p>
-      <p v-if="!planned" class="muted hint">Cambia a Planificado para reorganizar.</p>
+      <p class="muted hint">{{ planned ? t.head.legend : t.head.realHint }}</p>
     </header>
 
-    <section v-if="map.globals.length" class="globals" data-testid="global-lane" aria-label="Bloques globales">
-      <span class="muted label">Global</span>
-      <BlockCard
-        v-for="(b, i) in map.globals"
-        :key="b.key"
-        :block="b"
-        :map="map"
-        :index="i"
-        :filter-tag="filterTag"
-        :show-moved="false"
-        @select="(k) => (selectedKey = k)"
-      />
-    </section>
-
-    <section v-if="map.orphans.length" class="orphans" aria-label="Huérfanos">
-      <strong>Huérfanos</strong>
-      <span class="muted">Bloques organizados que ya no aparecen en el sitio.</span>
-      <div v-for="o in map.orphans" :key="o.key" class="orphan">
-        <span>{{ o.lastSeen.name }} <span class="muted">({{ o.lastSeen.page }})</span></span>
-        <button v-if="o.suggestion" type="button" @click="op({ type: 'resolveOrphan', orphanKey: o.key, action: 'assign', targetKey: o.suggestion })">
-          Asignar a {{ blockIndex.get(o.suggestion)?.name ?? o.suggestion }}
-        </button>
-        <button type="button" @click="op({ type: 'resolveOrphan', orphanKey: o.key, action: 'discard' })">Descartar</button>
-      </div>
-    </section>
-
-    <div class="board">
-      <PageColumn
-        v-for="p in map.pages"
-        :key="p.path"
-        :page="p"
-        :map="map"
-        :planned="planned"
-        :filter-tag="filterTag"
-        :block-index="blockIndex"
-        @move="(key, toPage, index) => op({ type: 'moveBlock', blockKey: key, toPage, index })"
-        @set-tags="(key, tagIds) => op({ type: 'setBlockTags', blockKey: key, tagIds })"
-        @select="(k) => (selectedKey = k)"
-        @restore="(k) => op({ type: 'restore', blockKey: k })"
-      />
-      <div v-if="planned" class="trash" data-testid="trash-zone">
-        <p class="muted">Suelta aquí para marcar como eliminado</p>
-        <VueDraggable
-          v-model="trash"
-          class="trash-drop"
-          :group="{ name: 'blocks', pull: false, put: true }"
-          :force-fallback="true"
-          @add="onTrash"
-        />
-      </div>
-    </div>
-
-    <BlockPanel
-      v-if="selected"
-      :block="selected"
+    <OrgCanvas
       :map="map"
-      @close="selectedKey = null"
-      @set-kind="(key, kind) => op({ type: 'setKind', blockKey: key, kind })"
+      :changes="changes"
+      :planned="planned"
+      :view="view"
+      :mode="mode"
+      :show-anchors="showAnchors"
+      :filter-tag="filterTag"
+      :can-undo="history.canUndo"
+      :can-redo="history.canRedo"
+      :live="live"
+      :act="act"
+      :undo="undo"
+      :redo="redo"
+      :reset="reset"
     />
+    <p class="muted hint foot">{{ t.canvasHint }}</p>
   </main>
 
   <main v-else class="home">
-    <p :class="error ? 'error' : 'muted'">{{ error || 'Cargando…' }}</p>
+    <p :class="error ? 'error' : 'muted'">{{ error || t.home.loading }}</p>
   </main>
 </template>
 
 <style scoped>
 .home { padding: 32px; max-width: 720px; }
-.app { padding: 16px 20px; }
-.head { display: grid; gap: 10px; margin-bottom: 12px; }
-.title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.app { padding: 12px 16px; height: 100vh; display: flex; flex-direction: column; gap: 8px; }
+.head { display: grid; gap: 8px; }
+.title { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.grow { flex: 1; }
 h1 { font-size: 18px; margin: 0; }
 .counts { display: inline-flex; gap: 4px; }
 .err { color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); }
 .warn { color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); }
 .info { color: var(--muted); border: 1px solid var(--border); }
-.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; font-size: 13px; }
 .seg { display: inline-flex; }
 .seg button:first-child { border-radius: 6px 0 0 6px; }
 .seg button:last-child { border-radius: 0 6px 6px 0; border-left: none; }
+.check { display: inline-flex; gap: 6px; align-items: center; margin-left: 8px; }
 .notice { margin: 0; font-size: 13px; color: var(--accent); }
 .hint { margin: 0; font-size: 12px; }
-.globals { display: flex; gap: 8px; align-items: start; overflow-x: auto; padding: 8px; border: 1px dashed var(--border); border-radius: 12px; margin-bottom: 12px; }
-.globals :deep(.card) { width: 220px; flex: none; margin: 0; cursor: pointer; }
-.label { font-size: 12px; align-self: center; }
-.orphans { display: grid; gap: 6px; padding: 10px; border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); border-radius: 12px; margin-bottom: 12px; }
+.foot { text-align: right; }
+.orphans { display: grid; gap: 6px; padding: 10px; border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); border-radius: 12px; }
 .orphan { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.board { display: flex; gap: 12px; align-items: start; overflow-x: auto; padding-bottom: 16px; }
-.trash { position: relative; width: 200px; min-height: 120px; flex: none; border: 1px dashed var(--danger); border-radius: 12px; padding: 10px; display: grid; place-items: center; text-align: center; font-size: 12px; }
-.trash-drop { position: absolute; inset: 0; }
-.trash-drop :deep(.card) { display: none; }
 .error { color: var(--danger); }
 </style>

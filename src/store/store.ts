@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { mkdir, open, readdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { emptyOverlay, OverlaySchema, type Overlay } from '../schema/overlay.js';
+import { emptyOverlay, migrateOverlay, type Overlay } from '../schema/overlay.js';
+import { en } from '../i18n/en.js';
 import { ScanSchema, type Scan } from '../schema/scan.js';
 import { atlasHome, siteDir } from './paths.js';
 
@@ -10,7 +11,7 @@ export class StaleRevError extends Error {
     readonly expected: number,
     readonly actual: number,
   ) {
-    super(`La capa del usuario cambió (rev ${actual}, se esperaba ${expected}).`);
+    super(en.store.staleRev(actual, expected));
   }
 }
 
@@ -42,7 +43,7 @@ async function readJson(file: string): Promise<unknown | undefined> {
   try {
     return JSON.parse(raw);
   } catch (err) {
-    throw new Error(`No se pudo leer ${file}: ${(err as Error).message}`);
+    throw new Error(en.store.cannotRead(file, (err as Error).message));
   }
 }
 
@@ -59,13 +60,12 @@ async function withFileLock<T>(lockFile: string, fn: () => Promise<T>): Promise<
       await handle.close();
       break;
     } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+      // Windows reports EPERM/EACCES (not EEXIST) while another process's unlink of the lock is still pending.
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code !== 'EEXIST' && code !== 'EPERM' && code !== 'EACCES') throw err;
       const age = await stat(lockFile).then((st) => Date.now() - st.mtimeMs, () => 0);
-      if (age > LOCK_STALE_MS) {
-        await unlink(lockFile).catch(() => undefined);
-        continue;
-      }
-      if (Date.now() > deadline) throw new Error(`La capa del usuario está bloqueada por otro proceso (${lockFile}).`);
+      if (age > LOCK_STALE_MS && (await unlink(lockFile).then(() => true, () => false))) continue;
+      if (Date.now() > deadline) throw new Error(en.store.locked(lockFile));
       await sleep(10 + Math.random() * 20);
     }
   }
@@ -142,7 +142,7 @@ export class SiteStore {
     if (!id) return null;
     const file = join(this.scansDir(site), `${id}.json`);
     const parsed = ScanSchema.safeParse(await readJson(file));
-    if (!parsed.success) throw new Error(`Escaneo inválido en ${file}: ${parsed.error.message}`);
+    if (!parsed.success) throw new Error(en.store.invalidScan(file, parsed.error.message));
     return parsed.data;
   }
 
@@ -158,9 +158,11 @@ export class SiteStore {
     const file = this.overlayFile(site);
     const raw = await readJson(file);
     if (raw === undefined) return emptyOverlay();
-    const parsed = OverlaySchema.safeParse(raw);
-    if (!parsed.success) throw new Error(`Capa del usuario inválida en ${file}: ${parsed.error.message}`);
-    return parsed.data;
+    try {
+      return migrateOverlay(raw);
+    } catch (err) {
+      throw new Error(en.store.invalidOverlay(file, (err as Error).message));
+    }
   }
 
   /**

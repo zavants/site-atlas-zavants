@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyOp, OpError, type OverlayOp } from '../src/model/ops.js';
+import { deriveChanges } from '../src/model/changes.js';
+import { assignComponents } from '../src/model/components.js';
 import { buildMap } from '../src/model/map.js';
 import { emptyOverlay, type Overlay } from '../src/schema/overlay.js';
 import { sampleScan } from './helpers/sample.js';
@@ -35,6 +37,14 @@ describe('applyOp + buildMap', () => {
     expect(() => run({ type: 'moveBlock', blockKey: '/~header', toPage: '/otra', index: 0 })).toThrow(OpError);
   });
 
+  it('does not move a block of a shared component, even on one page', () => {
+    const s = sampleScan();
+    s.pages[0]!.blocks.find((b) => b.key === '/~integraciones')!.isComponent = true;
+    const o = { ...emptyOverlay(), components: assignComponents(emptyOverlay(), s) };
+    expect(() => applyOp(o, s, { type: 'moveBlock', blockKey: '/~integraciones', toPage: '/otra', index: 0 })).toThrow('"Component 1" is a shared component and cannot be moved.');
+    expect(() => applyOp(o, s, { type: 'moveBlock', blockKey: '/~integraciones', toPage: '/', index: 0 })).toThrow(/Component 1/);
+  });
+
   it('crea páginas planificadas al final', () => {
     const o = run(
       { type: 'addPlannedPage', path: '/soluciones', title: 'Soluciones' },
@@ -44,6 +54,27 @@ describe('applyOp + buildMap', () => {
     expect(pages.at(-1)).toMatchObject({ path: '/soluciones', planned: true });
     expect(pages.at(-1)!.blocks.map((b) => b.key)).toEqual(['/#top']);
     expect(() => applyOp(o, scan, { type: 'addPlannedPage', path: '/soluciones', title: 'x' })).toThrow(OpError);
+  });
+
+  it('normalizes a planned page path like the canvas does', () => {
+    expect(run({ type: 'addPlannedPage', path: '/Brokers//x/', title: '' }).plannedPages[0]!.path).toBe('/brokers/x');
+  });
+
+  it('keeps the case of a missing page so the canvas drop on it can move there', () => {
+    const s = sampleScan({ missingPages: ['/About'] });
+    s.issues.push({ id: 'broken-link|/|/#top|http://localhost:4405/demo/Team', level: 'error', rule: 'broken-link', page: '/', blockKey: '/#top', message: 'x' });
+    for (const path of ['/About', '/Team']) {
+      const o = applyOp(applyOp(emptyOverlay(), s, { type: 'addPlannedPage', path, title: path }), s, { type: 'moveBlock', blockKey: '/~integraciones', toPage: path, index: 0 });
+      expect(o.plannedPages[0]!.path).toBe(path);
+      expect(o.plannedOrder[path]).toEqual(['/~integraciones']);
+    }
+  });
+
+  it('removes a planned page by the path it was added with or the stored one', () => {
+    const added = run({ type: 'addPlannedPage', path: '/Brokers', title: 'Brokers' });
+    expect(applyOp(added, scan, { type: 'removePlannedPage', path: '/Brokers' }).plannedPages).toEqual([]);
+    const legacy: Overlay = { ...emptyOverlay(), plannedPages: [{ path: '/Old', title: 'Old' }] };
+    expect(applyOp(legacy, scan, { type: 'removePlannedPage', path: '/Old' }).plannedPages).toEqual([]);
   });
 
   it('borrar una etiqueta la quita de los bloques', () => {
@@ -57,9 +88,9 @@ describe('applyOp + buildMap', () => {
     expect(o.blockTags['/#top'] ?? []).toEqual([]);
   });
 
-  it('rechaza etiquetas y claves inexistentes con mensaje en español', () => {
-    expect(() => run({ type: 'setBlockTags', blockKey: '/#top', tagIds: ['nope'] })).toThrow(/etiqueta/i);
-    expect(() => run({ type: 'markDeleted', blockKey: '/#nada' })).toThrow(/bloque/i);
+  it('rechaza etiquetas y claves inexistentes con English message', () => {
+    expect(() => run({ type: 'setBlockTags', blockKey: '/#top', tagIds: ['nope'] })).toThrow(/tag/i);
+    expect(() => run({ type: 'markDeleted', blockKey: '/#nada' })).toThrow(/No section/);
   });
 
   it('marca y restaura eliminaciones', () => {
@@ -73,7 +104,7 @@ describe('applyOp + buildMap', () => {
     let o = run({ type: 'setKind', blockKey: '/~integraciones', kind: 'visual' });
     expect(view(o).pages[0]!.blocks.find((b) => b.key === '/~integraciones')).toMatchObject({ effectiveKind: 'visual', kindOverridden: true });
     o = applyOp(o, scan, { type: 'setKind', blockKey: '/~integraciones', kind: null });
-    expect(view(o).pages[0]!.blocks.find((b) => b.key === '/~integraciones')).toMatchObject({ effectiveKind: 'narrativa', kindOverridden: false });
+    expect(view(o).pages[0]!.blocks.find((b) => b.key === '/~integraciones')).toMatchObject({ effectiveKind: 'narrative', kindOverridden: false });
   });
 
   it('ignora claves globales que quedaron en el orden planificado', () => {
@@ -87,6 +118,17 @@ describe('applyOp + buildMap', () => {
     expect(m.pages[0]!.realOrder).toEqual(['/#top', '/~integraciones', '/#cotizacion']);
     expect(m.issueCount).toEqual({ error: 1, warn: 1, info: 1 });
     expect(m.pages[0]!.blocks[0]!.issues.map((i) => i.rule)).toEqual(['broken-link']);
+  });
+
+  it('relinking back to the original target drops the edit', () => {
+    const s = sampleScan();
+    s.pages[0]!.blocks[1]!.components.links = [{ text: 'Quote', href: '#cotizacion', kind: 'anchor' }];
+    const relink = (to: { block: string }): OverlayOp => ({ type: 'relink', owner: '/#top', linkText: 'Quote', linkHref: '#cotizacion', to });
+    const edited = applyOp(emptyOverlay(), s, relink({ block: '/otra#precios' }));
+    expect(Object.keys(edited.linkEdits)).toHaveLength(1);
+    const back = applyOp(edited, s, relink({ block: '/#cotizacion' }));
+    expect(back.linkEdits).toEqual({});
+    expect(deriveChanges(s, back).filter((c) => c.type === 'relink')).toEqual([]);
   });
 
   it('asigna un huérfano a otro bloque', () => {

@@ -18,6 +18,26 @@
   --warn-dark: #fac775;
   --danger-light: #a32d2d;
   --danger-dark: #f09595;
+  --k-narrative-light: #f1efe8;
+  --k-narrative-dark: #2a2925;
+  --k-visual-light: #eeedfe;
+  --k-visual-dark: #26244a;
+  --k-conversion-light: #e1f5ee;
+  --k-conversion-dark: #173a2e;
+  --canvas-bg-light: #f6f6f4;
+  --canvas-bg-dark: #121212;
+  --canvas-dot-light: #d3d1c7;
+  --canvas-dot-dark: #3a3935;
+  --line-blue-light: #378add;
+  --line-blue-dark: #5fa3e6;
+  --line-red-light: #e24b4a;
+  --line-red-dark: #f07170;
+  --line-gray-light: #888780;
+  --line-gray-dark: #9a998f;
+  --line-green-light: #3b6d11;
+  --line-green-dark: #7fbf4a;
+  --line-violet-light: #7f77dd;
+  --line-violet-dark: #a29bf0;
 
   --bg: var(--bg-light);
   --surface: var(--surface-light);
@@ -28,6 +48,16 @@
   --accent: var(--accent-light);
   --warn: var(--warn-light);
   --danger: var(--danger-light);
+  --k-narrative: var(--k-narrative-light);
+  --k-visual: var(--k-visual-light);
+  --k-conversion: var(--k-conversion-light);
+  --canvas-bg: var(--canvas-bg-light);
+  --canvas-dot: var(--canvas-dot-light);
+  --line-blue: var(--line-blue-light);
+  --line-red: var(--line-red-light);
+  --line-gray: var(--line-gray-light);
+  --line-green: var(--line-green-light);
+  --line-violet: var(--line-violet-light);
 
   @media (prefers-color-scheme: dark) {
     --bg: var(--bg-dark);
@@ -39,6 +69,16 @@
     --accent: var(--accent-dark);
     --warn: var(--warn-dark);
     --danger: var(--danger-dark);
+    --k-narrative: var(--k-narrative-dark);
+    --k-visual: var(--k-visual-dark);
+    --k-conversion: var(--k-conversion-dark);
+    --canvas-bg: var(--canvas-bg-dark);
+    --canvas-dot: var(--canvas-dot-dark);
+    --line-blue: var(--line-blue-dark);
+    --line-red: var(--line-red-dark);
+    --line-gray: var(--line-gray-dark);
+    --line-green: var(--line-green-dark);
+    --line-violet: var(--line-violet-dark);
   }
 
   @supports (color: light-dark(white, black)) {
@@ -51,6 +91,16 @@
     --accent: light-dark(var(--accent-light), var(--accent-dark));
     --warn: light-dark(var(--warn-light), var(--warn-dark));
     --danger: light-dark(var(--danger-light), var(--danger-dark));
+    --k-narrative: light-dark(var(--k-narrative-light), var(--k-narrative-dark));
+    --k-visual: light-dark(var(--k-visual-light), var(--k-visual-dark));
+    --k-conversion: light-dark(var(--k-conversion-light), var(--k-conversion-dark));
+    --canvas-bg: light-dark(var(--canvas-bg-light), var(--canvas-bg-dark));
+    --canvas-dot: light-dark(var(--canvas-dot-light), var(--canvas-dot-dark));
+    --line-blue: light-dark(var(--line-blue-light), var(--line-blue-dark));
+    --line-red: light-dark(var(--line-red-light), var(--line-red-dark));
+    --line-gray: light-dark(var(--line-gray-light), var(--line-gray-dark));
+    --line-green: light-dark(var(--line-green-light), var(--line-green-dark));
+    --line-violet: light-dark(var(--line-violet-light), var(--line-violet-dark));
   }
 
   accent-color: var(--accent);
@@ -75,3 +125,7 @@ button[aria-pressed='true'] { border-color: var(--accent); color: var(--accent);
 input[type='text'] { font: inherit; }
 .muted { color: var(--muted); }
 .pill { display: inline-block; font-size: 11px; line-height: 18px; padding: 0 7px; border-radius: 9px; white-space: nowrap; }
+
+/* While dragging a piece, a line or a diagram nothing gets selected (spec §6). */
+body.dragging,
+body.dragging * { -webkit-user-select: none !important; user-select: none !important; cursor: grabbing !important; }

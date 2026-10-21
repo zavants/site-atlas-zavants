@@ -8,8 +8,9 @@ function block(partial: Partial<Block> & Pick<Block, 'key' | 'name' | 'order'>):
     anchor: null,
     tag: 'section',
     height: 400,
-    kind: 'narrativa',
+    kind: 'narrative',
     global: false,
+    isComponent: false,
     fingerprint: `fp-${partial.key}`,
     textExcerpt: `Texto de ${partial.name}`,
     components: noComponents(),
@@ -22,9 +23,9 @@ function block(partial: Partial<Block> & Pick<Block, 'key' | 'name' | 'order'>):
 export function sampleScan(overrides: Partial<Scan> & { heroName?: string } = {}): Scan {
   const { heroName, ...rest } = overrides;
   const header = (order: number) =>
-    block({ key: '/~header', name: 'Header', order, tag: 'header', global: true, fingerprint: 'fp-header', height: 80 });
+    block({ key: '/~header', name: 'Header', order, tag: 'header', global: true, isComponent: true, fingerprint: 'fp-header', height: 80 });
   const footer = (path: string, order: number) =>
-    block({ key: `${path}~footer`, name: 'Footer', order, tag: 'footer', global: true, fingerprint: 'fp-footer', height: 120 });
+    block({ key: `${path}~footer`, name: 'Footer', order, tag: 'footer', global: true, isComponent: true, fingerprint: 'fp-footer', height: 120 });
   return {
     schemaVersion: 1,
     scanId: '2026-10-19T10-00-00.000Z',

@@ -1,9 +1,9 @@
 # Site Atlas
 
 **A semantic map of websites for people and AI agents.**
-Site Atlas scans a site, splits every page into **sections** (header, hero, content sections, footer…), flags problems, and lets you rearrange the site on a drag‑and‑drop canvas. Everything you plan is exposed through **MCP** and the **CLI**, so any AI (Claude, Codex, GPT and others) can read it and implement it in the code.
+Site Atlas scans a site, splits every page into **sections** (header, hero, content sections, footer…), flags problems, and lets you rearrange the site on a drag‑and‑drop **org chart**. Everything you plan is exposed through **MCP** and the **CLI**, so any AI (Claude, Codex, GPT and others) can read it and implement it in the code.
 
-![Site Atlas canvas with a sample site: pages as columns, sections with thumbnails, tags and a planned page](docs/assets/lienzo.png)
+![Site Atlas org chart with a sample site: pages as diagrams of pieces, one line per link, shared components and a planned page](docs/assets/org-chart.png)
 
 ---
 
@@ -18,20 +18,16 @@ Looking at a page doesn't answer questions like:
 
 Site Atlas makes that visible and turns your decisions into a **concrete plan** an AI can execute. Atlas never modifies the site itself: you decide, the AI implements.
 
-## What it does today (v1)
+## What it does
 
 | | |
 |---|---|
 | **Section-level scanning** | Renders each page in Chromium, splits it into sections and records name, type (narrative, visual, conversion), headings, links, forms, media and a thumbnail. |
 | **Issues** | Broken links, missing anchors, forms without an action, placeholder images, sections without an anchor, missing or duplicate headings, duplicate ids. |
-| **Canvas** | One column per page, a lane for shared components, drag to reorder or move between pages, planned pages, tags with filters, a trash zone, Real / Planned views and live updates. |
-| **Plan for AI** | The differences between the real site and the plan, in plain language and JSON. |
+| **Org chart** | Each page is a diagram of pieces, with **one line per link, drawn from the exact section that contains it**: blue to another section, red to a page that doesn't exist, gray to an external site. Shared components (header, footer) get their own diagram. Drag a piece to reorder it or move it to another page, drag a line's end to point it at a new target, drag from the `+` of a piece to add a connector, add planned pages, and undo or redo any of it. A **Screenshots** view swaps the diagram for the real thumbnails. Also: tags with filters, a trash zone, Real / Planned views and live updates. |
+| **Plan for AI** | The differences between the real site and the plan, in plain language and JSON. Each change is **pending** until the AI that implements it confirms it (with a note), and then it is **applied**. |
 | **Lossless re-scans** | Your organization survives site changes: sections are matched by anchor, fingerprint or text similarity, and anything unmatched becomes an orphan you can reassign. |
 | **Local and safe** | Runs on your machine, the server listens on `127.0.0.1` only, protected against CSRF and DNS rebinding, no telemetry. Atlas never writes to your site's repository. |
-
-### Coming next (v2): the org chart
-
-Each page as a diagram of pieces, with **one line per link coming out of the exact section that contains it**. It adds shared components with their own diagram, arrows you can drag and snap to a new target, new connectors, a screenshot view, and changes that stay **pending until an AI confirms** it applied them. Design under review: [`organigrama-design.md`](https://github.com/zavants/site-atlas-zavants/blob/docs/organigrama-v2/docs/superpowers/specs/2026-10-19-organigrama-design.md) (Spanish).
 
 ## How it works
 
@@ -73,6 +69,19 @@ node dist/cli.js scan https://example.com --max-pages 5 --exclude "/blog/**"
 node dist/cli.js canvas
 ```
 
+### CLI
+
+| Command | Purpose |
+|---|---|
+| `scan <url>` · `canvas [site]` | Scan a site · open the canvas |
+| `plan <site>` | Print the plan: pending and applied changes |
+| `confirm <site> <changeId> --note "<what you changed and where>"` · `reopen <site> <changeId> --note "<why>"` | Mark a change applied once it is in the code · set it back to pending |
+| `move <site> <blockKey> <toPage>` · `delete <site> <blockKey>` · `restore <site> <blockKey>` | Propose moving or deleting a section, or cancel the deletion |
+| `page add <site> <path>` · `page remove <site> <path>` | Planned pages |
+| `relink <site> <owner>` · `link add <site> <owner>` · `link remove <site> <linkId>` | Change, add or drop links |
+
+An agent without MCP can work from the terminal alone: `site-atlas plan my-site`, implement the pending changes, then `site-atlas confirm my-site <changeId> --note "<what you changed and where>"`.
+
 ## Connect it to your AI (MCP)
 
 The MCP server starts with `node <path>/dist/cli.js mcp` over stdio.
@@ -103,7 +112,7 @@ args = ["/path/to/site-atlas-zavants/dist/cli.js", "mcp"]
 { "mcpServers": { "site-atlas": { "command": "node", "args": ["/path/to/site-atlas-zavants/dist/cli.js", "mcp"] } } }
 ```
 
-### Tools
+### Tools (19)
 
 | Tool | Purpose |
 |---|---|
@@ -114,14 +123,29 @@ args = ["/path/to/site-atlas-zavants/dist/cli.js", "mcp"]
 | `atlas_list_issues` | Issues from the latest scan |
 | `atlas_tags` · `atlas_set_block_tags` | Create, rename, delete and assign tags |
 | `atlas_move_block` · `atlas_add_planned_page` | Rearrange the planned order |
-| `atlas_get_plan` | Differences between the real site and the plan, ready to implement |
+| `atlas_get_plan` | The plan (Markdown + JSON, optional `status`): what to change in the site's code |
+| `atlas_confirm_change` · `atlas_reopen_change` | Mark a change applied (with a note) or set it back to pending |
+| `atlas_relink` · `atlas_add_link` · `atlas_remove_link` | Propose, change or drop links |
+| `atlas_mark_deleted` · `atlas_restore` · `atlas_remove_planned_page` | Propose deleting a section, undo it, remove a planned page |
 | `atlas_open_canvas` | Canvas URL |
+
+Changes proposed on the canvas, by the CLI or by an agent stay **pending** in the plan. After implementing one in the code, the agent calls `atlas_confirm_change` (or `site-atlas confirm`) and the change moves to **applied**.
 
 Example prompt for an agent:
 
 > "Scan http://localhost:4321 with site-atlas, move the pricing section to /pricing and tell me what needs to change in the code."
 
 Text extracted from the scanned site is marked as **untrusted content**, so agents treat it as data, not instructions.
+
+## CLI on Windows (Git Bash)
+
+Git Bash rewrites arguments that start with `/` into Windows paths (`/~hero` becomes `C:/Program Files/Git/~hero`) before the CLI sees them. Start the command with `MSYS_NO_PATHCONV=1`:
+
+```sh
+MSYS_NO_PATHCONV=1 site-atlas move my-site /~hero /pricing
+```
+
+The CLI refuses arguments that look rewritten and tells you to do this. PowerShell and cmd are not affected.
 
 ## Optional markers
 
@@ -158,6 +182,7 @@ Stack: Node 24, TypeScript, Playwright, Hono, Vue 3 + Vite, Zod and `@modelconte
 | Local marketing site (HTML, 15 sections) | 15 sections with their real names; found a broken link, 4 sections without an anchor, placeholder images and a form without an action |
 | stripe.com (1 page) | 10 sections, 8 with a readable name, in 26 s |
 | vercel.com (1 page) | 6 sections, all with a readable name |
+| Agent round trip (terminal-only Claude agent, CLI only, no MCP) | Read `site-atlas plan`, implemented a section delete and a relink in the site source, verified with curl, confirmed both with notes; after a re-scan the plan reports the site already matches it |
 
 ## Contributing
 

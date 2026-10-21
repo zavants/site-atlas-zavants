@@ -1,3 +1,4 @@
+import { en } from './i18n/en.js';
 import { reconcile } from './model/reconcile.js';
 import type { Overlay } from './schema/overlay.js';
 import type { Scan } from './schema/scan.js';
@@ -19,8 +20,8 @@ export async function runScan(store: SiteStore, url: string, opts: RunScanOption
   const scan = await scanSite(url, { ...opts, site, shotsDir: (scanId) => store.shotsDir(site, scanId) });
   if (!scan.pages.some((p) => p.status > 0 && p.status < 400 && !p.error)) {
     const first = scan.pages[0];
-    const reason = first?.error ?? (scan.missingPages.length ? 'la página no existe (404)' : 'no respondió');
-    throw new Error(`No se pudo escanear ${url}: ${reason}. No se guardó el escaneo ni se tocó la organización.`);
+    const reason = first?.error ?? (scan.missingPages.length ? en.scan.pageMissing : en.scan.noResponse);
+    throw new Error(en.scan.couldNotScan(url, reason));
   }
   const prev = await store.latestScan(site);
   await store.saveScan(scan);

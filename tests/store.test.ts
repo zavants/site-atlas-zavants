@@ -1,7 +1,7 @@
-import { mkdtemp, writeFile, mkdir, readFile } from 'node:fs/promises';
+import { mkdtemp, writeFile, mkdir, readFile, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { deriveSiteId, splitEnvironment } from '../src/store/paths.js';
 import { SiteStore, StaleRevError } from '../src/store/store.js';
 import { emptyOverlay } from '../src/schema/overlay.js';
@@ -64,4 +64,19 @@ describe('SiteStore', () => {
     await expect(store.readOverlay('roto')).rejects.toThrow(file);
     expect(await readFile(file, 'utf8')).toBe('{ no es json');
   });
+
+  it('gives up on a stale lock it cannot remove instead of spinning', async () => {
+    // A directory at the lock path is stale but unlink() fails on it on every platform.
+    const lock = `${store.overlayFile('s')}.lock`;
+    await mkdir(lock, { recursive: true });
+    await utimes(lock, new Date(0), new Date(0));
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const tick = setInterval(() => vi.setSystemTime(Date.now() + 1000), 5);
+    try {
+      await expect(store.updateOverlay('s', (o) => o)).rejects.toThrow(/locked/);
+    } finally {
+      clearInterval(tick);
+      vi.useRealTimers();
+    }
+  }, 5000);
 });
