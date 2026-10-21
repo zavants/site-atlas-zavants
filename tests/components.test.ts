@@ -53,6 +53,17 @@ describe('assignComponents', () => {
     expect(again['c:aaa']!.name).toBe('Header 1');
   });
 
+  it('gives a returning original fingerprint a fresh id when a drifted variant kept its old id', () => {
+    const first = assignComponents(emptyOverlay(), scanOf(hdr('/p0', 'aaa', 'Inicio Productos Servicios Nosotros Contacto')));
+    const drifted = assignComponents({ ...emptyOverlay(), components: first }, scanOf(hdr('/p0', 'aa2', 'Inicio Productos Servicios Nosotros Contactos')));
+    const both = scanOf(hdr('/p0', 'aa2', 'Inicio Productos Servicios Nosotros Contactos'), hdr('/p1', 'aaa', 'Inicio Productos Servicios Nosotros Contacto'));
+    const c = assignComponents({ ...emptyOverlay(), components: drifted }, both);
+    expect(c['c:aaa']).toMatchObject({ name: 'Header 1', fingerprint: 'aa2' });
+    expect(c['c:aaa:2']).toMatchObject({ name: 'Header 2', fingerprint: 'aaa' });
+    expect(componentOf(both.pages[0]!.blocks[0]!, c)).toBe('c:aaa');
+    expect(componentOf(both.pages[1]!.blocks[0]!, c)).toBe('c:aaa:2');
+  });
+
   it('keeps components that no longer appear and numbers footers apart', () => {
     const first = assignComponents(emptyOverlay(), scanOf(hdr('/p0', 'aaa', 'Inicio Productos')));
     const footer: Block = { ...hdr('/p0', 'fff', 'Derechos reservados'), tag: 'footer', key: '/p0~footer' };

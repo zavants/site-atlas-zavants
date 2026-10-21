@@ -65,8 +65,11 @@ export function assignComponents(overlay: Overlay, scan: Scan): Components {
     const word = kindWord(block);
     const used = Object.values(out).map((c) => new RegExp(`^${word} ([0-9]+)$`).exec(c.name)?.[1]);
     const next = Math.max(0, ...used.map((n) => Number(n ?? 0))) + 1;
-    out[`c:${block.fingerprint}`] = { fingerprint: block.fingerprint, name: `${word} ${next}`, excerpt: block.textExcerpt };
-    claimed.add(`c:${block.fingerprint}`);
+    // A drifted component keeps its old id, so `c:<fp>` may already be taken.
+    let fresh = `c:${block.fingerprint}`;
+    for (let n = 2; fresh in out; n++) fresh = `c:${block.fingerprint}:${n}`;
+    out[fresh] = { fingerprint: block.fingerprint, name: `${word} ${next}`, excerpt: block.textExcerpt };
+    claimed.add(fresh);
   }
   return out;
 }
