@@ -182,7 +182,6 @@ function onTag(tagId: string, on: boolean) {
   z-index: 4;
 }
 .piece:hover .plug { opacity: 1; }
-:global(body.dragging) .plug { opacity: 0; }
 .det { padding: 0 8px 8px; font-size: 12px; cursor: auto; user-select: text; -webkit-user-select: text; }
 .det img { width: 100%; border-radius: 4px; border: 1px solid var(--border); margin: 4px 0; }
 .det ul { margin: 2px 0 6px; padding-left: 16px; }
