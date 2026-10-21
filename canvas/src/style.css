@@ -129,3 +129,5 @@ input[type='text'] { font: inherit; }
 /* While dragging a piece, a line or a diagram nothing gets selected (spec §6). */
 body.dragging,
 body.dragging * { -webkit-user-select: none !important; user-select: none !important; cursor: grabbing !important; }
+/* Hide the connector plugs while dragging. Kept global: Vue compiles `:global(body.dragging) .plug` to `body.dragging`. */
+body.dragging .plug { opacity: 0 !important; }
