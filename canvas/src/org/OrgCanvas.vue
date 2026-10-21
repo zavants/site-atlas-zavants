@@ -4,7 +4,7 @@ import type { BlockView, Change, EffectiveLink, OverlayOp, SiteMap, Target } fro
 import { t } from '../strings';
 import { createCamera } from './camera';
 import { anchorPoint, curve, freeSpot, nearestTarget, normPath, type Candidate, type Point, type Rect } from './geometry';
-import { autoLayout, blockIndex, buildDiagrams, linksByOwner, orgContextKey, type DiagramModel, type Mode, type PieceModel } from './diagrams';
+import { autoLayout, blockIndex, TRASH, buildDiagrams, linksByOwner, orgContextKey, type DiagramModel, type Mode, type PieceModel } from './diagrams';
 import { usePieceDrag, type DragState } from './usePieceDrag';
 import Diagram, { type ZoneItem } from './Diagram.vue';
 import Wires, { type WireColor, type WireModel } from './Wires.vue';
@@ -231,14 +231,17 @@ function startMoveNode(e: PointerEvent, d: DiagramModel) {
     moved = true;
     scheduleDraw();
   };
-  const up = async () => {
+  const up = async (ev: PointerEvent) => {
     window.removeEventListener('pointermove', move);
     window.removeEventListener('pointerup', up);
     window.removeEventListener('pointercancel', up);
     movingId.value = null;
     document.body.classList.remove('dragging');
     const at = livePos[d.id];
-    if (moved && at) await props.act([{ type: 'setLayout', id: d.id, x: at.x, y: at.y }]);
+    // Dropped on Delete: a diagram there would hide behind it. Snap back; a planned page asks to be deleted.
+    const onTrash = d.id !== TRASH && document.elementsFromPoint(ev.clientX, ev.clientY).some((el) => (el as HTMLElement).dataset?.id === TRASH);
+    if (onTrash && d.kind === 'planned') askDeletePage(d);
+    else if (moved && at && !onTrash) await props.act([{ type: 'setLayout', id: d.id, x: at.x, y: at.y }]);
     delete livePos[d.id];
     scheduleDraw();
   };
