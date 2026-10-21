@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { t } from '../strings';
 
-export type WireColor = 'section' | 'page' | 'missing' | 'external' | 'edited' | 'added';
+export type WireColor = 'section' | 'page' | 'missing' | 'external' | 'edited' | 'added' | 'removed';
 
 export interface WireModel {
   id: string;
@@ -62,12 +62,14 @@ const emit = defineEmits<{ handleDown: [e: PointerEvent, wire: WireModel] }>();
 .wire.external { stroke: var(--line-gray); }
 .wire.edited { stroke: var(--line-green); stroke-width: 2.4; stroke-dasharray: 6 4; }
 .wire.added { stroke: var(--line-violet); stroke-dasharray: 2 4; }
+.wire.removed { stroke: var(--line-gray); stroke-dasharray: 1 5; opacity: 0.45; }
 .handle { fill: var(--surface); stroke-width: 2; stroke: var(--line-blue); }
 .handle.interactive { pointer-events: all; cursor: crosshair; }
 .handle.missing { stroke: var(--line-red); }
 .handle.external { stroke: var(--line-gray); }
 .handle.edited { stroke: var(--line-green); }
 .handle.added { stroke: var(--line-violet); }
+.handle.removed { stroke: var(--line-gray); }
 .ghost { fill: none; stroke-width: 2; stroke-dasharray: 4 4; stroke: var(--line-green); }
 .ghost.added { stroke: var(--line-violet); }
 </style>

@@ -10,7 +10,7 @@ import { displaced } from './order.js';
 // ops.ts imports applyConfirmation from here and this module imports helpers from ops.ts.
 // The cycle is safe only while neither module uses the other at top level: keep it that way.
 
-export type ChangeType = 'newPage' | 'move' | 'reorder' | 'delete' | 'relink' | 'addLink';
+export type ChangeType = 'newPage' | 'move' | 'reorder' | 'delete' | 'relink' | 'addLink' | 'unlink';
 export type ChangeStatus = 'pending' | 'applied';
 
 export interface Change {
@@ -90,7 +90,7 @@ export function relinkObserved(scan: Scan, overlay: Overlay, id: string, target:
   return observedLink(scan, overlay, ownerId, target);
 }
 
-/** The plan as a list of changes, in the order newPage, move, delete, reorder, relink, addLink. */
+/** The plan as a list of changes, in the order newPage, move, delete, reorder, relink, addLink, unlink. */
 export function deriveChanges(scan: Scan, overlay: Overlay): Change[] {
   return new Planner(scan, overlay).changes();
 }
@@ -112,7 +112,7 @@ class Planner {
   }
 
   changes(): Change[] {
-    const all = [...this.newPages(), ...this.moves(), ...this.deletes(), ...this.reorders(), ...this.relinks(), ...this.addedLinks()];
+    const all = [...this.newPages(), ...this.moves(), ...this.deletes(), ...this.reorders(), ...this.relinks(), ...this.addedLinks(), ...this.unlinks()];
     const seen = new Set<string>();
     return all
       .filter((c) => !seen.has(c.id) && seen.add(c.id))
@@ -344,6 +344,44 @@ class Planner {
                 resolves: this.issueRefs(resolves),
               },
               doneWhen: en.plan.done.relink(text, label, href),
+              by: link.by ?? 'canvas',
+            }),
+          );
+        }
+      }
+    }
+    return out;
+  }
+
+  private unlinks(): Change[] {
+    const out: Change[] = [];
+    const done = new Set<string>();
+    for (const page of this.scan.pages) {
+      for (const block of page.blocks) {
+        for (const link of effectiveLinks(block, this.scan, this.overlay)) {
+          if (!link.removed || done.has(link.id)) continue;
+          done.add(link.id);
+          const { label, info } = this.ownerInfo(link.owner);
+          const text = link.text.trim() || link.href;
+          const hrefs = new Set([link.href, normalizeUrl(link.href, this.scan.environment.origin + this.scan.environment.basePath)]);
+          const owned = new Set(this.ownedBlocks(link.owner).map((b) => b.block.key));
+          const resolves = this.scan.issues.filter(
+            (i) => (i.rule === 'broken-link' || i.rule === 'missing-anchor') && owned.has(i.blockKey ?? '') && hrefs.has(i.id.split('|').slice(3).join('|')),
+          );
+          out.push(
+            this.change('unlink', [link.id], {
+              // The link is still in the scan: a re-scan without it drops the removal from the overlay.
+              observed: false,
+              summary: en.plan.summary.unlink(text, label, link.href),
+              details: {
+                linkId: link.id,
+                owner: info,
+                linkText: link.text.trim(),
+                currentHref: link.href,
+                currentTarget: link.target && this.hasKnownTarget(link.target) ? this.targetInfo(link.target) : null,
+                resolves: this.issueRefs(resolves),
+              },
+              doneWhen: en.plan.done.unlink(text, label, link.href),
               by: link.by ?? 'canvas',
             }),
           );

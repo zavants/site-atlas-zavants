@@ -67,7 +67,7 @@ describe('buildMap v2', () => {
     expect(m.layout).toEqual({ '/otra': { x: 10, y: 20 } });
   });
 
-  it('exposes exactly the six plan fields the canvas history snapshots', () => {
+  it('exposes exactly the seven plan fields the canvas history snapshots', () => {
     let o = applyOp(overlay, scan, { type: 'addPlannedPage', path: '/nueva', title: 'Nueva' });
     o = applyOp(o, scan, { type: 'addLink', owner: '/#top', to: { page: '/nueva' } });
     o = applyOp(o, scan, { type: 'createTag', name: 'x' });
@@ -79,6 +79,7 @@ describe('buildMap v2', () => {
       layout: o.layout,
       linkEdits: o.linkEdits,
       addedLinks: o.addedLinks,
+      removedLinks: o.removedLinks,
     });
   });
 });

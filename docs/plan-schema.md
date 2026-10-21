@@ -9,7 +9,7 @@ Read it with `atlas_get_plan { site, status? }` (MCP), `site-atlas plan <site> [
 ```ts
 {
   schemaVersion: 2;
-  changes: Change[];   // in the order newPage, move, delete, reorder, relink, addLink
+  changes: Change[];   // in the order newPage, move, delete, reorder, relink, addLink, unlink
   markdown: string;    // the same plan as text (MCP and CLI print it)
 }
 ```
@@ -19,7 +19,7 @@ Read it with `atlas_get_plan { site, status? }` (MCP), `site-atlas plan <site> [
 ```ts
 {
   id: string;          // "<type>:<10 hex chars>", stable (see "Change identity")
-  type: 'newPage' | 'move' | 'reorder' | 'delete' | 'relink' | 'addLink';
+  type: 'newPage' | 'move' | 'reorder' | 'delete' | 'relink' | 'addLink' | 'unlink';
   status: 'pending' | 'applied';
   observed: boolean | null;
   summary: string;     // one line in English
@@ -49,6 +49,7 @@ Ids are content hashes, nothing more: the user layer keeps each confirmation und
 | `delete` | `blockKey` |
 | `relink` | `linkId`, target identity (`blockKey`, or page path / external origin) |
 | `addLink` | source owner, target identity |
+| `unlink` | `linkId` |
 
 ### Paths and hrefs
 
@@ -72,6 +73,7 @@ Page paths (`/`, `/otra`) are relative to the scan's base URL (`origin + basePat
 | `reorder` | `section: Section`, `page`, `position` (1-based), `previousSection`, `nextSection`, `resolves` | `true` when the scan already has the section right after the same section |
 | `relink` | `linkId`, `owner: Owner`, `linkText`, `currentHref`, `currentTarget: Target\|null`, `target: Target`, `suggestedHref`, `needsAnchor: boolean`, `resolves: Issue[]` (broken link / missing anchor of this link) | `true` only when the edited link (same href and text) is no longer among the owner's scanned links and the owner now links to the target (same page and, for a section, its anchor) |
 | `addLink` | `linkId` (the added connector's id), `owner: Owner`, `label: string\|null`, `target: Target`, `suggestedHref`, `needsAnchor: boolean`, `resolves` | `true` when the owner's scanned links already include one to the target (same page and, for a section, its anchor); link text does not matter |
+| `unlink` | `linkId`, `owner: Owner`, `linkText`, `currentHref`, `currentTarget: Target\|null`, `resolves: Issue[]` (broken link / missing anchor this removal fixes) | always `false`: a re-scan in which the link is gone drops the removal from the overlay |
 
 `position`, `previousSection` and `nextSection` count only the sections that stay on the page (sections planned for deletion are left out). `needsAnchor` is `true` when the target section has no `id` on the site yet: add one so the link can point to it.
 

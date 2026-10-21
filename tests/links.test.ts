@@ -118,7 +118,7 @@ describe('link ops', () => {
 
   it('replacePlanFields replaces exactly the six fields', () => {
     const o0 = { ...base(), tags: [{ id: 't', name: 'T', color: '#000' }], confirmations: { k: { at: 'a', by: 'b', note: 'n' } } };
-    const fields = { plannedOrder: { '/': ['/#top'] }, plannedPages: [], plannedDeletions: ['/#top'], layout: { '/': { x: 1, y: 1 } }, linkEdits: {}, addedLinks: [] };
+    const fields = { plannedOrder: { '/': ['/#top'] }, plannedPages: [], plannedDeletions: ['/#top'], layout: { '/': { x: 1, y: 1 } }, linkEdits: {}, addedLinks: [], removedLinks: { 'x|y|z': { by: 'canvas' } } };
     const o = run(o0, { type: 'replacePlanFields', fields });
     expect(o).toEqual({ ...o0, ...fields });
   });
