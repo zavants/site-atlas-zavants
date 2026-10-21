@@ -277,23 +277,25 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
       throw new OpError(en.op.noLink(op.linkId));
     }
     case 'removePlannedPage': {
-      if (!overlay.plannedPages.some((p) => p.path === op.path)) throw new OpError(en.op.noPage(op.path));
-      const page: Target = { page: op.path };
+      // Exact match first, so pages stored before paths were normalized can still be removed.
+      const path = overlay.plannedPages.some((p) => p.path === op.path) ? op.path : normPagePath(op.path);
+      if (!overlay.plannedPages.some((p) => p.path === path)) throw new OpError(en.op.noPage(op.path));
+      const page: Target = { page: path };
       const plannedOrder = { ...overlay.plannedOrder };
-      delete plannedOrder[op.path];
+      delete plannedOrder[path];
       const layout = { ...overlay.layout };
-      delete layout[op.path];
-      const { [`newPage|${op.path}`]: _author, ...authors } = overlay.authors;
+      delete layout[path];
+      const { [`newPage|${path}`]: _author, ...authors } = overlay.authors;
       return {
         ...overlay,
         authors,
-        plannedPages: overlay.plannedPages.filter((p) => p.path !== op.path),
+        plannedPages: overlay.plannedPages.filter((p) => p.path !== path),
         plannedOrder,
         layout,
         linkEdits: Object.fromEntries(
           Object.entries(overlay.linkEdits).filter(([, { by: _by, ...t }]) => !sameTarget(t as Target, page)),
         ),
-        addedLinks: overlay.addedLinks.filter((l) => !sameTarget(l.to, page) && l.from !== op.path),
+        addedLinks: overlay.addedLinks.filter((l) => !sameTarget(l.to, page) && l.from !== path),
       };
     }
     case 'setLayout': {
