@@ -276,12 +276,25 @@ describe('org chart canvas', () => {
     expect(await panel.count()).toBe(0);
 
     const chips = page.getByTestId('auto-tag');
-    expect(await chips.count()).toBe(3);
+    expect(await chips.count()).toBe(5);
     // The fixture's quote section holds the form: filtering by Form dims every other piece.
     await page.locator('[data-testid="auto-tag"][data-id="auto:form"]').click();
     await expect.poll(() => piece('/', '/#top').evaluate((el) => getComputedStyle(el).opacity)).toBe('0.3');
     expect(await piece('/', '/#cotizacion').evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
     await page.locator('[data-testid="auto-tag"][data-id="auto:form"]').click();
+  });
+
+  it('removes every link to a NOT FOUND or external target from its ×, and the target goes away', async () => {
+    const target = page.locator('[data-testid="diagram"]:is([data-kind="missing"], [data-kind="external"])').first();
+    const id = (await target.getAttribute('data-id'))!;
+    const before = (await pending('unlink')).length;
+    await target.getByTestId('delete-page').click();
+    const dialog = page.getByTestId('delete-page-dialog');
+    await dialog.getByRole('button', { name: t.dialogs.removeLinks }).click();
+    await expect.poll(async () => (await pending('unlink')).length).toBeGreaterThan(before);
+    await expect.poll(() => page.locator(`[data-testid="diagram"][data-id=${JSON.stringify(id)}]`).count()).toBe(0);
+    await page.getByTestId('undo').click();
+    await expect.poll(async () => (await pending('unlink')).length).toBe(before);
   });
 
   it('removes a site link from its end circle and keeps it again', async () => {
@@ -309,7 +322,10 @@ describe('org chart canvas', () => {
     await page.mouse.move(a.x, a.y);
     await page.mouse.down();
     await glide(a, await center(diagram('~delete')), 14);
+    // Over the trash, a hint says the piece will be deleted on release.
+    expect(await page.getByTestId('trash-hint').isVisible()).toBe(true);
     await page.mouse.up();
+    expect(await page.getByTestId('trash-hint').count()).toBe(0);
     await expect.poll(async () => (await pending('delete')).length).toBe(1);
     await expect.poll(() => piece('~delete', '/~pieza-de-impacto').count()).toBe(1);
     // The trash is an icon whose badge counts the marked pieces; a click opens the list.

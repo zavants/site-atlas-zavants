@@ -23,6 +23,19 @@ const live = ref(false);
 const issueLevel = ref<'error' | 'warn' | 'info' | null>(null);
 const shownIssues = computed(() => (map.value && issueLevel.value ? map.value.issues.filter((i) => i.level === issueLevel.value) : []));
 const toggleIssues = (level: 'error' | 'warn' | 'info') => (issueLevel.value = issueLevel.value === level ? null : level);
+/** Issues the pending plan fixes: those its changes list as resolved, and those of sections planned for deletion. */
+const fixedByPlan = computed(() => {
+  const ids = new Set<string>();
+  for (const c of changes.value) {
+    if (c.status !== 'pending') continue;
+    for (const r of (c.details.resolves as { id: string }[] | undefined) ?? []) ids.add(r.id);
+  }
+  const deleted = new Set(map.value?.planFields.plannedDeletions ?? []);
+  for (const i of map.value?.issues ?? []) if (i.blockKey && deleted.has(i.blockKey)) ids.add(i.id);
+  return ids;
+});
+const fixedCount = (level: 'error' | 'warn' | 'info') => (map.value?.issues ?? []).filter((i) => i.level === level && fixedByPlan.value.has(i.id)).length;
+const scanning = ref(false);
 let unsubscribe: (() => void) | null = null;
 
 const history = createHistory(() => map.value!.planFields);
@@ -99,10 +112,12 @@ const reset = () =>
   });
 
 async function startRescan() {
+  scanning.value = true;
   try {
     await rescan(site);
     notice.value = t.head.scanning;
   } catch (e) {
+    scanning.value = false;
     notice.value = (e as Error).message;
   }
 }
@@ -135,6 +150,7 @@ onMounted(async () => {
     if (type === 'ready') live.value = true;
     else if (type === 'progress') notice.value = String(data.msg ?? '');
     else if (type === 'scan') {
+      scanning.value = false;
       // The rescan route and the file watcher both announce a scan: react to the first only.
       void enqueue(async () => {
         if (map.value && data.scanId === map.value.scanId) return;
@@ -168,16 +184,16 @@ onBeforeUnmount(() => unsubscribe?.());
         <h1>{{ map.site }}</h1>
         <span class="muted">{{ map.environment.origin }}{{ map.environment.basePath }} · {{ t.head.scan }} {{ map.scanId }}</span>
         <span class="counts">
-          <button type="button" class="pill err" data-testid="issues-error" :aria-pressed="issueLevel === 'error'" @click="toggleIssues('error')">{{ map.issueCount.error }} {{ t.head.errors }}</button>
-          <button type="button" class="pill warn" data-testid="issues-warn" :aria-pressed="issueLevel === 'warn'" @click="toggleIssues('warn')">{{ map.issueCount.warn }} {{ t.head.warnings }}</button>
-          <button type="button" class="pill info" data-testid="issues-info" :aria-pressed="issueLevel === 'info'" @click="toggleIssues('info')">{{ map.issueCount.info }} {{ t.head.info }}</button>
+          <button type="button" class="pill err" data-testid="issues-error" :aria-pressed="issueLevel === 'error'" @click="toggleIssues('error')">{{ map.issueCount.error }} {{ t.head.errors }}<template v-if="fixedCount('error')"> · {{ t.issues.fixed(fixedCount('error')) }}</template></button>
+          <button type="button" class="pill warn" data-testid="issues-warn" :aria-pressed="issueLevel === 'warn'" @click="toggleIssues('warn')">{{ map.issueCount.warn }} {{ t.head.warnings }}<template v-if="fixedCount('warn')"> · {{ t.issues.fixed(fixedCount('warn')) }}</template></button>
+          <button type="button" class="pill info" data-testid="issues-info" :aria-pressed="issueLevel === 'info'" @click="toggleIssues('info')">{{ map.issueCount.info }} {{ t.head.info }}<template v-if="fixedCount('info')"> · {{ t.issues.fixed(fixedCount('info')) }}</template></button>
         </span>
         <span class="grow" />
         <div class="seg" role="group" :aria-label="t.head.mode">
           <button type="button" data-testid="toggle-real" :aria-pressed="!planned" @click="planned = false">{{ t.head.real }}</button>
           <button type="button" data-testid="toggle-planned" :aria-pressed="planned" @click="planned = true">{{ t.head.planned }}</button>
         </div>
-        <button type="button" data-testid="rescan" @click="startRescan">{{ t.head.rescan }}</button>
+        <button type="button" data-testid="rescan" :disabled="scanning" :aria-busy="scanning" @click="startRescan">{{ scanning ? t.head.scanningShort : t.head.rescan }}</button>
       </div>
       <div class="toolbar">
         <span class="muted">{{ t.head.view }}</span>
@@ -221,8 +237,9 @@ onBeforeUnmount(() => unsubscribe?.());
         <strong>{{ t.issues.title[issueLevel] }}</strong>
         <button type="button" class="close" :aria-label="t.issues.close" @click="issueLevel = null">×</button>
         <ul>
-          <li v-for="i in shownIssues" :key="i.id">
+          <li v-for="i in shownIssues" :key="i.id" :class="{ fixed: fixedByPlan.has(i.id) }">
             {{ i.message }}
+            <span v-if="fixedByPlan.has(i.id)" class="fixed-tag">{{ t.issues.fixedTag }}</span>
             <span class="muted">· {{ i.blockKey ? blockName(i.blockKey) : '' }} {{ t.issues.page(i.page) }}</span>
           </li>
         </ul>
@@ -267,6 +284,8 @@ h1 { font-size: 18px; margin: 0; }
 .counts .pill[aria-pressed='true'] { background: var(--surface); }
 .issues { position: relative; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-size: 13px; }
 .issues ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 3px; }
+.issues li.fixed { color: var(--muted); }
+.fixed-tag { font-size: 11px; color: var(--line-green); border: 1px solid color-mix(in srgb, var(--line-green) 45%, transparent); border-radius: 8px; padding: 0 6px; margin-left: 4px; }
 .issues .close { position: absolute; top: 6px; right: 8px; padding: 0 7px; }
 .err { color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); }
 .warn { color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); }

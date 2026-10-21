@@ -21,6 +21,7 @@ export const t = {
     realHint: 'Real shows the site as scanned. Switch to Planned to edit.',
     rescan: 'Rescan',
     scanning: 'Scan in progress…',
+    scanningShort: 'Scanning…',
     scanDone: 'Scan finished.',
     view: 'View:',
     diagram: 'Diagram',
@@ -69,10 +70,12 @@ export const t = {
     usedOn: (pages: string[]) => `used on: ${pages.join(', ')}`,
     trash: 'Delete',
     trashHint: 'Drop pieces here to mark them for deletion',
+    trashRelease: 'Release to delete',
     trashLabel: (n: number) => `Delete: ${n} marked for deletion`,
     dropHere: 'Drop pieces here',
     externalSite: 'External site',
     deletePage: 'Delete page',
+    removeLinksTo: 'Remove every link to this page',
   },
 
   piece: {
@@ -123,6 +126,9 @@ export const t = {
     createPage: 'Create page',
     pathRequired: 'Write a path, for example /solutions/brokers.',
     pathExists: 'A page with that path already exists.',
+    removeTargetMsg: (title: string, count: number) =>
+      `Remove the ${count} link${count === 1 ? '' : 's'} that point to ${title}? They stay on the site until an AI applies the plan.`,
+    removeLinks: 'Remove links',
     deletePageMsg: (title: string, count: number) =>
       `Delete the page ${title}?` + (count === 1 ? ' Its piece goes back to its real page.' : count ? ` Its ${count} pieces go back to their real pages.` : ''),
     deletePage: 'Delete page',
@@ -138,6 +144,8 @@ export const t = {
   },
 
   autoTags: {
+    'auto:nav': 'Navigation',
+    'auto:hero': 'Hero',
     'auto:form': 'Form',
     'auto:cta': 'Call to action',
     'auto:default': 'Default',
@@ -147,6 +155,8 @@ export const t = {
     title: { error: 'Errors', warn: 'Warnings', info: 'Info' },
     close: 'Close',
     page: (path: string) => `page ${path}`,
+    fixed: (n: number) => `${n} fixed by the plan`,
+    fixedTag: 'fixed by the plan',
   },
   tags: {
     aria: 'Tags',
