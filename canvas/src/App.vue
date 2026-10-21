@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ConflictError, getMap, getPlan, getSites, rescan, sendOp, subscribe, type Change, type OverlayOp, type PlanFields, type SiteMap } from './api';
 import { t } from './strings';
+import Menu from './components/Menu.vue';
+import NavList from './components/NavList.vue';
 import TagBar from './components/TagBar.vue';
+import { AUTO_TAGS, autoColors, CONFIGURABLE, resetAutoColors, saveAutoColors } from './org/autoTags';
 import OrgCanvas from './org/OrgCanvas.vue';
 import { createHistory } from './org/history';
 import { blockIndex, PAGES, type Mode } from './org/diagrams';
@@ -136,24 +139,34 @@ watch(
 
 const components = computed(() => map.value?.components ?? []);
 const blockName = (key: string) => (map.value ? blockIndex(map.value).get(key)?.name : undefined) ?? key;
-/** Component being renamed inline (window.prompt is not available in embedded browsers). */
-const renaming = ref<string | null>(null);
-const renameDraft = ref('');
-async function startRename(id: string, current: string) {
-  renaming.value = id;
-  renameDraft.value = current;
-  await nextTick();
-  const el = document.querySelector<HTMLInputElement>('[data-testid="rename-component"]');
-  el?.focus();
-  el?.select();
-}
 /** Not an undo step: history only snapshots plan fields, and component names are not one (spec §10b). */
-function renameComponent(id: string, current: string) {
-  if (renaming.value !== id) return;
-  renaming.value = null;
-  const name = renameDraft.value.trim();
-  if (name && name !== current) void act([{ type: 'renameComponent', componentId: id, name }], false);
+const renameComponent = (id: string, name: string) => void act([{ type: 'renameComponent', componentId: id, name }], false);
+
+/** Which optional bars show under the menus: a per-browser preference. */
+const UI_KEY = 'site-atlas:ui';
+const ui = ref({ navBar: false, filterBar: false, legend: true });
+try {
+  Object.assign(ui.value, JSON.parse(localStorage.getItem(UI_KEY) ?? '{}'));
+} catch {
+  // Storage blocked or unreadable: defaults.
 }
+watch(ui, (v) => {
+  try {
+    localStorage.setItem(UI_KEY, JSON.stringify(v));
+  } catch {
+    // Storage blocked: the choice lasts for this visit only.
+  }
+}, { deep: true });
+
+const viewName = computed(() => (view.value === PAGES ? t.head.pages : components.value.find((c) => c.id === view.value)?.name ?? t.head.pages));
+const filterName = computed(() => {
+  const id = filterTag.value;
+  if (!id) return null;
+  if (id.startsWith('auto:')) return { name: t.autoTags[id as (typeof AUTO_TAGS)[number]], color: autoColors[id as (typeof AUTO_TAGS)[number]] };
+  const tag = map.value?.tags.find((x) => x.id === id);
+  return tag ? { name: tag.name, color: tag.color } : null;
+});
+const colorsDlg = ref<HTMLDialogElement | null>(null);
 watch(components, (list) => {
   if (view.value !== PAGES && !list.some((c) => c.id === view.value)) view.value = PAGES;
 });
@@ -213,46 +226,51 @@ onBeforeUnmount(() => unsubscribe?.());
         </div>
         <button type="button" data-testid="rescan" :disabled="scanning" :aria-busy="scanning" @click="startRescan">{{ scanning ? t.head.scanningShort : t.head.rescan }}</button>
       </div>
-      <div class="toolbar">
-        <span class="muted">{{ t.head.view }}</span>
-        <div class="seg">
-          <button type="button" data-testid="view-diagram" :aria-pressed="mode === 'diagram'" @click="mode = 'diagram'">{{ t.head.diagram }}</button>
-          <button type="button" data-testid="view-screenshots" :aria-pressed="mode === 'shots'" @click="mode = 'shots'">{{ t.head.screenshots }}</button>
-        </div>
+      <nav class="menubar" :aria-label="t.menus.aria">
+        <Menu id="navigation" :label="`${t.menus.navigation} · ${viewName}`" v-slot="{ close }">
+          <NavList :components="components" :view="view" @select="(v) => { view = v; close(); }" @rename="renameComponent" />
+          <p class="muted note">{{ t.menus.navigationHint }}</p>
+        </Menu>
+        <Menu id="filters" :label="t.menus.filters">
+          <TagBar :map="map"
+          :filter-tag="filterTag"
+          @filter="(id) => (filterTag = id)"
+          @create="(name) => act([{ type: 'createTag', name }], false)"
+          @rename="(tagId, name) => act([{ type: 'renameTag', tagId, name }], false)"
+          @remove="(tagId) => act([{ type: 'deleteTag', tagId }], false)" />
+        </Menu>
+        <Menu id="views" :label="`${t.menus.views} · ${mode === 'diagram' ? t.head.diagram : t.head.screenshots}`">
+          <span class="group muted">{{ t.menus.canvas }}</span>
+          <div class="seg">
+            <button type="button" data-testid="view-diagram" :aria-pressed="mode === 'diagram'" @click="mode = 'diagram'">{{ t.head.diagram }}</button>
+            <button type="button" data-testid="view-screenshots" :aria-pressed="mode === 'shots'" @click="mode = 'shots'">{{ t.head.screenshots }}</button>
+          </div>
+          <label class="check"><input v-model="showAnchors" type="checkbox" data-testid="anchors-toggle" /> {{ t.head.anchors }}</label>
+          <span class="group muted">{{ t.menus.bars }}</span>
+          <label class="check"><input v-model="ui.navBar" type="checkbox" data-testid="bar-navigation" /> {{ t.menus.navBar }}</label>
+          <label class="check"><input v-model="ui.filterBar" type="checkbox" data-testid="bar-filters" /> {{ t.menus.filterBar }}</label>
+          <label class="check"><input v-model="ui.legend" type="checkbox" data-testid="bar-legend" /> {{ t.menus.legend }}</label>
+        </Menu>
+        <Menu id="options" :label="t.menus.options" v-slot="{ close }">
+          <button type="button" class="item" data-testid="open-tag-colors" @click="close(); colorsDlg?.showModal()">{{ t.options.colors }}</button>
+        </Menu>
+        <span v-if="filterName" class="active-filter" data-testid="active-filter">
+          <i class="dot" :style="{ background: filterName.color }" />{{ t.menus.filteredBy(filterName.name) }}
+          <button type="button" class="clear" :aria-label="t.menus.clearFilter" @click="filterTag = null">×</button>
+        </span>
+      </nav>
+      <div v-if="ui.navBar" class="strip">
         <span class="muted">{{ t.head.show }}</span>
-        <button type="button" data-testid="show-pages" :aria-pressed="view === PAGES" @click="view = PAGES">{{ t.head.pages }}</button>
-        <template v-for="c in components" :key="c.id">
-          <input
-            v-if="renaming === c.id"
-            v-model="renameDraft"
-            class="rename"
-            data-testid="rename-component"
-            :aria-label="t.head.renameComponent"
-            @keydown.enter="renameComponent(c.id, c.name)"
-            @keydown.esc="renaming = null"
-            @blur="renameComponent(c.id, c.name)"
-          />
-          <button
-            v-else
-            type="button"
-            data-testid="show-component"
-            :data-id="c.id"
-            :aria-pressed="view === c.id"
-            :title="t.head.renameComponentHint"
-            @click="view = c.id"
-            @dblclick="startRename(c.id, c.name)"
-          >{{ c.name }}</button>
-        </template>
-        <label class="check"><input v-model="showAnchors" type="checkbox" data-testid="anchors-toggle" /> {{ t.head.anchors }}</label>
+        <NavList inline :components="components" :view="view" @select="(v) => (view = v)" @rename="renameComponent" />
       </div>
-      <TagBar
-        :map="map"
-        :filter-tag="filterTag"
-        @filter="(id) => (filterTag = id)"
-        @create="(name) => act([{ type: 'createTag', name }], false)"
-        @rename="(tagId, name) => act([{ type: 'renameTag', tagId, name }], false)"
-        @remove="(tagId) => act([{ type: 'deleteTag', tagId }], false)"
-      />
+      <div v-if="ui.filterBar" class="strip">
+        <TagBar inline :map="map"
+          :filter-tag="filterTag"
+          @filter="(id) => (filterTag = id)"
+          @create="(name) => act([{ type: 'createTag', name }], false)"
+          @rename="(tagId, name) => act([{ type: 'renameTag', tagId, name }], false)"
+          @remove="(tagId) => act([{ type: 'deleteTag', tagId }], false)" />
+      </div>
       <section v-if="map.orphans.length" class="orphans" :aria-label="t.orphans.title">
         <strong>{{ t.orphans.title }}</strong>
         <span class="muted">{{ t.orphans.hint }}</span>
@@ -276,7 +294,7 @@ onBeforeUnmount(() => unsubscribe?.());
         </ul>
       </section>
       <p v-if="notice" class="notice" role="status">{{ notice }}</p>
-      <p class="muted hint">{{ planned ? t.head.legend : t.head.realHint }}</p>
+      <p v-if="ui.legend" class="muted hint">{{ planned ? t.head.legend : t.head.realHint }}</p>
     </header>
 
     <OrgCanvas
@@ -296,6 +314,19 @@ onBeforeUnmount(() => unsubscribe?.());
       :reset="reset"
     />
     <p class="muted hint foot">{{ t.canvasHint }}</p>
+    <dialog ref="colorsDlg" class="colors" data-testid="tag-colors-dialog">
+      <h2>{{ t.options.colorsTitle }}</h2>
+      <p class="muted">{{ t.options.colorsHint }}</p>
+      <label v-for="id in CONFIGURABLE" :key="id" class="color-row">
+        <input v-model="autoColors[id]" type="color" :data-testid="`color-${id}`" @change="saveAutoColors" />
+        {{ t.autoTags[id] }}
+      </label>
+      <p class="color-row muted"><i class="dot" :style="{ background: autoColors['auto:default'] }" /> {{ t.autoTags['auto:default'] }} · {{ t.options.defaultFixed }}</p>
+      <div class="row">
+        <button type="button" @click="resetAutoColors">{{ t.options.reset }}</button>
+        <button type="button" class="primary" @click="colorsDlg?.close()">{{ t.options.done }}</button>
+      </div>
+    </dialog>
   </main>
 
   <main v-else class="home">
@@ -321,13 +352,26 @@ h1 { font-size: 18px; margin: 0; }
 .err { color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); }
 .warn { color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); }
 .info { color: var(--muted); border: 1px solid var(--border); }
-.toolbar { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; font-size: 13px; }
+.menubar { display: flex; flex-wrap: wrap; gap: 2px 4px; align-items: center; font-size: 13px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.strip { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; font-size: 13px; }
+.group { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 4px; }
+.note { margin: 2px 0 0; font-size: 11px; }
+.item { text-align: left; }
+.active-filter { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; padding: 2px 4px 2px 10px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.active-filter .clear { border: none; background: none; padding: 0 6px; color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+dialog.colors { border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; background: var(--surface); color: var(--text); min-width: 300px; }
+dialog.colors h2 { font-size: 15px; margin: 0 0 4px; }
+dialog.colors::backdrop { background: rgba(0, 0, 0, 0.3); }
+.color-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+.color-row input { width: 34px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: none; }
+.row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
 .seg { display: inline-flex; }
 .seg button:first-child { border-radius: 6px 0 0 6px; }
 .seg button:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
 .seg button[aria-pressed='true'] { position: relative; z-index: 1; }
-.rename { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--accent); border-radius: 6px; padding: 4px 8px; width: 160px; }
-.check { display: inline-flex; gap: 6px; align-items: center; margin-left: 8px; }
+.check { display: flex; gap: 8px; align-items: center; }
 .notice { margin: 0; font-size: 13px; color: var(--accent); }
 .hint { margin: 0; font-size: 12px; }
 .foot { text-align: right; }
