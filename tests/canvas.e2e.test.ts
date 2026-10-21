@@ -194,6 +194,8 @@ describe('org chart canvas', () => {
         await record();
       }
     }
+    // The page stays painted mid-drag (a stray `body.dragging { opacity: 0 }` once blanked it).
+    expect(await page.evaluate(() => [document.body.classList.contains('dragging'), getComputedStyle(document.body).opacity])).toEqual([true, '1']);
     await page.mouse.up();
 
     // The floating piece stays stuck to the grab point (within a pixel) at every step.
