@@ -178,7 +178,7 @@ export const en = {
     tagNeedsName: 'A tag needs a name.',
     noPage: (path: string) => `Page ${path} does not exist.`,
     globalBlock: (name: string) => `"${name}" is a global block: it is shared across pages and cannot be moved.`,
-    componentBlock: (name: string) => `"${name}" belongs to a shared component: components don't move between pages.`,
+    componentBlock: (name: string) => `"${name}" is a shared component and cannot be moved.`,
     pageExists: (path: string) => `Page ${path} already exists.`,
     noOrphan: (key: string) => `Orphan ${key} does not exist.`,
     orphanNeedsTarget: 'The block to assign the orphan to is missing.',

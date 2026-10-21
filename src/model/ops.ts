@@ -177,7 +177,8 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
       if (!orders.has(op.toPage)) throw new OpError(en.op.noPage(op.toPage));
       const from = [...orders].find(([, keys]) => keys.includes(op.blockKey))?.[0];
       if (block.global) throw new OpError(en.op.globalBlock(block.name));
-      if (componentOf(block, overlay.components)) throw new OpError(en.op.componentBlock(block.name));
+      const component = componentOf(block, overlay.components);
+      if (component) throw new OpError(en.op.componentBlock(overlay.components[component]!.name));
       const plannedOrder = { ...overlay.plannedOrder };
       if (from) plannedOrder[from] = orders.get(from)!.filter((k) => k !== op.blockKey);
       const target = (from === op.toPage ? plannedOrder[op.toPage] : orders.get(op.toPage))!.filter((k) => k !== op.blockKey);
