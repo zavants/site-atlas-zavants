@@ -114,6 +114,13 @@ program
     propose(site, { type: 'relink', owner, linkText: o.text, linkHref: o.href, to: targetOf(o), by: BY }),
   );
 
+program
+  .command('unlink <site> <owner>')
+  .description(en.cli.unlink)
+  .requiredOption('--text <text>', en.cli.linkText)
+  .requiredOption('--href <href>', en.cli.linkHref)
+  .action((site: string, owner: string, o: { text: string; href: string }) => propose(site, { type: 'unlink', owner, linkText: o.text, linkHref: o.href, by: BY }));
+
 const link = program.command('link').description(en.cli.link);
 link
   .command('add <site> <owner>')

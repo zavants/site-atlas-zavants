@@ -144,8 +144,10 @@ describe('org chart canvas', () => {
   it('renames a component by double-clicking its Show button, outside the undo history', async () => {
     const undoBefore = await page.getByTestId('undo').isEnabled();
     const button = page.locator(`[data-testid="show-component"][data-id="${header}"]`);
-    page.once('dialog', (d) => void d.accept('Main header'));
     await button.dblclick();
+    // Typed inline: embedded browsers may not support window.prompt.
+    await page.getByTestId('rename-component').fill('Main header');
+    await page.getByTestId('rename-component').press('Enter');
     await expect.poll(async () => (await serverMap()).components.find((c) => c.id === header)!.name).toBe('Main header');
     await expect.poll(() => button.textContent()).toBe('Main header');
     expect(await page.getByTestId('undo').isEnabled()).toBe(undoBefore);
@@ -204,6 +206,8 @@ describe('org chart canvas', () => {
         await record();
       }
     }
+    // The page stays painted mid-drag (a stray `body.dragging { opacity: 0 }` once blanked it).
+    expect(await page.evaluate(() => [document.body.classList.contains('dragging'), getComputedStyle(document.body).opacity])).toEqual([true, '1']);
     await page.mouse.up();
 
     // The floating piece stays stuck to the grab point (within a pixel) at every step.
@@ -271,8 +275,57 @@ describe('org chart canvas', () => {
     await page.mouse.up();
     const dialog = page.getByTestId('delete-connector-dialog');
     await expect.poll(() => dialog.evaluate((d) => (d as HTMLDialogElement).open)).toBe(true);
-    await dialog.getByRole('button', { name: t.dialogs.deleteConnector }).click();
+    await dialog.getByRole('button', { name: t.dialogs.linkAction.delete }).click();
     await expect.poll(async () => (await pending('addLink')).length).toBe(0);
+  });
+
+  it('lists the issues of a counter and filters by the detected tags', async () => {
+    const m = await serverMap();
+    await page.getByTestId('issues-warn').click();
+    const panel = page.getByTestId('issues-panel');
+    await expect.poll(() => panel.locator('li').count()).toBe(m.issueCount.warn);
+    await page.getByTestId('issues-warn').click();
+    expect(await panel.count()).toBe(0);
+
+    const chips = page.getByTestId('auto-tag');
+    expect(await chips.count()).toBe(5);
+    // The fixture's quote section holds the form: filtering by Form dims every other piece.
+    await page.locator('[data-testid="auto-tag"][data-id="auto:form"]').click();
+    await expect.poll(() => piece('/', '/#top').evaluate((el) => getComputedStyle(el).opacity)).toBe('0.3');
+    expect(await piece('/', '/#cotizacion').evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
+    await page.locator('[data-testid="auto-tag"][data-id="auto:form"]').click();
+  });
+
+  it('removes every link to a NOT FOUND or external target from its ×, and the target goes away', async () => {
+    const target = page.locator('[data-testid="diagram"]:is([data-kind="missing"], [data-kind="external"])').first();
+    const id = (await target.getAttribute('data-id'))!;
+    const before = (await pending('unlink')).length;
+    await target.getByTestId('delete-page').click();
+    const dialog = page.getByTestId('delete-page-dialog');
+    await dialog.getByRole('button', { name: t.dialogs.removeLinks }).click();
+    await expect.poll(async () => (await pending('unlink')).length).toBeGreaterThan(before);
+    await expect.poll(() => page.locator(`[data-testid="diagram"][data-id=${JSON.stringify(id)}]`).count()).toBe(0);
+    await page.getByTestId('undo').click();
+    await expect.poll(async () => (await pending('unlink')).length).toBe(before);
+  });
+
+  it('removes a site link from its end circle and keeps it again', async () => {
+    const wire = page.locator('[data-testid="wire"]:is([data-color="page"], [data-color="missing"], [data-color="section"])').first();
+    const id = (await wire.getAttribute('data-link'))!;
+    const clickEnd = async () => {
+      const h = await center(page.locator(`[data-testid="wire-handle"][data-link=${JSON.stringify(id)}]`));
+      await page.mouse.move(h.x, h.y);
+      await page.mouse.down();
+      await page.mouse.up();
+    };
+    const dialog = page.getByTestId('delete-connector-dialog');
+    await clickEnd();
+    await dialog.getByRole('button', { name: t.dialogs.linkAction.remove }).click();
+    await expect.poll(async () => (await pending('unlink')).length).toBe(1);
+    await expect.poll(() => page.locator(`[data-testid="wire"][data-link=${JSON.stringify(id)}]`).getAttribute('data-color')).toBe('removed');
+    await clickEnd();
+    await dialog.getByRole('button', { name: t.dialogs.linkAction.restore }).click();
+    await expect.poll(async () => (await pending('unlink')).length).toBe(0);
   });
 
   it('marks a piece for deletion by dropping it on the Delete diagram', async () => {
@@ -281,9 +334,18 @@ describe('org chart canvas', () => {
     await page.mouse.move(a.x, a.y);
     await page.mouse.down();
     await glide(a, await center(diagram('~delete')), 14);
+    // Over the trash, a hint says the piece will be deleted on release.
+    expect(await page.getByTestId('trash-hint').isVisible()).toBe(true);
     await page.mouse.up();
+    expect(await page.getByTestId('trash-hint').count()).toBe(0);
     await expect.poll(async () => (await pending('delete')).length).toBe(1);
     await expect.poll(() => piece('~delete', '/~pieza-de-impacto').count()).toBe(1);
+    // The trash is an icon whose badge counts the marked pieces; a click opens the list.
+    await expect.poll(() => page.getByTestId('trash-badge').textContent()).toBe('1');
+    expect(await piece('~delete', '/~pieza-de-impacto').isVisible()).toBe(false);
+    await diagram('~delete').getByTestId('diagram-title').click();
+    expect(await piece('~delete', '/~pieza-de-impacto').isVisible()).toBe(true);
+    await diagram('~delete').getByTestId('diagram-title').click();
   });
 
   it('creates a planned page with a normalized path and rejects duplicates inside the dialog', async () => {
@@ -297,6 +359,27 @@ describe('org chart canvas', () => {
     await diagram('/precios/nuevos').waitFor();
     expect(await diagram('/precios/nuevos').textContent()).toContain(t.diagram.planned);
     await expect.poll(async () => (await serverMap()).layout['/precios/nuevos']).toBeTruthy();
+  });
+
+  it('does not park a diagram behind Delete: a page snaps back, a planned page asks to be deleted', async () => {
+    const dropOnTrash = async (id: string) => {
+      const a = await center(diagram(id).getByTestId('diagram-title'));
+      const b = await center(diagram('~delete'));
+      await page.mouse.move(a.x, a.y);
+      await page.mouse.down();
+      await glide(a, b, 10);
+      await page.mouse.up();
+    };
+    await page.getByTestId("zoom-fit").click();
+    const before = (await serverMap()).layout;
+    await dropOnTrash('/otra');
+    await dropOnTrash('/precios/nuevos');
+    const dialog = page.getByTestId('delete-page-dialog');
+    await expect.poll(() => dialog.evaluate((d) => (d as HTMLDialogElement).open)).toBe(true);
+    await dialog.getByRole('button', { name: t.dialogs.cancel }).click();
+    const after = (await serverMap()).layout;
+    expect(after['/otra']).toEqual(before['/otra']);
+    expect(after['/precios/nuevos']).toEqual(before['/precios/nuevos']);
   });
 
   it('resets the history notice when another client writes: reload, clear history, show the notice', async () => {
@@ -338,8 +421,10 @@ describe('org chart canvas', () => {
     await details.waitFor();
     expect(await details.evaluate((el) => getComputedStyle(el).userSelect)).toBe('text');
     expect(await details.textContent()).toContain(t.piece.type);
-    page.once('dialog', (d) => void d.accept('Trust'));
+    // No window.prompt: the name is typed inline, since embedded browsers may not support prompt().
     await page.getByTestId('new-tag').click();
+    await page.getByTestId('new-tag-name').fill('Trust');
+    await page.getByTestId('new-tag-name').press('Enter');
     await details.getByLabel('Trust').check();
     await expect.poll(async () => (await serverMap()).pages[0]!.blocks.find((b) => b.key === '/#top')!.tags.length).toBe(1);
     await page.getByTestId('tag-filter').filter({ hasText: 'Trust' }).click();
@@ -355,14 +440,14 @@ describe('org chart canvas', () => {
     const pieces = page.locator('[data-testid="piece"]');
     await expect.poll(() => pieces.count()).toBeGreaterThan(5);
     await expect
-      .poll(() => pieces.evaluateAll((els) => els.every((el) => { const img = el.querySelector('img.cap') as HTMLImageElement | null; return !!img && img.complete && img.naturalWidth > 0 && img.getBoundingClientRect().width > 0; })))
+      .poll(() => pieces.evaluateAll((els) => els.every((el) => { if (el.closest('[data-id="~delete"]')) return true; const img = el.querySelector('img.cap') as HTMLImageElement | null; return !!img && img.complete && img.naturalWidth > 0 && img.getBoundingClientRect().width > 0; })))
       .toBe(true);
-    const boxes = await page.locator('[data-testid="diagram"]').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; }));
+    const boxes = await page.locator('[data-testid="diagram"]').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { id: e.getAttribute("data-id"), x: r.left, y: r.top, w: r.width, h: r.height }; }));
     for (let i = 0; i < boxes.length; i++) {
       for (let j = i + 1; j < boxes.length; j++) {
         const a = boxes[i]!, b = boxes[j]!;
         const overlap = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-        expect(overlap, `diagrams ${i} and ${j} overlap`).toBe(false);
+        expect(overlap, `diagrams ${JSON.stringify(a)} and ${JSON.stringify(b)} overlap`).toBe(false);
       }
     }
     await page.getByTestId('view-diagram').click();
@@ -376,6 +461,22 @@ describe('org chart canvas', () => {
     await expect.poll(() => notice.textContent(), { timeout: 45_000 }).toContain(t.historyReset);
     expect(await notice.textContent()).toContain(t.head.scanDone);
     expect(await page.getByTestId('undo').isDisabled()).toBe(true);
+  });
+
+  it('resets to the real site, not to the state at load, as one undoable step', async () => {
+    await page.reload();
+    await page.locator('[data-testid="viewport"][data-ready="true"][data-live="true"]').waitFor();
+    await moveOtra();
+    expect((await changes()).length).toBeGreaterThan(0);
+
+    await page.getByTestId('reset').click();
+    await page.getByTestId('reset-dialog').getByRole('button', { name: t.dialogs.resetAll }).click();
+    await expect.poll(async () => (await changes()).length).toBe(0);
+    const fields = (await serverMap()).planFields;
+    expect(fields).toEqual({ plannedOrder: {}, plannedPages: [], plannedDeletions: [], layout: {}, linkEdits: {}, addedLinks: [], removedLinks: {} });
+
+    await page.getByTestId('undo').click();
+    await expect.poll(async () => (await changes()).length).toBeGreaterThan(0);
   });
 
   it('shows hostile site content as text', async () => {

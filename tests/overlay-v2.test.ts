@@ -22,7 +22,7 @@ const v1 = {
 describe('overlay v2', () => {
   it('migrates a v1 overlay with empty new fields', () => {
     const v2 = migrateOverlay(v1);
-    expect(v2).toMatchObject({ schemaVersion: 2, rev: 3, layout: {}, components: {}, linkEdits: {}, addedLinks: [], confirmations: {}, authors: {} });
+    expect(v2).toMatchObject({ schemaVersion: 2, rev: 3, layout: {}, components: {}, linkEdits: {}, addedLinks: [], removedLinks: {}, confirmations: {}, authors: {} });
     expect(v2.kindOverrides['/#top']).toBe('narrative');
   });
 

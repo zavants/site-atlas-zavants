@@ -99,8 +99,11 @@ const IN_PAGE = String.raw`(() => {
           text: text(a),
           href: linkKind(a) === 'anchor' ? a.getAttribute('href') : a.href,
           kind: linkKind(a),
+          cta: a.matches('[role=button], .btn, .button, .cta, [class*="btn-"], [class*="btn_"], [class*="button-"], [class*="cta-"]'),
         })),
-        buttons: [...el.querySelectorAll('button, [role=button], input[type=submit]')].slice(0, 50)
+        // Interface controls (tabs, toggles, menus) are not calls to action.
+        buttons: [...el.querySelectorAll('button, [role=button], input[type=submit]')]
+          .filter((b) => !b.matches('[role=tab], [aria-controls], [aria-expanded], [aria-pressed], [role=tablist] *')).slice(0, 50)
           .map((b) => text(b) || b.getAttribute('value') || b.getAttribute('aria-label') || ''),
         forms: forms.map((f) => ({
           fields: f.querySelectorAll('input:not([type=hidden]):not([type=submit]):not([type=button]), select, textarea').length,

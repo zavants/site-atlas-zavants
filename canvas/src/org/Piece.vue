@@ -2,6 +2,7 @@
 import { computed, inject } from 'vue';
 import { shotUrl, type BlockView } from '../api';
 import { t } from '../strings';
+import { autoTags, hasTag } from './autoTags';
 import { orgContextKey, PAGES, type PieceModel } from './diagrams';
 
 const props = defineProps<{ piece: PieceModel; diagramId: string; number: number; hole?: boolean; settled?: boolean }>();
@@ -15,8 +16,9 @@ const showLabel = computed(() => Boolean(props.piece.component) && ctx.view() ==
 const plug = computed(() => ctx.planned() && props.piece.source && !props.hole);
 const filtered = computed(() => {
   const tag = ctx.filterTag();
-  return tag !== null && !b.value.tags.includes(tag);
+  return tag !== null && !hasTag(b.value, tag);
 });
+const detected = computed(() => autoTags(b.value));
 const tagsById = computed(() => new Map(ctx.map().tags.map((x) => [x.id, x])));
 const snap = computed(() => ctx.snapId.value === `piece:${props.piece.key}` && props.piece.linkable);
 
@@ -63,6 +65,7 @@ function onTag(tagId: string, on: boolean) {
       </span>
       <span v-if="b.issues.length" class="warn" :title="t.piece.issues(b.issues.length)">⚠{{ b.issues.length }}</span>
       <span v-if="showLabel" class="tag comp-tag">{{ t.piece.component }}</span>
+      <span v-for="id in detected" :key="id" class="atag" :class="id.slice(5)" data-testid="detected-tag" :title="t.autoTags.hint">{{ t.autoTags[id] }}</span>
     </div>
     <img v-if="shot" class="cap" :src="shot" alt="" loading="lazy" draggable="false" />
     <div v-else class="cap empty" />
@@ -160,6 +163,9 @@ function onTag(tagId: string, on: boolean) {
 .lh { display: flex; align-items: center; gap: 6px; padding: 6px 8px; }
 .lh b { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .n { font: 11px ui-monospace, monospace; color: var(--muted); }
+.atag { font-size: 9px; font-weight: 600; line-height: 14px; padding: 0 5px; border-radius: 7px; white-space: nowrap; border: 1px dashed var(--border); color: var(--muted); }
+.atag.form { color: var(--line-green); border-color: color-mix(in srgb, var(--line-green) 50%, transparent); }
+.atag.cta { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
 .cnt { font-size: 10px; color: var(--muted); white-space: nowrap; display: inline-flex; gap: 4px; }
 .warn { color: var(--danger); font-size: 11px; }
 .tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 8px; }
@@ -182,7 +188,6 @@ function onTag(tagId: string, on: boolean) {
   z-index: 4;
 }
 .piece:hover .plug { opacity: 1; }
-:global(body.dragging) .plug { opacity: 0; }
 .det { padding: 0 8px 8px; font-size: 12px; cursor: auto; user-select: text; -webkit-user-select: text; }
 .det img { width: 100%; border-radius: 4px; border: 1px solid var(--border); margin: 4px 0; }
 .det ul { margin: 2px 0 6px; padding-left: 16px; }

@@ -182,6 +182,36 @@ describe('observedLink', () => {
     expect(observedLink(s, edited, '/#top', { block: '/#cotizacion' })).toBe(false);
     expect(observedLink(s, edited, '/#top', { block: '/otra#precios' })).toBe(true);
   });
+
+  it('unlink proposes removing a scanned link, resolves its broken-link issue, and can be cancelled', () => {
+    const s = linkedScan();
+    s.issues.push({ id: 'broken-link|/|/#top|http://localhost:4405/no-existe', rule: 'broken-link', level: 'error', page: '/', blockKey: '/#top', message: 'Broken link' });
+    const o0 = withComponents(s);
+    const relinked = run(o0, s, { type: 'relink', owner: '/#top', linkText: 'Ver', linkHref: 'http://localhost:4405/no-existe', to: { block: '/#cotizacion' } });
+    const o = run(relinked, s, { type: 'unlink', owner: '/#top', linkText: 'Ver', linkHref: 'http://localhost:4405/no-existe', by: 'agent' });
+    const id = '/#top|http://localhost:4405/no-existe|Ver';
+    // A removed link has no new target, so the relink is dropped.
+    expect(o.linkEdits).toEqual({});
+    const changes = deriveChanges(s, o);
+    expect(changes.map((c) => c.type)).toEqual(['unlink']);
+    expect(changes[0]).toMatchObject({ id: changeId('unlink', [id]), status: 'pending', by: 'agent', observed: false });
+    expect(changes[0]!.summary).toContain('"Ver"');
+    expect(changes[0]!.details).toMatchObject({ linkId: id, linkText: 'Ver', currentHref: 'http://localhost:4405/no-existe' });
+    expect(changes[0]!.details.resolves).toEqual([expect.objectContaining({ rule: 'broken-link' })]);
+
+    expect(deriveChanges(s, run(o, s, { type: 'removeLink', linkId: id }))).toEqual([]);
+    expect(() => run(o0, s, { type: 'unlink', owner: '/#top', linkText: 'Nada', linkHref: '#x' })).toThrow(OpError);
+  });
+
+  it('a re-scan without the link drops the planned removal', () => {
+    const s = linkedScan();
+    const o = run(withComponents(s), s, { type: 'unlink', owner: '/#top', linkText: 'Ver', linkHref: 'http://localhost:4405/no-existe' });
+    const kept = reconcile(o, s, structuredClone(s));
+    expect(Object.keys(kept.removedLinks)).toEqual(['/#top|http://localhost:4405/no-existe|Ver']);
+    const next = structuredClone(s);
+    next.pages[0]!.blocks[1]!.components.links = next.pages[0]!.blocks[1]!.components.links.filter((l) => l.text !== 'Ver');
+    expect(reconcile(o, s, next).removedLinks).toEqual({});
+  });
 });
 
 describe('confirmChange / reopenChange', () => {
