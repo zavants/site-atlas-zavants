@@ -12,6 +12,8 @@ export interface EffectiveLink {
   target: Target | null;
   edited: boolean;
   added: boolean;
+  /** A scanned link planned for removal. */
+  removed: boolean;
   by?: string;
 }
 
@@ -59,16 +61,18 @@ export function effectiveLinks(block: Block, scan: Scan, overlay: Overlay): Effe
   const id = owner(block, overlay);
   const added: EffectiveLink[] = overlay.addedLinks
     .filter((l) => l.from === id)
-    .map((l) => ({ id: l.id, owner: id, text: l.label ?? '', href: '', target: l.to, edited: false, added: true, by: l.by }));
+    .map((l) => ({ id: l.id, owner: id, text: l.label ?? '', href: '', target: l.to, edited: false, added: true, removed: false, by: l.by }));
   const fromPath = pageOf(scan, block);
   const scanned: EffectiveLink[] = block.components.links.map((l) => {
     const linkKey = linkId(id, l.href, l.text);
     const edit = overlay.linkEdits[linkKey];
+    const removal = overlay.removedLinks[linkKey];
     if (!edit) {
-      return { id: linkKey, owner: id, text: l.text, href: l.href, target: resolveTarget(l.href, scan, fromPath), edited: false, added: false };
+      const target = resolveTarget(l.href, scan, fromPath);
+      return { id: linkKey, owner: id, text: l.text, href: l.href, target, edited: false, added: false, removed: !!removal, ...(removal ? { by: removal.by } : {}) };
     }
     const { by, ...target } = edit;
-    return { id: linkKey, owner: id, text: l.text, href: l.href, target: target as Target, edited: true, added: false, by };
+    return { id: linkKey, owner: id, text: l.text, href: l.href, target: target as Target, edited: true, added: false, removed: false, by };
   });
   return [...added, ...scanned];
 }

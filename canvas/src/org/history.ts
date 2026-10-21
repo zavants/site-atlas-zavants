@@ -3,10 +3,10 @@ import type { Overlay } from '../../../src/schema/overlay.js';
 
 export type PlanFields = Pick<
   Overlay,
-  'plannedOrder' | 'plannedPages' | 'plannedDeletions' | 'layout' | 'linkEdits' | 'addedLinks'
+  'plannedOrder' | 'plannedPages' | 'plannedDeletions' | 'layout' | 'linkEdits' | 'addedLinks' | 'removedLinks'
 >;
 
-/** Snapshot history over the six plan fields. The caller applies the snapshots undo/redo return. */
+/** Snapshot history over the seven plan fields. The caller applies the snapshots undo/redo return. */
 export function createHistory(read: () => PlanFields) {
   // Serialized snapshots: immune to later mutation, and safe for Vue reactive proxies.
   const stacks = reactive<{ past: string[]; future: string[] }>({ past: [], future: [] });
@@ -20,6 +20,7 @@ export function createHistory(read: () => PlanFields) {
       layout: s.layout,
       linkEdits: s.linkEdits,
       addedLinks: s.addedLinks,
+      removedLinks: s.removedLinks,
     });
   };
 

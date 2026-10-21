@@ -34,6 +34,8 @@ const ready = ref(false);
 const XF = computed(() => (props.mode === 'shots' ? 1.6 : 1));
 
 const diagrams = computed(() => buildDiagrams(props.map, { planned: props.planned, view: props.view }));
+const trash = computed(() => diagrams.value.find((d) => d.kind === 'trash') ?? null);
+const onStage = computed(() => diagrams.value.filter((d) => d.kind !== 'trash'));
 const auto = computed(() => {
   const out = autoLayout(props.map, diagrams.value);
   // A planned page an agent added has no position yet: keep it off the diagrams the person placed.
@@ -136,6 +138,7 @@ function draw() {
       if (!dst || dst === el) continue;
       if (link.edited) color = 'edited';
       if (link.added) color = 'added';
+      if (link.removed && props.planned) color = 'removed';
       const p = anchorPoint(sR, rectOf(dst), row);
       out.push({ id: link.id, from: link.owner, to, color, d: curve(x1, y1, p.x, p.y, p.side, lane++), x: p.x, y: p.y });
       sources.set(link.id, { el, link, diagram: home.dataset.id! });
@@ -198,14 +201,14 @@ function trackLine(e: PointerEvent, srcEl: HTMLElement, srcDiagram: string, colo
   window.addEventListener('pointercancel', up);
 }
 
-/** Retarget a line by its end circle; a click on a new connector's circle offers to delete it. */
+/** Retarget a line by its end circle; a click on it offers to delete, remove or restore the link. */
 function startRelink(e: PointerEvent, wire: WireModel) {
   const src = wireSources.get(wire.id);
   if (!props.planned || e.button !== 0 || !src) return;
   const { link } = src;
   trackLine(e, src.el, src.diagram, 'edited', (to, dragged) => {
-    if (link.added && !dragged) return askDeleteConnector(link);
-    if (!to || sameTarget(link.target, to)) return;
+    if (!dragged) return askDeleteConnector(link);
+    if (!to || link.removed || sameTarget(link.target, to)) return;
     if (link.added) {
       void props.act([
         { type: 'removeLink', linkId: link.id },
@@ -428,8 +431,12 @@ function confirmDeleteConnector() {
   delConnDlg.value?.close();
   const l = deletingLink.value;
   deletingLink.value = null;
-  if (l) void props.act([{ type: 'removeLink', linkId: l.id }]);
+  if (!l) return;
+  // A new connector or a planned removal is a proposal to drop; a site link becomes a planned removal.
+  if (l.added || l.removed) void props.act([{ type: 'removeLink', linkId: l.id }]);
+  else void props.act([{ type: 'unlink', owner: l.owner, linkText: l.text, linkHref: l.href }]);
 }
+const connAction = computed(() => (deletingLink.value?.added ? 'delete' : deletingLink.value?.removed ? 'restore' : 'remove'));
 
 const resetDlg = ref<HTMLDialogElement | null>(null);
 function confirmReset() {
@@ -542,6 +549,19 @@ const changeCount = computed(() => props.changes.length);
     </div>
 
 
+    <div class="dock">
+    <div class="trash-slot">
+      <Diagram
+        v-if="trash"
+        :diagram="trash"
+        :zone="zoneFor(trash)"
+        :x="0"
+        :y="0"
+        :moving="false"
+        :drop-target="pieceDrag.over.value === trash.id"
+        :settled="pieceDrag.drag.value?.settled ?? false"
+      />
+    </div>
     <div class="bar zoom" role="toolbar" :aria-label="t.zoom.aria">
       <button type="button" data-testid="zoom-out" :aria-label="t.zoom.out" @click="zoomBy(1 / 1.2)">−</button>
       <output data-testid="zoom-value">{{ zoomLabel }}</output>
@@ -550,11 +570,12 @@ const changeCount = computed(() => props.changes.length);
       <button type="button" data-testid="zoom-fit" @click="fit">{{ t.zoom.fit }}</button>
       <button type="button" data-testid="zoom-center" @click="centerView">{{ t.zoom.center }}</button>
     </div>
+    </div>
 
     <div ref="stage" class="stage" :style="{ transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.s})` }">
       <Wires :wires="wires" :ghost="ghost" :interactive="planned" @handle-down="startRelink" />
       <Diagram
-        v-for="d in diagrams"
+        v-for="d in onStage"
         :key="d.id"
         :diagram="d"
         :zone="zoneFor(d)"
@@ -596,10 +617,10 @@ const changeCount = computed(() => props.changes.length);
   </dialog>
 
   <dialog ref="delConnDlg" data-testid="delete-connector-dialog">
-    <p>{{ deletingLink ? t.dialogs.deleteConnectorMsg(ownerName(deletingLink.owner), labelOf(deletingLink.target)) : '' }}</p>
+    <p>{{ deletingLink ? t.dialogs.linkMsg[connAction](deletingLink.text.trim(), ownerName(deletingLink.owner), labelOf(deletingLink.target)) : '' }}</p>
     <div class="row">
       <button type="button" @click="delConnDlg?.close()">{{ t.dialogs.cancel }}</button>
-      <button type="button" class="danger" @click="confirmDeleteConnector">{{ t.dialogs.deleteConnector }}</button>
+      <button type="button" :class="connAction === 'restore' ? 'primary' : 'danger'" @click="confirmDeleteConnector">{{ t.dialogs.linkAction[connAction] }}</button>
     </div>
   </dialog>
 
@@ -648,7 +669,9 @@ const changeCount = computed(() => props.changes.length);
 .bar button:disabled { opacity: 0.4; cursor: default; }
 .hist { left: 12px; top: 12px; }
 .sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 2px; }
-.zoom { right: 12px; bottom: 12px; }
+.dock { position: absolute; right: 12px; bottom: 12px; z-index: 5; display: flex; align-items: flex-end; gap: 10px; cursor: default; }
+.dock .zoom { position: static; }
+.trash-slot { position: relative; width: 36px; height: 36px; }
 .zoom output { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
 .org { flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 .changes {

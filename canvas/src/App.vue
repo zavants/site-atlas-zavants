@@ -23,7 +23,7 @@ let unsubscribe: (() => void) | null = null;
 
 const history = createHistory(() => map.value!.planFields);
 /** Reset target: no planned changes, so every page shows as the real site. */
-const EMPTY: PlanFields = { plannedOrder: {}, plannedPages: [], plannedDeletions: [], layout: {}, linkEdits: {}, addedLinks: [] };
+const EMPTY: PlanFields = { plannedOrder: {}, plannedPages: [], plannedDeletions: [], layout: {}, linkEdits: {}, addedLinks: [], removedLinks: {} };
 /** Revs this tab wrote: their SSE echo is not "another client". */
 const ownRevs = new Set<number>();
 
