@@ -34,6 +34,7 @@ export const en = {
     pageRemove: 'Remove a planned page and what depends on it.',
     pageTitle: 'page title',
     relink: 'Propose pointing an existing link to another section or page.',
+    unlink: 'Propose removing an existing link from a section or shared component.',
     linkText: 'text of the link, as scanned',
     linkHref: 'href of the link, exactly as scanned',
     toBlock: 'target section (block key)',
@@ -115,7 +116,8 @@ export const en = {
       addLinkOwner: 'Block key of the section, or id of the shared component, that gets the link',
       addLinkTo: 'Target: { "block": "<block key>" } for a section or { "page": "<path or external origin>" } for a page',
       addLinkLabel: 'Text of the new link',
-      removeLink: 'Drop a link proposal: an added link, or the new target of a relinked one. Takes the linkId shown in the plan.',
+      removeLink: 'Drop a link proposal: an added link, the new target of a relinked one, or a planned removal. Takes the linkId shown in the plan.',
+      unlink: 'Propose removing an existing link (or link styled as a button) from a section or shared component. Does not modify the site.',
       removeLinkId: 'linkId from the plan details',
       removePlannedPage: 'Remove a planned page and the proposals that depend on it (its order, position and links).',
       removePlannedPagePath: 'Path of the planned page, for example /soluciones',
@@ -164,6 +166,7 @@ export const en = {
       relink: (text: string, owner: string, target: string) => `Point the "${text}" link in ${owner} to ${target}`,
       addLink: (owner: string, target: string, label: string | null) =>
         label ? `Add a link "${label}" in ${owner} to ${target}` : `Add a link in ${owner} to ${target}`,
+      unlink: (text: string, owner: string, href: string) => `Remove the "${text}" link (${href}) from ${owner}`,
     },
     done: {
       newPage: (path: string) => `The site serves the page ${path}.`,
@@ -173,6 +176,7 @@ export const en = {
       reorderAfter: (name: string, page: string, previous: string) => `On page ${page}, "${name}" comes right after "${previous}".`,
       relink: (text: string, owner: string, href: string) => `The "${text}" link in ${owner} points to ${href}.`,
       addLink: (owner: string, href: string) => `In ${owner}, a link points to ${href}.`,
+      unlink: (text: string, owner: string, href: string) => `${owner} no longer has the "${text}" link to ${href}.`,
     },
   },
 

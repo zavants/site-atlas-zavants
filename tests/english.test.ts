@@ -38,7 +38,7 @@ describe('English only', () => {
   it('no Spanish in CLI help', () => {
     const outputs = [cli('--help'), ...[
       ['scan'], ['canvas'], ['mcp'], ['plan'], ['confirm'], ['reopen'], ['move'], ['page'], ['page', 'add'], ['page', 'remove'],
-      ['relink'], ['link'], ['link', 'add'], ['link', 'remove'], ['delete'], ['restore'],
+      ['relink'], ['unlink'], ['link'], ['link', 'add'], ['link', 'remove'], ['delete'], ['restore'],
     ].map((c) => cli(...c, '--help'))];
     for (const out of outputs) expect(out).not.toMatch(SPANISH);
   });

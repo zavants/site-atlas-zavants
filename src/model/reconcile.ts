@@ -153,7 +153,9 @@ export function reconcile(overlay: Overlay, prev: Scan | null, next: Scan): Over
     if (page !== null) linkOrphans.push({ key: id, lastSeen: { page, name: textOfLink(id) }, suggestion: null });
   }
   const addedLinks = o.addedLinks.filter((l) => !observedLink(next, o, l.from, l.to));
+  // A planned removal is observed once the link is gone from the site.
+  const removedLinks = Object.fromEntries(Object.entries(o.removedLinks).filter(([id]) => present.has(id)));
   const orphans = o.orphans.filter((x) => !present.has(x.key) && !observed.has(x.key));
 
-  return { ...o, plannedOrder, newKeys, linkEdits, addedLinks, orphans: [...orphans, ...newOrphans, ...linkOrphans] };
+  return { ...o, plannedOrder, newKeys, linkEdits, addedLinks, removedLinks, orphans: [...orphans, ...newOrphans, ...linkOrphans] };
 }

@@ -35,17 +35,17 @@ beforeEach(async () => {
 });
 
 describe('servidor MCP', () => {
-  it('exposes the 20 tools', async () => {
+  it('exposes the 21 tools', async () => {
     const names = (await client.listTools()).tools.map((t) => t.name).sort();
     expect(names).toEqual(
       [
         'atlas_add_planned_page', 'atlas_get_block', 'atlas_get_map', 'atlas_get_plan', 'atlas_list_issues', 'atlas_list_sites',
         'atlas_move_block', 'atlas_open_canvas', 'atlas_scan', 'atlas_set_block_tags', 'atlas_tags',
-        'atlas_confirm_change', 'atlas_reopen_change', 'atlas_relink', 'atlas_add_link', 'atlas_remove_link',
+        'atlas_confirm_change', 'atlas_reopen_change', 'atlas_relink', 'atlas_unlink', 'atlas_add_link', 'atlas_remove_link',
         'atlas_remove_planned_page', 'atlas_mark_deleted', 'atlas_restore', 'atlas_rename_component',
       ].sort(),
     );
-    expect(names).toHaveLength(20);
+    expect(names).toHaveLength(21);
   });
 
   it('describes atlas_get_plan for plan v2 with an optional status', async () => {
@@ -113,6 +113,13 @@ describe('servidor MCP', () => {
     expect((await plan()).changes).toEqual([]);
     const bad = await call('atlas_remove_link', { site: SITE, linkId: 'nope' });
     expect(bad.isError).toBe(true);
+
+    expect((await call('atlas_unlink', { site: SITE, owner: '/#top', linkText: 'Ver', linkHref: 'http://localhost:4405/no-existe' })).isError).toBeFalsy();
+    const [unlink] = (await plan()).changes;
+    expect(unlink).toMatchObject({ type: 'unlink', status: 'pending' });
+    const removedId = (unlink as unknown as { details: { linkId: string } }).details.linkId;
+    expect((await call('atlas_remove_link', { site: SITE, linkId: removedId })).isError).toBeFalsy();
+    expect((await plan()).changes).toEqual([]);
   });
 
   it('mueve un bloque y lo describe en el plan', async () => {
