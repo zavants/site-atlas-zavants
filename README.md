@@ -182,6 +182,7 @@ Stack: Node 24, TypeScript, Playwright, Hono, Vue 3 + Vite, Zod and `@modelconte
 | Local marketing site (HTML, 15 sections) | 15 sections with their real names; found a broken link, 4 sections without an anchor, placeholder images and a form without an action |
 | stripe.com (1 page) | 10 sections, 8 with a readable name, in 26 s |
 | vercel.com (1 page) | 6 sections, all with a readable name |
+| Agent round trip (terminal-only Claude agent, CLI only, no MCP) | Read `site-atlas plan`, implemented a section delete and a relink in the site source, verified with curl, confirmed both with notes; after a re-scan the plan reports the site already matches it |
 
 ## Contributing
 
