@@ -75,12 +75,12 @@ node dist/cli.js canvas
 |---|---|
 | `scan <url>` · `canvas [site]` | Scan a site · open the canvas |
 | `plan <site>` | Print the plan: pending and applied changes |
-| `confirm <site> <changeId>` · `reopen <site> <changeId>` | Mark a change applied once it is in the code · set it back to pending |
+| `confirm <site> <changeId> --note "<what you changed and where>"` · `reopen <site> <changeId> --note "<why>"` | Mark a change applied once it is in the code · set it back to pending |
 | `move <site> <blockKey> <toPage>` · `delete <site> <blockKey>` · `restore <site> <blockKey>` | Propose moving or deleting a section, or cancel the deletion |
 | `page add <site> <path>` · `page remove <site> <path>` | Planned pages |
 | `relink <site> <owner>` · `link add <site> <owner>` · `link remove <site> <linkId>` | Change, add or drop links |
 
-An agent without MCP can work from the terminal alone: `site-atlas plan my-site`, implement the pending changes, then `site-atlas confirm my-site <changeId>`.
+An agent without MCP can work from the terminal alone: `site-atlas plan my-site`, implement the pending changes, then `site-atlas confirm my-site <changeId> --note "<what you changed and where>"`.
 
 ## Connect it to your AI (MCP)
 
