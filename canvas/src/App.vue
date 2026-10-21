@@ -22,9 +22,8 @@ const live = ref(false);
 let unsubscribe: (() => void) | null = null;
 
 const history = createHistory(() => map.value!.planFields);
-/** Reset target: the plan fields when the canvas opened, or when another client last changed them. */
-let initial: PlanFields | null = null;
-const snapshot = (): PlanFields => JSON.parse(JSON.stringify(map.value!.planFields)) as PlanFields;
+/** Reset target: no planned changes, so every page shows as the real site. */
+const EMPTY: PlanFields = { plannedOrder: {}, plannedPages: [], plannedDeletions: [], layout: {}, linkEdits: {}, addedLinks: [] };
 /** Revs this tab wrote: their SSE echo is not "another client". */
 const ownRevs = new Set<number>();
 
@@ -50,7 +49,6 @@ async function changedElsewhere(message?: string) {
   const had = history.canUndo || history.canRedo;
   await reload();
   history.clear();
-  if (map.value) initial = snapshot();
   const text = [message, had && t.historyReset].filter(Boolean).join(' ');
   if (text) notice.value = text;
 }
@@ -68,7 +66,6 @@ async function send(op: OverlayOp): Promise<boolean> {
       notice.value = history.canUndo || history.canRedo ? t.historyReset : e.message;
       map.value = e.map;
       history.clear();
-      initial = snapshot();
     } else {
       // Unknown server state: a foreign write may land in the reload, so no step may undo over it.
       await changedElsewhere((e as Error).message);
@@ -92,9 +89,9 @@ const undo = () => void enqueue(() => apply(history.undo()));
 const redo = () => void enqueue(() => apply(history.redo()));
 const reset = () =>
   void enqueue(async () => {
-    if (!map.value || !initial || JSON.stringify(snapshot()) === JSON.stringify(initial)) return false;
+    if (!map.value || JSON.stringify(map.value.planFields) === JSON.stringify(EMPTY)) return false;
     history.checkpoint();
-    return apply(initial);
+    return apply(EMPTY);
   });
 
 async function startRescan() {
@@ -130,7 +127,6 @@ onMounted(async () => {
     return;
   }
   await reload();
-  if (map.value) initial = snapshot();
   unsubscribe = subscribe(site, (type, data) => {
     if (type === 'ready') live.value = true;
     else if (type === 'progress') notice.value = String(data.msg ?? '');

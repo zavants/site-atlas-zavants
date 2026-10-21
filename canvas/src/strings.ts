@@ -46,7 +46,7 @@ export const t = {
     redo: '↷ Redo',
     redoTitle: 'Redo (Ctrl+Y)',
     reset: 'Reset',
-    resetTitle: 'Go back to the state when the canvas was opened',
+    resetTitle: 'Discard every planned change and show the real site',
     newPage: '+ New page',
     newPageTitle: 'Create a planned page',
   },
@@ -127,7 +127,7 @@ export const t = {
     deletePage: 'Delete page',
     deleteConnectorMsg: (from: string, to: string) => `Delete the connector from ${from} to ${to}?`,
     deleteConnector: 'Delete connector',
-    resetHint: 'Order, planned pages, links and diagram positions go back to how they were when the canvas was opened.',
+    resetHint: 'Order, planned pages, deletions, links and diagram positions go back to the real site. Undo brings them back.',
     resetAll: 'Undo all',
   },
 

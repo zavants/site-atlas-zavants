@@ -368,6 +368,22 @@ describe('org chart canvas', () => {
     expect(await page.getByTestId('undo').isDisabled()).toBe(true);
   });
 
+  it('resets to the real site, not to the state at load, as one undoable step', async () => {
+    await page.reload();
+    await page.locator('[data-testid="viewport"][data-ready="true"][data-live="true"]').waitFor();
+    await moveOtra();
+    expect((await changes()).length).toBeGreaterThan(0);
+
+    await page.getByTestId('reset').click();
+    await page.getByTestId('reset-dialog').getByRole('button', { name: t.dialogs.resetAll }).click();
+    await expect.poll(async () => (await changes()).length).toBe(0);
+    const fields = (await serverMap()).planFields;
+    expect(fields).toEqual({ plannedOrder: {}, plannedPages: [], plannedDeletions: [], layout: {}, linkEdits: {}, addedLinks: [] });
+
+    await page.getByTestId('undo').click();
+    await expect.poll(async () => (await changes()).length).toBeGreaterThan(0);
+  });
+
   it('shows hostile site content as text', async () => {
     await page.close();
     page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
