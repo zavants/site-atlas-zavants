@@ -69,6 +69,13 @@ describe('applyOp + buildMap', () => {
     }
   });
 
+  it('removes a planned page by the path it was added with or the stored one', () => {
+    const added = run({ type: 'addPlannedPage', path: '/Brokers', title: 'Brokers' });
+    expect(applyOp(added, scan, { type: 'removePlannedPage', path: '/Brokers' }).plannedPages).toEqual([]);
+    const legacy: Overlay = { ...emptyOverlay(), plannedPages: [{ path: '/Old', title: 'Old' }] };
+    expect(applyOp(legacy, scan, { type: 'removePlannedPage', path: '/Old' }).plannedPages).toEqual([]);
+  });
+
   it('borrar una etiqueta la quita de los bloques', () => {
     let o = run({ type: 'createTag', name: 'Confianza' });
     const tagId = o.tags[0]!.id;
