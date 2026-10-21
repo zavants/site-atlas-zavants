@@ -276,6 +276,20 @@ export function createMcpServer(store: SiteStore): McpServer {
   );
 
   server.registerTool(
+    'atlas_unlink',
+    {
+      description: en.mcp.tools.unlink,
+      inputSchema: {
+        site: z.string(),
+        owner: z.string().describe(en.mcp.tools.relinkOwner),
+        linkText: z.string().describe(en.mcp.tools.relinkText),
+        linkHref: z.string().describe(en.mcp.tools.relinkHref),
+      },
+    },
+    guard(async ({ site, owner, linkText, linkHref }) => record(site, { type: 'unlink', owner, linkText, linkHref, by: clientName() })),
+  );
+
+  server.registerTool(
     'atlas_remove_link',
     {
       description: en.mcp.tools.removeLink,

@@ -21,13 +21,14 @@ export type OverlayOp =
   | { type: 'relink'; owner: string; linkText: string; linkHref: string; to: Target; by?: string }
   | { type: 'addLink'; owner: string; to: Target; label?: string; by?: string }
   | { type: 'removeLink'; linkId: string; by?: string }
+  | { type: 'unlink'; owner: string; linkText: string; linkHref: string; by?: string }
   | { type: 'removePlannedPage'; path: string; by?: string }
   | { type: 'setLayout'; id: string; x: number; y: number; by?: string }
   | { type: 'replacePlanFields'; fields: PlanFields; by?: string }
   | { type: 'confirmChange'; changeId: string; note: string; by: string }
   | { type: 'reopenChange'; changeId: string; note: string; by: string };
 
-export type PlanFields = Pick<Overlay, 'plannedOrder' | 'plannedPages' | 'plannedDeletions' | 'layout' | 'linkEdits' | 'addedLinks'>;
+export type PlanFields = Pick<Overlay, 'plannedOrder' | 'plannedPages' | 'plannedDeletions' | 'layout' | 'linkEdits' | 'addedLinks' | 'removedLinks'>;
 
 export class OpError extends Error {}
 
@@ -120,6 +121,8 @@ export function renameKey(overlay: Overlay, from: string, to: string): Overlay {
     const renamed = id.startsWith(`${from}|`) ? to + id.slice(from.length) : id;
     linkEdits[renamed] ??= swapTarget(edit);
   }
+  const removedLinks: Overlay['removedLinks'] = {};
+  for (const [id, mark] of Object.entries(overlay.removedLinks)) removedLinks[id.startsWith(`${from}|`) ? to + id.slice(from.length) : id] ??= mark;
   const layout = { ...overlay.layout };
   if (from in layout) {
     layout[to] ??= layout[from]!;
@@ -133,6 +136,7 @@ export function renameKey(overlay: Overlay, from: string, to: string): Overlay {
     plannedDeletions: [...new Set(overlay.plannedDeletions.map(swap))],
     newKeys: overlay.newKeys.map(swap),
     linkEdits,
+    removedLinks,
     addedLinks: overlay.addedLinks.map((l) => ({ ...l, from: swap(l.from), to: swapTarget(l.to) })),
     layout,
   };
@@ -239,10 +243,23 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
         blockTags,
         kindOverrides,
         linkEdits,
+        removedLinks: Object.fromEntries(Object.entries(rest.removedLinks).filter(([id]) => id !== key && !id.startsWith(`${key}|`))),
         addedLinks: rest.addedLinks.filter((l) => l.from !== key && !isKey(l.to)),
         plannedDeletions: rest.plannedDeletions.filter((k) => k !== op.orphanKey),
         plannedOrder: Object.fromEntries(Object.entries(rest.plannedOrder).map(([p, ks]) => [p, ks.filter((k) => k !== op.orphanKey)])),
       };
+    }
+    case 'unlink': {
+      requireOwner(idx, overlay, op.owner);
+      const text = op.linkText.trim();
+      const scanned = scan.pages.some((p) =>
+        p.blocks.some((b) => ownerOf(b, overlay) === op.owner && b.components.links.some((l) => l.href === op.linkHref && l.text.trim() === text)),
+      );
+      if (!scanned) throw new OpError(en.op.noScannedLink(text, op.linkHref, op.owner));
+      const id = linkId(op.owner, op.linkHref, text);
+      // A removed link has no new target: drop any relink of it.
+      const { [id]: _edit, ...linkEdits } = overlay.linkEdits;
+      return { ...overlay, linkEdits, removedLinks: { ...overlay.removedLinks, [id]: { by: op.by ?? 'canvas' } } };
     }
     case 'relink': {
       requireOwner(idx, overlay, op.owner);
@@ -267,6 +284,10 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
       return { ...overlay, addedLinks: [...overlay.addedLinks, link] };
     }
     case 'removeLink': {
+      if (op.linkId in overlay.removedLinks) {
+        const { [op.linkId]: _mark, ...removedLinks } = overlay.removedLinks;
+        return { ...overlay, removedLinks };
+      }
       if (overlay.addedLinks.some((l) => l.id === op.linkId)) {
         return { ...overlay, addedLinks: overlay.addedLinks.filter((l) => l.id !== op.linkId) };
       }
@@ -304,8 +325,8 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
       return { ...overlay, layout: { ...overlay.layout, [op.id]: { x: op.x, y: op.y } } };
     }
     case 'replacePlanFields': {
-      const { plannedOrder, plannedPages, plannedDeletions, layout, linkEdits, addedLinks } = op.fields;
-      return { ...overlay, plannedOrder, plannedPages, plannedDeletions, layout, linkEdits, addedLinks };
+      const { plannedOrder, plannedPages, plannedDeletions, layout, linkEdits, addedLinks, removedLinks } = op.fields;
+      return { ...overlay, plannedOrder, plannedPages, plannedDeletions, layout, linkEdits, addedLinks, removedLinks };
     }
     case 'confirmChange':
     case 'reopenChange':
@@ -338,6 +359,7 @@ export const OverlayOpSchema: z.ZodType<OverlayOp> = z.discriminatedUnion('type'
   z.object({ type: z.literal('relink'), owner: z.string(), linkText: z.string(), linkHref: z.string(), to: TargetSchema, by }),
   z.object({ type: z.literal('addLink'), owner: z.string(), to: TargetSchema, label: z.string().optional(), by }),
   z.object({ type: z.literal('removeLink'), linkId: z.string(), by }),
+  z.object({ type: z.literal('unlink'), owner: z.string(), linkText: z.string(), linkHref: z.string(), by }),
   z.object({ type: z.literal('removePlannedPage'), path: z.string(), by }),
   z.object({ type: z.literal('setLayout'), id: z.string(), x: z.number(), y: z.number(), by }),
   z.object({
@@ -349,6 +371,7 @@ export const OverlayOpSchema: z.ZodType<OverlayOp> = z.discriminatedUnion('type'
       layout: true,
       linkEdits: true,
       addedLinks: true,
+      removedLinks: true,
     }),
     by,
   }),

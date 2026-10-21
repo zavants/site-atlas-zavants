@@ -126,8 +126,13 @@ export const t = {
     deletePageMsg: (title: string, count: number) =>
       `Delete the page ${title}?` + (count === 1 ? ' Its piece goes back to its real page.' : count ? ` Its ${count} pieces go back to their real pages.` : ''),
     deletePage: 'Delete page',
-    deleteConnectorMsg: (from: string, to: string) => `Delete the connector from ${from} to ${to}?`,
-    deleteConnector: 'Delete connector',
+    linkMsg: {
+      delete: (_text: string, from: string, to: string) => `Delete the connector from ${from} to ${to}?`,
+      remove: (text: string, from: string, to: string) =>
+        `Remove the link "${text || to}" from ${from} (to ${to})? It stays on the site until an AI applies the plan.`,
+      restore: (text: string, from: string, to: string) => `Keep the link "${text || to}" from ${from} to ${to}?`,
+    },
+    linkAction: { delete: 'Delete connector', remove: 'Remove link', restore: 'Keep link' },
     resetHint: 'Order, planned pages, deletions, links and diagram positions go back to the real site. Undo brings them back.',
     resetAll: 'Undo all',
   },
@@ -137,7 +142,7 @@ export const t = {
     filter: 'Filter by tag:',
     name: 'Tag name',
     newName: 'New name',
-    confirmDelete: (name: string) => `Delete the tag "${name}"? It will be removed from all blocks.`,
+    confirmShort: 'Delete?',
     dblclick: 'Double-click to rename',
     delete: (name: string) => `Delete ${name}`,
     add: '+ Tag',

@@ -263,8 +263,27 @@ describe('org chart canvas', () => {
     await page.mouse.up();
     const dialog = page.getByTestId('delete-connector-dialog');
     await expect.poll(() => dialog.evaluate((d) => (d as HTMLDialogElement).open)).toBe(true);
-    await dialog.getByRole('button', { name: t.dialogs.deleteConnector }).click();
+    await dialog.getByRole('button', { name: t.dialogs.linkAction.delete }).click();
     await expect.poll(async () => (await pending('addLink')).length).toBe(0);
+  });
+
+  it('removes a site link from its end circle and keeps it again', async () => {
+    const wire = page.locator('[data-testid="wire"]:is([data-color="page"], [data-color="missing"], [data-color="section"])').first();
+    const id = (await wire.getAttribute('data-link'))!;
+    const clickEnd = async () => {
+      const h = await center(page.locator(`[data-testid="wire-handle"][data-link=${JSON.stringify(id)}]`));
+      await page.mouse.move(h.x, h.y);
+      await page.mouse.down();
+      await page.mouse.up();
+    };
+    const dialog = page.getByTestId('delete-connector-dialog');
+    await clickEnd();
+    await dialog.getByRole('button', { name: t.dialogs.linkAction.remove }).click();
+    await expect.poll(async () => (await pending('unlink')).length).toBe(1);
+    await expect.poll(() => page.locator(`[data-testid="wire"][data-link=${JSON.stringify(id)}]`).getAttribute('data-color')).toBe('removed');
+    await clickEnd();
+    await dialog.getByRole('button', { name: t.dialogs.linkAction.restore }).click();
+    await expect.poll(async () => (await pending('unlink')).length).toBe(0);
   });
 
   it('marks a piece for deletion by dropping it on the Delete diagram', async () => {
@@ -357,8 +376,10 @@ describe('org chart canvas', () => {
     await details.waitFor();
     expect(await details.evaluate((el) => getComputedStyle(el).userSelect)).toBe('text');
     expect(await details.textContent()).toContain(t.piece.type);
-    page.once('dialog', (d) => void d.accept('Trust'));
+    // No window.prompt: the name is typed inline, since embedded browsers may not support prompt().
     await page.getByTestId('new-tag').click();
+    await page.getByTestId('new-tag-name').fill('Trust');
+    await page.getByTestId('new-tag-name').press('Enter');
     await details.getByLabel('Trust').check();
     await expect.poll(async () => (await serverMap()).pages[0]!.blocks.find((b) => b.key === '/#top')!.tags.length).toBe(1);
     await page.getByTestId('tag-filter').filter({ hasText: 'Trust' }).click();
@@ -407,7 +428,7 @@ describe('org chart canvas', () => {
     await page.getByTestId('reset-dialog').getByRole('button', { name: t.dialogs.resetAll }).click();
     await expect.poll(async () => (await changes()).length).toBe(0);
     const fields = (await serverMap()).planFields;
-    expect(fields).toEqual({ plannedOrder: {}, plannedPages: [], plannedDeletions: [], layout: {}, linkEdits: {}, addedLinks: [] });
+    expect(fields).toEqual({ plannedOrder: {}, plannedPages: [], plannedDeletions: [], layout: {}, linkEdits: {}, addedLinks: [], removedLinks: {} });
 
     await page.getByTestId('undo').click();
     await expect.poll(async () => (await changes()).length).toBeGreaterThan(0);

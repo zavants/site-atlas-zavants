@@ -24,17 +24,8 @@ const ctx = inject(orgContextKey)!;
 
 const d = computed(() => props.diagram);
 const count = computed(() => d.value.top.length + (props.zone?.filter((z) => !z.hole).length ?? 0) + d.value.bottom.length);
-/** The trash is an icon with a badge; a click (not a drag) opens its list of pieces. */
+/** The trash is an icon with a badge, docked by the zoom bar; a click opens its list of pieces. */
 const open = ref(false);
-let down: { x: number; y: number } | null = null;
-function binDown(e: PointerEvent) {
-  down = { x: e.clientX, y: e.clientY };
-  emit('titleDown', e);
-}
-function binClick(e: MouseEvent) {
-  if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 4) open.value = !open.value;
-  down = null;
-}
 const snap = computed(() => d.value.linkable && ctx.snapId.value === `diagram:${d.value.id}`);
 const kindTag = computed(() => {
   switch (d.value.kind) {
@@ -61,7 +52,7 @@ const kindTag = computed(() => {
     :data-linkable="d.linkable"
     :data-droppable="d.droppable"
     :class="[`d-${d.kind}`, { small: d.small, moving, snap, open, target: dropTarget }]"
-    :style="{ left: `${x}px`, top: `${y}px` }"
+    :style="d.kind === 'trash' ? undefined : { left: `${x}px`, top: `${y}px` }"
   >
     <template v-if="d.kind === 'trash'">
       <button
@@ -71,10 +62,10 @@ const kindTag = computed(() => {
         :title="t.diagram.trashHint"
         :aria-label="t.diagram.trashLabel(count)"
         :aria-expanded="open"
-        @pointerdown="binDown"
-        @click="binClick"
+        @pointerdown.stop
+        @click="open = !open"
       >
-        <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
           <path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
         <span v-if="count" class="badge" data-testid="trash-badge">{{ count > 99 ? '99+' : count }}</span>
@@ -143,11 +134,12 @@ const kindTag = computed(() => {
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .diagram.small { width: 230px; }
-.diagram.d-trash { width: auto; padding: 0; border: none; background: none; }
-.diagram.d-trash.open { width: 260px; padding: 0 8px 8px; border: 2px dashed var(--danger); background: var(--surface); }
+.diagram.d-trash { position: absolute; left: auto; top: auto; right: 0; bottom: 0; width: auto; padding: 0; border: none; background: none; display: flex; flex-direction: column-reverse; align-items: flex-end; z-index: 5; }
+.diagram.d-trash.open { width: 260px; max-height: 60vh; overflow: auto; padding: 8px; border: 2px dashed var(--danger); background: var(--surface); }
+.diagram.d-trash .zone { width: 100%; }
 .diagram.d-trash.target .bin { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 18%, var(--surface)); transform: scale(1.08); }
-.bin { position: relative; display: grid; place-items: center; width: 56px; height: 56px; margin: 6px 0; padding: 0; border-radius: 16px; border: 2px solid color-mix(in srgb, var(--danger) 55%, transparent); color: var(--danger); background: var(--surface); cursor: move; transition: transform 0.12s, background 0.12s; }
-.badge { position: absolute; top: -8px; right: -8px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #e5484d; color: #fff; font-size: 12px; font-weight: 700; line-height: 22px; text-align: center; box-shadow: 0 0 0 2px var(--canvas-bg); }
+.bin { position: relative; flex: none; display: grid; place-items: center; width: 36px; height: 36px; margin: 0; padding: 0; border-radius: 10px; border: 1px solid var(--border); color: var(--danger); background: var(--surface); cursor: pointer; transition: transform 0.12s, background 0.12s; }
+.badge { position: absolute; top: -7px; right: -7px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #e5484d; color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--canvas-bg); }
 .diagram.snap { outline: 3px solid var(--line-blue); outline-offset: 2px; }
 .diagram:has(> .title:hover),
 .diagram.moving {
@@ -181,5 +173,5 @@ const kindTag = computed(() => {
 .shots .diagram { width: 480px; }
 .shots .diagram.small { width: 300px; }
 .shots .diagram.d-trash { width: auto; }
-.shots .diagram.d-trash.open { width: 300px; }
+.shots .diagram.d-trash.open { width: 260px; }
 </style>
