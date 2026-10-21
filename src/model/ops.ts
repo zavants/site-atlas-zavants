@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { en } from '../i18n/en.js';
 import { OverlaySchema, TargetSchema, type Overlay, type Target } from '../schema/overlay.js';
 import { applyConfirmation } from './changes.js';
+import { componentOf } from './components.js';
 import { externalOrigins, linkId, owner as ownerOf, resolveTarget } from './links.js';
 import type { Block, Kind, Scan } from '../schema/scan.js';
 
@@ -171,6 +172,7 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
       if (!orders.has(op.toPage)) throw new OpError(en.op.noPage(op.toPage));
       const from = [...orders].find(([, keys]) => keys.includes(op.blockKey))?.[0];
       if (block.global) throw new OpError(en.op.globalBlock(block.name));
+      if (componentOf(block, overlay.components)) throw new OpError(en.op.componentBlock(block.name));
       const plannedOrder = { ...overlay.plannedOrder };
       if (from) plannedOrder[from] = orders.get(from)!.filter((k) => k !== op.blockKey);
       const target = (from === op.toPage ? plannedOrder[op.toPage] : orders.get(op.toPage))!.filter((k) => k !== op.blockKey);
