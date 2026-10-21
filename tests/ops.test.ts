@@ -47,6 +47,10 @@ describe('applyOp + buildMap', () => {
     expect(() => applyOp(o, scan, { type: 'addPlannedPage', path: '/soluciones', title: 'x' })).toThrow(OpError);
   });
 
+  it('normalizes a planned page path like the canvas does', () => {
+    expect(run({ type: 'addPlannedPage', path: '/Brokers//x/', title: '' }).plannedPages[0]!.path).toBe('/brokers/x');
+  });
+
   it('borrar una etiqueta la quita de los bloques', () => {
     let o = run({ type: 'createTag', name: 'Confianza' });
     const tagId = o.tags[0]!.id;

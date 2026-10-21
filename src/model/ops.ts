@@ -181,7 +181,8 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
       return { ...overlay, plannedOrder, authors: { ...overlay.authors, [authorKey]: op.by ?? 'canvas' } };
     }
     case 'addPlannedPage': {
-      const path = '/' + op.path.trim().replace(/^\/+/, '').replace(/\/+$/, '');
+      // Same canonical form as the canvas `normPath`, so canvas, MCP and CLI agree.
+      const path = '/' + op.path.trim().replace(/\s+/g, '-').toLowerCase().replace(/\/{2,}/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
       if (idx.realOrder.has(path) || overlay.plannedPages.some((p) => p.path === path)) {
         throw new OpError(en.op.pageExists(path));
       }
