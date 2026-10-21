@@ -55,6 +55,7 @@ export interface SiteMap {
   pages: PageView[];
   orphans: Overlay['orphans'];
   issueCount: { error: number; warn: number; info: number };
+  issues: Issue[];
   components: ComponentView[];
   targets: TargetView[];
   layout: Overlay['layout'];
@@ -141,6 +142,7 @@ export function buildMap(scan: Scan, overlay: Overlay): SiteMap {
     ],
     orphans: overlay.orphans,
     issueCount,
+    issues: scan.issues,
     components: [...components.values()],
     targets: buildTargets(scan),
     layout: overlay.layout,

@@ -2,6 +2,7 @@
 import { computed, inject } from 'vue';
 import { shotUrl, type BlockView } from '../api';
 import { t } from '../strings';
+import { hasTag } from './autoTags';
 import { orgContextKey, PAGES, type PieceModel } from './diagrams';
 
 const props = defineProps<{ piece: PieceModel; diagramId: string; number: number; hole?: boolean; settled?: boolean }>();
@@ -15,7 +16,7 @@ const showLabel = computed(() => Boolean(props.piece.component) && ctx.view() ==
 const plug = computed(() => ctx.planned() && props.piece.source && !props.hole);
 const filtered = computed(() => {
   const tag = ctx.filterTag();
-  return tag !== null && !b.value.tags.includes(tag);
+  return tag !== null && !hasTag(b.value, tag);
 });
 const tagsById = computed(() => new Map(ctx.map().tags.map((x) => [x.id, x])));
 const snap = computed(() => ctx.snapId.value === `piece:${props.piece.key}` && props.piece.linkable);

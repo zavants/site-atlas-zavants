@@ -267,6 +267,23 @@ describe('org chart canvas', () => {
     await expect.poll(async () => (await pending('addLink')).length).toBe(0);
   });
 
+  it('lists the issues of a counter and filters by the detected tags', async () => {
+    const m = await serverMap();
+    await page.getByTestId('issues-warn').click();
+    const panel = page.getByTestId('issues-panel');
+    await expect.poll(() => panel.locator('li').count()).toBe(m.issueCount.warn);
+    await page.getByTestId('issues-warn').click();
+    expect(await panel.count()).toBe(0);
+
+    const chips = page.getByTestId('auto-tag');
+    expect(await chips.count()).toBe(3);
+    // The fixture's quote section holds the form: filtering by Form dims every other piece.
+    await page.locator('[data-testid="auto-tag"][data-id="auto:form"]').click();
+    await expect.poll(() => piece('/', '/#top').evaluate((el) => getComputedStyle(el).opacity)).toBe('0.3');
+    expect(await piece('/', '/#cotizacion').evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
+    await page.locator('[data-testid="auto-tag"][data-id="auto:form"]').click();
+  });
+
   it('removes a site link from its end circle and keeps it again', async () => {
     const wire = page.locator('[data-testid="wire"]:is([data-color="page"], [data-color="missing"], [data-color="section"])').first();
     const id = (await wire.getAttribute('data-link'))!;
