@@ -141,6 +141,18 @@ describe('org chart canvas', () => {
     expect(await diagram(header).textContent()).toContain('/otra');
   });
 
+  it('renames a component by double-clicking its Show button, outside the undo history', async () => {
+    const undoBefore = await page.getByTestId('undo').isEnabled();
+    const button = page.locator(`[data-testid="show-component"][data-id="${header}"]`);
+    await button.dblclick();
+    // Typed inline: embedded browsers may not support window.prompt.
+    await page.getByTestId('rename-component').fill('Main header');
+    await page.getByTestId('rename-component').press('Enter');
+    await expect.poll(async () => (await serverMap()).components.find((c) => c.id === header)!.name).toBe('Main header');
+    await expect.poll(() => button.textContent()).toBe('Main header');
+    expect(await page.getByTestId('undo').isEnabled()).toBe(undoBefore);
+  });
+
   it('retargets a line by dragging its end circle onto another piece', async () => {
     const handle = page.locator(`[data-testid="wire-handle"][data-link="${header}|#cotizacion|Cotizar"]`);
     const target = piece('/otra', '/otra#precios');

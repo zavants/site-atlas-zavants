@@ -112,4 +112,14 @@ describe.concurrent('CLI plan commands', () => {
     expect((await cli('restore', SITE, '/otra#precios')).code).toBe(0);
     expect((await plan()).changes).toEqual([]);
   });
+
+  it('renames a shared component', SLOW, async () => {
+    const { cli } = await setup();
+    const ok = await cli('component', 'rename', SITE, 'c:fp-header', 'Main header');
+    expect(ok.code).toBe(0);
+    expect(ok.out).toContain('Component c:fp-header is now "Main header".');
+    const bad = await cli('component', 'rename', SITE, 'c:nope', 'X');
+    expect(bad.code).toBe(1);
+    expect(bad.err).toContain('Component c:nope does not exist.');
+  });
 });
