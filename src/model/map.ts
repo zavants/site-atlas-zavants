@@ -1,8 +1,7 @@
 import type { Overlay } from '../schema/overlay.js';
 import type { Block, Issue, Kind, Scan } from '../schema/scan.js';
-import { pagePath } from '../store/paths.js';
 import { componentOf } from './components.js';
-import { effectiveLinks, externalOrigins, type EffectiveLink } from './links.js';
+import { effectiveLinks, externalOrigins, missingPaths, type EffectiveLink } from './links.js';
 import { effectiveOrders, indexScan, type PlanFields } from './ops.js';
 import { displaced } from './order.js';
 
@@ -65,22 +64,8 @@ export interface SiteMap {
 
 /** Missing paths (missingPages and broken-link targets) and external origins, without duplicates. */
 function buildTargets(scan: Scan): TargetView[] {
-  const { origin, basePath } = scan.environment;
-  const missing = new Set(scan.missingPages);
-  for (const issue of scan.issues) {
-    if (issue.rule !== 'broken-link') continue;
-    // Issue ids are `rule|page|blockKey|normalized target URL`.
-    const href = issue.id.split('|').slice(3).join('|');
-    try {
-      const url = new URL(href);
-      if (url.origin === origin) missing.add(pagePath(url.pathname, basePath));
-    } catch {
-      // Not a URL: an issue id from another source; nothing to add.
-    }
-  }
-  const real = new Set(scan.pages.map((p) => p.path));
   return [
-    ...[...missing].filter((p) => !real.has(p)).map((p): TargetView => ({ id: p, kind: 'missing', label: p })),
+    ...[...missingPaths(scan)].map((p): TargetView => ({ id: p, kind: 'missing', label: p })),
     ...[...externalOrigins(scan)].map((o): TargetView => ({ id: o, kind: 'external', label: new URL(o).host })),
   ];
 }

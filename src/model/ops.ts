@@ -4,7 +4,7 @@ import { en } from '../i18n/en.js';
 import { OverlaySchema, TargetSchema, type Overlay, type Target } from '../schema/overlay.js';
 import { applyConfirmation } from './changes.js';
 import { componentOf } from './components.js';
-import { externalOrigins, linkId, owner as ownerOf, resolveTarget } from './links.js';
+import { externalOrigins, linkId, missingPaths, owner as ownerOf, resolveTarget } from './links.js';
 import type { Block, Kind, Scan } from '../schema/scan.js';
 
 export type OverlayOp =
@@ -71,6 +71,11 @@ function requireTag(overlay: Overlay, tagId: string) {
   const tag = overlay.tags.find((t) => t.id === tagId);
   if (!tag) throw new OpError(en.op.noTag(tagId));
   return tag;
+}
+
+/** Canonical planned page path, as the canvas `normPath`: lowercase, dashes for spaces, single slashes. */
+function normPagePath(raw: string): string {
+  return '/' + raw.trim().replace(/\s+/g, '-').toLowerCase().replace(/\/{2,}/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
 }
 
 export function sameTarget(a: Target, b: Target): boolean {
@@ -183,8 +188,9 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
       return { ...overlay, plannedOrder, authors: { ...overlay.authors, [authorKey]: op.by ?? 'canvas' } };
     }
     case 'addPlannedPage': {
-      // Same canonical form as the canvas `normPath`, so canvas, MCP and CLI agree.
-      const path = '/' + op.path.trim().replace(/\s+/g, '-').toLowerCase().replace(/\/{2,}/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
+      // A missing page keeps its exact path (links point there); others get the canvas `normPath` form.
+      const raw = op.path.trim();
+      const path = missingPaths(scan).has(raw) ? raw : normPagePath(raw);
       if (idx.realOrder.has(path) || overlay.plannedPages.some((p) => p.path === path)) {
         throw new OpError(en.op.pageExists(path));
       }

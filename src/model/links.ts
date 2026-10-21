@@ -74,6 +74,25 @@ export function effectiveLinks(block: Block, scan: Scan, overlay: Overlay): Effe
 }
 
 /** Origins of every external link in the scan, to validate external targets. */
+/** Paths the scan found missing: `missingPages` and broken-link targets, minus scanned pages. */
+export function missingPaths(scan: Scan): Set<string> {
+  const { origin, basePath } = scan.environment;
+  const missing = new Set(scan.missingPages);
+  for (const issue of scan.issues) {
+    if (issue.rule !== 'broken-link') continue;
+    // Issue ids are `rule|page|blockKey|normalized target URL`.
+    const href = issue.id.split('|').slice(3).join('|');
+    try {
+      const url = new URL(href);
+      if (url.origin === origin) missing.add(pagePath(url.pathname, basePath));
+    } catch {
+      // Not a URL: an issue id from another source; nothing to add.
+    }
+  }
+  for (const p of scan.pages) missing.delete(p.path);
+  return missing;
+}
+
 export function externalOrigins(scan: Scan): Set<string> {
   const out = new Set<string>();
   for (const page of scan.pages) {

@@ -59,6 +59,16 @@ describe('applyOp + buildMap', () => {
     expect(run({ type: 'addPlannedPage', path: '/Brokers//x/', title: '' }).plannedPages[0]!.path).toBe('/brokers/x');
   });
 
+  it('keeps the case of a missing page so the canvas drop on it can move there', () => {
+    const s = sampleScan({ missingPages: ['/About'] });
+    s.issues.push({ id: 'broken-link|/|/#top|http://localhost:4405/demo/Team', level: 'error', rule: 'broken-link', page: '/', blockKey: '/#top', message: 'x' });
+    for (const path of ['/About', '/Team']) {
+      const o = applyOp(applyOp(emptyOverlay(), s, { type: 'addPlannedPage', path, title: path }), s, { type: 'moveBlock', blockKey: '/~integraciones', toPage: path, index: 0 });
+      expect(o.plannedPages[0]!.path).toBe(path);
+      expect(o.plannedOrder[path]).toEqual(['/~integraciones']);
+    }
+  });
+
   it('borrar una etiqueta la quita de los bloques', () => {
     let o = run({ type: 'createTag', name: 'Confianza' });
     const tagId = o.tags[0]!.id;
