@@ -145,6 +145,29 @@ export const t = {
     resetAll: 'Undo all',
   },
 
+  menus: {
+    aria: 'Menus',
+    navigation: 'Navigation',
+    filters: 'Filters',
+    views: 'Views',
+    options: 'Options',
+    canvas: 'Canvas',
+    bars: 'Bars under the menus',
+    navBar: 'Navigation bar',
+    filterBar: 'Filter bar',
+    legend: 'Line legend',
+    navigationHint: 'Double-click or ✎ to rename a component.',
+    filteredBy: (name: string) => `Filter: ${name}`,
+    clearFilter: 'Clear the filter',
+  },
+  options: {
+    colors: 'Colors of detected tags…',
+    colorsTitle: 'Colors of detected tags',
+    colorsHint: 'Saved in this browser.',
+    defaultFixed: 'always gray',
+    reset: 'Reset colors',
+    done: 'Done',
+  },
   autoTags: {
     'auto:nav': 'Navigation',
     'auto:hero': 'Hero',
@@ -163,6 +186,8 @@ export const t = {
   tags: {
     aria: 'Tags',
     filter: 'Filter by tag:',
+    detected: 'Detected by Atlas',
+    yours: 'Your tags',
     name: 'Tag name',
     newName: 'New name',
     confirmShort: 'Delete?',

@@ -87,6 +87,12 @@ async function moveOtra() {
   await expect.poll(() => page.getByTestId('undo').isEnabled()).toBe(true);
   await expect.poll(async () => JSON.stringify((await serverMap()).layout['/otra'])).not.toBe(before);
 }
+/** Opens a menu of the menu bar (Navigation, Filters, Views, Options) unless it is open already. */
+async function openMenu(id: string) {
+  const trigger = page.getByTestId(`menu-${id}`);
+  if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click();
+}
+const closeMenus = () => page.keyboard.press('Escape');
 const center = async (sel: ReturnType<typeof diagram>) => {
   const b = (await sel.boundingBox())!;
   return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
@@ -132,6 +138,7 @@ describe('org chart canvas', () => {
   });
 
   it('shows a component diagram with one line per link of the component', async () => {
+    await openMenu('navigation');
     await page.locator(`[data-testid="show-component"][data-id="${header}"]`).click();
     await diagram(header).waitFor();
     // Switching Show fits again: every diagram of the component view is inside the viewport.
@@ -141,15 +148,19 @@ describe('org chart canvas', () => {
     expect(await diagram(header).textContent()).toContain('/otra');
   });
 
-  it('renames a component by double-clicking its Show button, outside the undo history', async () => {
+  it('renames a component from the Navigation menu, outside the undo history', async () => {
     const undoBefore = await page.getByTestId('undo').isEnabled();
+    await openMenu('navigation');
     const button = page.locator(`[data-testid="show-component"][data-id="${header}"]`);
-    await button.dblclick();
+    await button.locator('xpath=..').getByTestId('rename-component-button').click();
     // Typed inline: embedded browsers may not support window.prompt.
     await page.getByTestId('rename-component').fill('Main header');
     await page.getByTestId('rename-component').press('Enter');
     await expect.poll(async () => (await serverMap()).components.find((c) => c.id === header)!.name).toBe('Main header');
     await expect.poll(() => button.textContent()).toBe('Main header');
+    // The menu bar names the current view.
+    expect(await page.getByTestId('menu-navigation').textContent()).toContain('Main header');
+    await closeMenus();
     expect(await page.getByTestId('undo').isEnabled()).toBe(undoBefore);
   });
 
@@ -162,6 +173,7 @@ describe('org chart canvas', () => {
     await page.mouse.up();
     await expect.poll(async () => (await pending('relink')).length).toBe(1);
     await expect.poll(() => page.locator(`[data-testid="wire"][data-link="${header}|#cotizacion|Cotizar"]`).getAttribute('data-color')).toBe('edited');
+    await openMenu('navigation');
     await page.getByTestId('show-pages').click();
     await diagram('/').waitFor();
   });
@@ -287,13 +299,18 @@ describe('org chart canvas', () => {
     await page.getByTestId('issues-warn').click();
     expect(await panel.count()).toBe(0);
 
+    await openMenu('filters');
     const chips = page.getByTestId('auto-tag');
     expect(await chips.count()).toBe(5);
     // The fixture's quote section holds the form: filtering by Form dims every other piece.
     await page.locator('[data-testid="auto-tag"][data-id="auto:form"]').click();
     await expect.poll(() => piece('/', '/#top').evaluate((el) => getComputedStyle(el).opacity)).toBe('0.3');
     expect(await piece('/', '/#cotizacion').evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
-    await page.locator('[data-testid="auto-tag"][data-id="auto:form"]').click();
+    // The active filter stays visible next to the menus, and clears from there.
+    await closeMenus();
+    expect(await page.getByTestId('active-filter').textContent()).toContain('Form');
+    await page.getByTestId('active-filter').getByRole('button').click();
+    expect(await page.getByTestId('active-filter').count()).toBe(0);
   });
 
   it('removes every link to a NOT FOUND or external target from its ×, and the target goes away', async () => {
@@ -425,21 +442,27 @@ describe('org chart canvas', () => {
     expect(await details.evaluate((el) => getComputedStyle(el).userSelect)).toBe('text');
     expect(await details.textContent()).toContain(t.piece.type);
     // No window.prompt: the name is typed inline, since embedded browsers may not support prompt().
+    await openMenu('filters');
     await page.getByTestId('new-tag').click();
     await page.getByTestId('new-tag-name').fill('Trust');
     await page.getByTestId('new-tag-name').press('Enter');
+    await closeMenus();
     await details.getByLabel('Trust').check();
     await expect.poll(async () => (await serverMap()).pages[0]!.blocks.find((b) => b.key === '/#top')!.tags.length).toBe(1);
+    await openMenu('filters');
     await page.getByTestId('tag-filter').filter({ hasText: 'Trust' }).click();
     await expect.poll(() => piece('/', '/#cotizacion').evaluate((el) => getComputedStyle(el).opacity)).toBe('0.3');
     expect(await top.evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
     await page.getByTestId('tag-filter').filter({ hasText: 'Trust' }).click();
+    await closeMenus();
     await top.locator('.lh').click();
     await expect.poll(() => details.count()).toBe(0);
   });
 
   it('shows every piece as its screenshot without overlapping diagrams in the Screenshots view', async () => {
+    await openMenu('views');
     await page.getByTestId('view-screenshots').click();
+    await closeMenus();
     const pieces = page.locator('[data-testid="piece"]');
     await expect.poll(() => pieces.count()).toBeGreaterThan(5);
     await expect
@@ -453,7 +476,28 @@ describe('org chart canvas', () => {
         expect(overlap, `diagrams ${JSON.stringify(a)} and ${JSON.stringify(b)} overlap`).toBe(false);
       }
     }
+    await openMenu('views');
     await page.getByTestId('view-diagram').click();
+    await closeMenus();
+  });
+
+  it('shows or hides the optional bars from Views, and recolors detected tags from Options', async () => {
+    await openMenu('views');
+    await page.getByTestId('bar-navigation').check();
+    await closeMenus();
+    expect(await page.locator('.strip [data-testid="show-pages"]').count()).toBe(1);
+    await openMenu('views');
+    await page.getByTestId('bar-navigation').uncheck();
+    await closeMenus();
+    expect(await page.locator('.strip [data-testid="show-pages"]').count()).toBe(0);
+
+    await openMenu('options');
+    await page.getByTestId('open-tag-colors').click();
+    const dialog = page.getByTestId('tag-colors-dialog');
+    await page.getByTestId('color-auto:form').fill('#ff0000');
+    await expect.poll(() => page.locator('[data-testid="detected-tag"]', { hasText: 'Form' }).first().evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 0, 0)');
+    await dialog.getByRole('button', { name: t.options.reset }).click();
+    await dialog.getByRole('button', { name: t.options.done }).click();
   });
 
   it('says that history was reset when a re-scan finishes', async () => {
