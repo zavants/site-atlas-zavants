@@ -64,10 +64,7 @@ async function withFileLock<T>(lockFile: string, fn: () => Promise<T>): Promise<
       const code = (err as NodeJS.ErrnoException).code;
       if (code !== 'EEXIST' && code !== 'EPERM' && code !== 'EACCES') throw err;
       const age = await stat(lockFile).then((st) => Date.now() - st.mtimeMs, () => 0);
-      if (age > LOCK_STALE_MS) {
-        await unlink(lockFile).catch(() => undefined);
-        continue;
-      }
+      if (age > LOCK_STALE_MS && (await unlink(lockFile).then(() => true, () => false))) continue;
       if (Date.now() > deadline) throw new Error(en.store.locked(lockFile));
       await sleep(10 + Math.random() * 20);
     }
