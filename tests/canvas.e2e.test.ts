@@ -276,6 +276,12 @@ describe('org chart canvas', () => {
     await page.mouse.up();
     await expect.poll(async () => (await pending('delete')).length).toBe(1);
     await expect.poll(() => piece('~delete', '/~pieza-de-impacto').count()).toBe(1);
+    // The trash is an icon whose badge counts the marked pieces; a click opens the list.
+    await expect.poll(() => page.getByTestId('trash-badge').textContent()).toBe('1');
+    expect(await piece('~delete', '/~pieza-de-impacto').isVisible()).toBe(false);
+    await diagram('~delete').getByTestId('diagram-title').click();
+    expect(await piece('~delete', '/~pieza-de-impacto').isVisible()).toBe(true);
+    await diagram('~delete').getByTestId('diagram-title').click();
   });
 
   it('creates a planned page with a normalized path and rejects duplicates inside the dialog', async () => {
@@ -368,14 +374,14 @@ describe('org chart canvas', () => {
     const pieces = page.locator('[data-testid="piece"]');
     await expect.poll(() => pieces.count()).toBeGreaterThan(5);
     await expect
-      .poll(() => pieces.evaluateAll((els) => els.every((el) => { const img = el.querySelector('img.cap') as HTMLImageElement | null; return !!img && img.complete && img.naturalWidth > 0 && img.getBoundingClientRect().width > 0; })))
+      .poll(() => pieces.evaluateAll((els) => els.every((el) => { if (el.closest('[data-id="~delete"]')) return true; const img = el.querySelector('img.cap') as HTMLImageElement | null; return !!img && img.complete && img.naturalWidth > 0 && img.getBoundingClientRect().width > 0; })))
       .toBe(true);
-    const boxes = await page.locator('[data-testid="diagram"]').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; }));
+    const boxes = await page.locator('[data-testid="diagram"]').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { id: e.getAttribute("data-id"), x: r.left, y: r.top, w: r.width, h: r.height }; }));
     for (let i = 0; i < boxes.length; i++) {
       for (let j = i + 1; j < boxes.length; j++) {
         const a = boxes[i]!, b = boxes[j]!;
         const overlap = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-        expect(overlap, `diagrams ${i} and ${j} overlap`).toBe(false);
+        expect(overlap, `diagrams ${JSON.stringify(a)} and ${JSON.stringify(b)} overlap`).toBe(false);
       }
     }
     await page.getByTestId('view-diagram').click();

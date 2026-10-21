@@ -34,7 +34,19 @@ const ready = ref(false);
 const XF = computed(() => (props.mode === 'shots' ? 1.6 : 1));
 
 const diagrams = computed(() => buildDiagrams(props.map, { planned: props.planned, view: props.view }));
-const auto = computed(() => autoLayout(props.map, diagrams.value));
+const auto = computed(() => {
+  const out = autoLayout(props.map, diagrams.value);
+  // A planned page an agent added has no position yet: keep it off the diagrams the person placed.
+  // shortcut: boxes are a fixed 320x160 estimate, measure the DOM if tall planned pages still collide.
+  const taken: Rect[] = Object.values(props.map.layout).map((p) => ({ x: p.x, y: p.y, w: 320, h: 160 }));
+  for (const d of diagrams.value) {
+    const p = out[d.id];
+    if (d.kind !== 'planned' || props.map.layout[d.id] || !p) continue;
+    out[d.id] = freeSpot(p.x, p.y, 320, 160, taken);
+    taken.push({ ...out[d.id]!, w: 320, h: 160 });
+  }
+  return out;
+});
 const index = computed(() => blockIndex(props.map));
 const ownerLinks = computed(() => linksByOwner(props.map));
 const livePos = reactive<Record<string, Point>>({});
