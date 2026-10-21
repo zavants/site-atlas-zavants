@@ -324,6 +324,7 @@ describe('org chart canvas', () => {
     await glide(a, await center(diagram('~delete')), 14);
     // Over the trash, a hint says the piece will be deleted on release.
     expect(await page.getByTestId('trash-hint').isVisible()).toBe(true);
+    expect(await page.locator('.piece.float.doomed').count()).toBe(1);
     await page.mouse.up();
     expect(await page.getByTestId('trash-hint').count()).toBe(0);
     await expect.poll(async () => (await pending('delete')).length).toBe(1);
@@ -356,6 +357,8 @@ describe('org chart canvas', () => {
       await page.mouse.move(a.x, a.y);
       await page.mouse.down();
       await glide(a, b, 10);
+      // A diagram the trash would take turns red before release; a real page doesn't.
+      expect(await diagram(id).evaluate((el) => el.classList.contains('doomed'))).toBe(id !== '/otra');
       await page.mouse.up();
     };
     await page.getByTestId("zoom-fit").click();
