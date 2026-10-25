@@ -28,6 +28,7 @@ jobs:
         run: |
           version="$(node -p 'require("./package.json").version')"
           [ "v$version" = "${GITHUB_REF_NAME}" ] || { echo "Tag ${GITHUB_REF_NAME} does not match package.json version $version"; exit 1; }
+      - run: pnpm build
       - name: Pack
         run: |
           npm pack
