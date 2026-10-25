@@ -70,7 +70,7 @@ describe('extractBlocks', () => {
     expect(by('logos').smallImages).toBeGreaterThanOrEqual(8);
     expect(by('stats').bigNumbers).toBe(3);
     expect(by('testimonials').quotes).toBe(3);
-    expect(by('pricing').prices).toBeGreaterThanOrEqual(3);
+    expect(by('pricing').prices).toBe(3);
     expect(by('faq')).toMatchObject({ questions: 4, accordions: 4 });
     expect(by('steps').numbered).toBe(4);
     expect(by('products')).toMatchObject({ listItems: 6 });
@@ -79,6 +79,17 @@ describe('extractBlocks', () => {
     expect(by('content').words).toBeGreaterThanOrEqual(150);
     expect(by('gallery').largeImages).toBeGreaterThanOrEqual(4);
     expect(by('banner').imageRatio).toBeGreaterThanOrEqual(0.3);
+  });
+
+  it('counts one price per price, and only phone-shaped text as a contact hint', async () => {
+    const { raws } = await extract('roles.html');
+    const by = (id: string) => raws.find((r) => r.anchor === id)!.signals;
+    // "1.234.567" and "2019 2020 2021" are numbers, not phones.
+    expect(by('stats').contactHints).toBe(0);
+    // A mailto link, "+598 2908 1234" and "(02) 2908 1234": three hints, no more.
+    expect(by('contact').contactHints).toBe(3);
+    // "$49/mes" is one price, not a currency match plus a period match.
+    expect(by('feature').prices).toBe(1);
   });
 
   it('termina rápido en páginas enormes', async () => {

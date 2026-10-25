@@ -68,8 +68,11 @@ const IN_PAGE = String.raw`(() => {
   const HEADINGS = 'h1,h2,h3,h4,h5,h6';
   const NUMBERED = /^\d{1,2}[.)]?$/;
   const BIG_NUMBER = /^\D{0,2}\d[\d.,]*\s?(%|\+|k|M|x|[A-Za-zÀ-ÿ]{1,12}( [A-Za-zÀ-ÿ]{1,12})?)?$/;
-  const PRICE = /(?:R\$|US\$|[$€£])\s?\d|\d\s?(?:USD|EUR|BRL)\b|\/\s?(?:mes|mês|month|mo)\b/gi;
-  const PHONE = /\+?\d[\d ().-]{7,}\d/g;
+  /* One match per price: an amount swallows its own period suffix, so "$49/mes" counts once. */
+  const PRICE = /(?:(?:R\$|US\$|[$€£])\s?\d[\d.,]*|\d[\d.,]*\s?(?:USD|EUR|BRL)\b)(?:\s?\/\s?(?:mes|mês|month|mo)\b)?|\/\s?(?:mes|mês|month|mo)\b/gi;
+  /* Phone-shaped text only: a leading "+" or a parenthesized area code. Digits with
+     separators alone are not a phone: "1.234.567" and "2019 2020 2021" are numbers. */
+  const PHONE = /\+\d[\d ().-]{6,}\d|\(\d{2,4}\)\s?\d[\d ().-]{3,}\d/g;
   const QUOTED = /[“"][^”"]{20,}[”"]/g;
   const MAX_NODES = 5000;
 
