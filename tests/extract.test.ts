@@ -141,6 +141,9 @@ describe('extractBlocks', () => {
     const t0 = Date.now();
     const { raws } = await extract('alta.html');
     expect(raws).toHaveLength(1);
+    // The budget means something only on a page with many nodes to look at: a thousand
+    // visible list items, and as many again in a hidden copy that none of the counts reach.
+    expect(raws[0]!.signals.listItems).toBe(1000);
     expect(Date.now() - t0).toBeLessThan(20_000);
   });
 });

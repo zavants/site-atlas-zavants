@@ -1,3 +1,19 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><title>Alta</title></head>
-<body><section style="height:30000px"><h2>Muy alta</h2></section></body></html>
+<html lang="es"><head><meta charset="utf-8"><title>Alta</title>
+<style>.oculto { display: none; } .cifra { font-size: 40px; }</style></head>
+<body><section style="height:30000px"><h2>Muy alta</h2><div id="bulto"></div>
+<script>
+  // One tall block with about eleven thousand elements, half of them in a hidden copy:
+  // every structural signal has to look at each one of them.
+  var fila = '';
+  for (var i = 0; i < 500; i++) {
+    fila += '<div class="fila"><p class="cifra">' + i + '</p>' +
+      '<ul><li>Uno</li><li>Dos</li></ul>' +
+      '<details><summary>Pregunta ' + i + '?</summary><p>Respuesta corta.</p></details>' +
+      '<blockquote>Una cita del cliente numero ' + i + '.</blockquote>' +
+      '<button role="tab" aria-controls="panel">Resumen</button>' +
+      '<a href="mailto:hola@demo.test">Escribir</a></div>';
+  }
+  document.getElementById('bulto').innerHTML = fila + '<div class="oculto">' + fila + '</div>';
+</script>
+</section></body></html>
