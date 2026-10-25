@@ -183,6 +183,7 @@ const kindTag = computed(() => {
 .zone.target { background: color-mix(in srgb, var(--line-blue) 7%, transparent); outline: 2px dashed var(--line-blue); }
 .hint { font-size: 12px; color: var(--muted); margin: 4px 0; }
 
-.shots .diagram { width: 480px; }
-.shots .diagram.small { width: 300px; }
+/* The trash keeps its 36px button: a 480px box would cover the canvas and the pieces under it. */
+.shots .diagram:not(.d-trash) { width: 480px; }
+.shots .diagram.small:not(.d-trash) { width: 300px; }
 </style>
