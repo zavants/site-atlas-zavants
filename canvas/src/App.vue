@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { ConflictError, getMap, getPlan, getSites, rescan, sendOp, subscribe, type Change, type OverlayOp, type PlanFields, type SiteMap } from './api';
+import { ConflictError, getMap, getPlan, rescan, sendOp, subscribe, type Change, type OverlayOp, type PlanFields, type SiteMap } from './api';
 import { t } from './strings';
+import Home from './components/Home.vue';
 import Menu from './components/Menu.vue';
 import NavList from './components/NavList.vue';
 import TagBar from './components/TagBar.vue';
@@ -13,7 +14,6 @@ import { blockIndex, PAGES, type Mode } from './org/diagrams';
 const site = decodeURIComponent(location.pathname.replace(/^\/s\/?/, '').replace(/\/$/, ''));
 const map = ref<SiteMap | null>(null);
 const changes = ref<Change[]>([]);
-const sites = ref<{ site: string; lastScan: string | null }[]>([]);
 const planned = ref(true);
 const mode = ref<Mode>('diagram');
 const view = ref<string>(PAGES);
@@ -172,10 +172,7 @@ watch(components, (list) => {
 });
 
 onMounted(async () => {
-  if (!site) {
-    sites.value = await getSites();
-    return;
-  }
+  if (!site) return;
   await reload();
   unsubscribe = subscribe(site, (type, data) => {
     if (type === 'ready') live.value = true;
@@ -201,13 +198,7 @@ onBeforeUnmount(() => unsubscribe?.());
 </script>
 
 <template>
-  <main v-if="!site" class="home">
-    <h1>Site Atlas</h1>
-    <p v-if="!sites.length" class="muted">{{ t.home.empty }}<code>site-atlas scan &lt;url&gt;</code>{{ t.home.emptyOr }}<code>atlas_scan</code>.</p>
-    <ul>
-      <li v-for="s in sites" :key="s.site"><a :href="`/s/${encodeURIComponent(s.site)}`">{{ s.site }}</a> <span class="muted">{{ s.lastScan }}</span></li>
-    </ul>
-  </main>
+  <Home v-if="!site" />
 
   <main v-else-if="map" class="app">
     <header class="head">

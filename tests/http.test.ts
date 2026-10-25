@@ -153,3 +153,41 @@ describe('API HTTP with a token (canvas reachable from other machines)', () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe('API HTTP home page', () => {
+  it('summarizes every atlas: origin, size, issues and plan progress', async () => {
+    await post(`/api/sites/${SITE}/ops`, { rev: 0, op: move });
+    const [s] = (await (await app.request('/api/sites')).json()) as Record<string, unknown>[];
+    expect(s).toMatchObject({ site: SITE, name: '', pages: 2, pending: 1, applied: 0 });
+    expect(s!.origin).toBe('http://localhost:4405/demo/');
+    expect(s!.blocks).toBeGreaterThan(2);
+    expect(s!.lastScan).toBeTruthy();
+  });
+
+  it('validates a new scan request and refuses non-http URLs', async () => {
+    const start = (body: unknown) => post('/api/scans', body);
+    expect((await start({})).status).toBe(400);
+    expect((await start({ url: 'ftp://example.com' })).status).toBe(400);
+    expect((await start({ url: 'not a url' })).status).toBe(400);
+    expect((await start({ url: 'http://localhost:1/', site: '../etc' })).status).toBe(400);
+    expect((await start({ url: 'http://localhost:1/', maxPages: 0 })).status).toBe(400);
+    const res = await app.request('/api/scans', { method: 'POST', body: JSON.stringify({ url: 'http://localhost:1/' }), headers: { 'content-type': 'text/plain' } });
+    expect(res.status).toBe(415);
+  });
+
+  it('renames an atlas (display name, same id) and rejects an empty body', async () => {
+    const patch = (body: unknown) => app.request(`/api/sites/${SITE}`, { method: 'PATCH', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
+    expect((await patch({ name: 'Demo site' })).status).toBe(200);
+    const [s] = (await (await app.request('/api/sites')).json()) as { site: string; name: string }[];
+    expect(s).toMatchObject({ site: SITE, name: 'Demo site' });
+    expect((await patch({})).status).toBe(400);
+    expect((await app.request('/api/sites/nada', { method: 'PATCH', body: JSON.stringify({ name: 'x' }), headers: { 'content-type': 'application/json' } })).status).toBe(404);
+  });
+
+  it('deletes an atlas and then no longer lists it', async () => {
+    expect((await app.request(`/api/sites/${SITE}`, { method: 'DELETE' })).status).toBe(200);
+    expect(await (await app.request('/api/sites')).json()).toEqual([]);
+    expect((await app.request(`/api/sites/${SITE}`, { method: 'DELETE' })).status).toBe(404);
+    expect((await app.request('/api/sites/..%2F..', { method: 'DELETE' })).status).toBe(400);
+  });
+});

@@ -1,10 +1,16 @@
 import { createHash } from 'node:crypto';
-import { mkdir, open, readdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, open, readdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { emptyOverlay, migrateOverlay, type Overlay } from '../schema/overlay.js';
 import { en } from '../i18n/en.js';
 import { ScanSchema, type Scan } from '../schema/scan.js';
 import { atlasHome, siteDir } from './paths.js';
+
+export interface SiteInfo {
+  site: string;
+  createdAt: string;
+  name: string;
+}
 
 export class StaleRevError extends Error {
   constructor(
@@ -117,6 +123,28 @@ export class SiteStore {
     return out;
   }
 
+  private siteFile(site: string): string {
+    return join(this.dir(site), 'site.json');
+  }
+
+  /** site.json: the id, when the site was first scanned and the display name the user gave it, if any. */
+  async readSiteInfo(site: string): Promise<SiteInfo> {
+    const raw = (await readJson(this.siteFile(site))) as Partial<SiteInfo> | undefined;
+    return { site, createdAt: raw?.createdAt ?? '', name: typeof raw?.name === 'string' ? raw.name : '' };
+  }
+
+  async setSiteName(site: string, name: string): Promise<SiteInfo> {
+    const info = { ...(await this.readSiteInfo(site)), name: name.trim() };
+    await mkdir(this.dir(site), { recursive: true });
+    await writeAtomic(this.siteFile(site), JSON.stringify(info, null, 2));
+    return info;
+  }
+
+  /** Removes the site folder: scans, thumbnails and the user layer. */
+  deleteSite(site: string): Promise<void> {
+    return rm(this.dir(site), { recursive: true, force: true });
+  }
+
   private async scanIds(site: string): Promise<string[]> {
     try {
       return (await readdir(this.scansDir(site)))
@@ -130,7 +158,7 @@ export class SiteStore {
 
   async saveScan(scan: Scan): Promise<void> {
     await mkdir(this.scansDir(scan.site), { recursive: true });
-    const siteFile = join(this.dir(scan.site), 'site.json');
+    const siteFile = this.siteFile(scan.site);
     if ((await readJson(siteFile)) === undefined) {
       await writeAtomic(siteFile, JSON.stringify({ site: scan.site, createdAt: scan.startedAt }, null, 2));
     }

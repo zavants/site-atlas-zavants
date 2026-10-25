@@ -244,6 +244,8 @@ export const en = {
     cannotListen: (host: string, port: number, msg: string) => `Cannot listen on ${host}:${port}: ${msg}`,
     expectedJson: 'Expected application/json.',
     invalidOp: 'Invalid operation.',
+    invalidScan: 'Give an http or https URL to scan (and, if you set one, a site name made of letters, digits, dots, dashes or underscores).',
+    invalidName: 'Give a name of up to 120 characters.',
     mapChanged: 'The map changed while you were editing; it was reloaded.',
     scanRunning: 'A scan is already in progress.',
     invalidPath: 'Invalid path.',
