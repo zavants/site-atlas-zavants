@@ -4,8 +4,9 @@ import type { EffectiveLink } from '../../src/model/links.js';
 import type { Change } from '../../src/model/changes.js';
 import type { OverlayOp, PlanFields } from '../../src/model/ops.js';
 import type { Target } from '../../src/schema/overlay.js';
+import type { SiteSummary } from '../../src/model/service.js';
 
-export type { BlockView, Change, ComponentView, EffectiveLink, OverlayOp, PageView, PlanFields, SiteMap, Target, TargetView };
+export type { BlockView, Change, ComponentView, EffectiveLink, OverlayOp, PageView, PlanFields, SiteMap, SiteSummary, Target, TargetView };
 
 export class ConflictError extends Error {
   constructor(readonly map: SiteMap) {
@@ -22,7 +23,20 @@ async function json<T>(res: Response): Promise<T> {
 
 const enc = encodeURIComponent;
 
-export const getSites = () => fetch('/api/sites').then((r) => json<{ site: string; lastScan: string | null }[]>(r));
+export const getSites = () => fetch('/api/sites').then((r) => json<SiteSummary[]>(r));
+
+export interface ScanRequest {
+  url: string;
+  maxPages?: number;
+  include?: string[];
+  exclude?: string[];
+}
+/** Starts a scan of a new (or existing) site from its URL; progress arrives through `subscribe(site)`. */
+export const startScan = (req: ScanRequest) =>
+  fetch('/api/scans', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req) }).then((r) => json<{ started: true; site: string }>(r));
+export const renameSite = (site: string, name: string) =>
+  fetch(`/api/sites/${enc(site)}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }) }).then((r) => json<{ name: string }>(r));
+export const deleteSite = (site: string) => fetch(`/api/sites/${enc(site)}`, { method: 'DELETE' }).then((r) => json<{ deleted: string }>(r));
 export const getMap = (site: string) => fetch(`/api/sites/${enc(site)}/map`).then((r) => json<SiteMap>(r));
 export const getPlan = (site: string) =>
   fetch(`/api/sites/${enc(site)}/plan`).then((r) => json<{ changes: Change[]; markdown: string; schemaVersion: 2 }>(r));

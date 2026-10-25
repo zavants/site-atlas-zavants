@@ -10,8 +10,9 @@ import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { en } from '../i18n/en.js';
 import { OpError, OverlayOpSchema } from '../model/ops.js';
-import { getMap, getPlan, mutate, SiteNotFoundError } from '../model/service.js';
-import { runScan } from '../run.js';
+import { getMap, getPlan, listSiteSummaries, mutate, requireScan, SiteNotFoundError } from '../model/service.js';
+import { runScan, type RunScanOptions } from '../run.js';
+import { deriveSiteId } from '../store/paths.js';
 import { StaleRevError, type SiteStore } from '../store/store.js';
 import { VERSION } from '../version.js';
 
@@ -115,6 +116,13 @@ const isLocalOrigin = (origin: string) => {
 };
 
 const OpBody = z.object({ rev: z.number().int().nonnegative(), op: OverlayOpSchema });
+const ScanBody = z.object({
+  url: z.string().min(1),
+  site: z.string().optional(),
+  maxPages: z.number().int().min(1).max(500).optional(),
+  include: z.array(z.string()).optional(),
+  exclude: z.array(z.string()).optional(),
+});
 
 export const TOKEN_COOKIE = 'site_atlas_token';
 
@@ -193,15 +201,61 @@ export function createApp(store: SiteStore, opts: AppOptions = {}) {
         if (!sameOrigin) return c.json({ error: en.http.originNotAllowed }, 403);
       }
       const type = c.req.header('content-type') ?? '';
-      if (c.req.path.endsWith('/ops') && !type.startsWith('application/json')) {
+      const takesJson = c.req.path.endsWith('/ops') || c.req.path === '/api/scans' || c.req.method === 'PATCH';
+      if (takesJson && !type.startsWith('application/json')) {
         return c.json({ error: en.http.expectedJson }, 415);
       }
     }
     await next();
   });
 
+  /** Scans and re-scans share one slot per site; progress and the result go out as that site's events. */
+  const launchScan = (site: string, url: string, options: RunScanOptions) => {
+    rescans.add(site);
+    void runScan(store, url, { ...options, site, onProgress: (msg) => events.emit(site, { event: 'progress', data: { msg } }) })
+      .then(({ scan: s }) => events.emit(site, { event: 'scan', data: { scanId: s.scanId } }))
+      .catch((err: Error) => events.emit(site, { event: 'progress', data: { msg: en.scan.failed(err.message), failed: true } }))
+      .finally(() => rescans.delete(site));
+  };
+
   app.get('/api/health', (c) => c.json({ app: 'site-atlas', version: VERSION }));
-  app.get('/api/sites', async (c) => c.json(await store.listSites()));
+  app.get('/api/sites', async (c) => c.json(await listSiteSummaries(store)));
+
+  // A new atlas from a URL, as `site-atlas scan` would start it. Answers at once; follow /api/sites/:site/events.
+  app.post('/api/scans', async (c) => {
+    const parsed = ScanBody.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return c.json({ error: en.http.invalidScan }, 400);
+    const { url, ...options } = parsed.data;
+    let site: string;
+    try {
+      const u = new URL(url);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error();
+      site = options.site ?? deriveSiteId(url);
+      if (!SAFE.test(site) || site.includes('..')) throw new Error();
+    } catch {
+      return c.json({ error: en.http.invalidScan }, 400);
+    }
+    if (rescans.has(site)) return c.json({ error: en.http.scanRunning, site }, 409);
+    launchScan(site, url, options);
+    return c.json({ started: true, site }, 202);
+  });
+
+  app.patch('/api/sites/:site', async (c) => {
+    const site = c.req.param('site');
+    await requireScan(store, site);
+    const parsed = z.object({ name: z.string().max(120) }).safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return c.json({ error: en.http.invalidName }, 400);
+    return c.json(await store.setSiteName(site, parsed.data.name));
+  });
+
+  app.delete('/api/sites/:site', async (c) => {
+    const site = c.req.param('site');
+    if (!SAFE.test(site) || site.includes('..')) return c.json({ error: en.http.invalidPath }, 400);
+    if (rescans.has(site)) return c.json({ error: en.http.scanRunning }, 409);
+    if (!(await store.listSites()).some((s) => s.site === site)) throw new SiteNotFoundError(site);
+    await store.deleteSite(site);
+    return c.json({ deleted: site });
+  });
   app.get('/api/sites/:site/map', async (c) => c.json(await getMap(store, c.req.param('site'))));
   app.get('/api/sites/:site/plan', async (c) => c.json(await getPlan(store, c.req.param('site'))));
 
@@ -226,12 +280,8 @@ export function createApp(store: SiteStore, opts: AppOptions = {}) {
     const scan = await store.latestScan(site);
     if (!scan) throw new SiteNotFoundError(site);
     if (rescans.has(site)) return c.json({ error: en.http.scanRunning }, 409);
-    rescans.add(site);
     const { startUrl, ...options } = scan.options ?? { startUrl: scan.environment.origin + scan.environment.basePath };
-    void runScan(store, startUrl, { ...options, site, onProgress: (msg) => events.emit(site, { event: 'progress', data: { msg } }) })
-      .then(({ scan: s }) => events.emit(site, { event: 'scan', data: { scanId: s.scanId } }))
-      .catch((err: Error) => events.emit(site, { event: 'progress', data: { msg: en.scan.failed(err.message) } }))
-      .finally(() => rescans.delete(site));
+    launchScan(site, startUrl, options);
     return c.json({ started: true }, 202);
   });
 

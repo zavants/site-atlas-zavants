@@ -542,3 +542,59 @@ describe('org chart canvas', () => {
     expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined();
   });
 });
+
+describe('home page', () => {
+  let home: Page;
+  beforeAll(async () => {
+    home = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+    home.setDefaultTimeout(10_000);
+    await home.goto(`${base}/s/`);
+    await home.getByTestId('home').waitFor();
+  });
+  afterAll(() => home.close());
+
+  const card = (site: string) => home.locator(`[data-testid="atlas-card"][data-site="${site}"]`);
+
+  it('lists every atlas as a card with its size, plan progress and a prompt for an agent', async () => {
+    await expect.poll(() => home.getByTestId('atlas-card').count()).toBeGreaterThanOrEqual(2);
+    const demo = card('demo');
+    expect(await demo.getByTestId('atlas-name').textContent()).toBe('demo');
+    expect(await demo.textContent()).toMatch(/\d+ pages? · \d+ sections?/);
+    expect(await demo.getByTestId('atlas-plan').textContent()).toMatch(/\d+ pending · \d+ applied/);
+    await demo.locator('summary', { hasText: t.home.forAi }).click();
+    expect(await demo.getByTestId('ai-prompt').textContent()).toContain('site-atlas plan demo');
+  });
+
+  it('renames an atlas in place and keeps its id', async () => {
+    const demo = card('demo');
+    await demo.getByTestId('atlas-rename').click();
+    await demo.getByTestId('rename-input').fill('Demo site');
+    await demo.getByTestId('rename-save').click();
+    await expect.poll(() => demo.getByTestId('atlas-name').textContent()).toBe('Demo site');
+    expect(await demo.textContent()).toContain('demo');
+    expect((await fetch(`${base}/api/sites/demo/map`)).ok).toBe(true);
+  });
+
+  it('scans a pasted URL and opens its canvas when the scan finishes', async () => {
+    await home.getByTestId('scan-url').fill(`${fixture.url}/hostil.html`);
+    await home.locator('summary', { hasText: t.home.options }).click();
+    await home.getByTestId('scan-max-pages').fill('1');
+    await home.getByTestId('scan-start').click();
+    await home.getByTestId('scan-progress').waitFor();
+    await home.waitForURL(/\/s\/[^/]+$/, { timeout: 60_000 });
+    await home.locator('[data-testid="viewport"][data-ready="true"]').waitFor();
+    const site = decodeURIComponent(new URL(home.url()).pathname.replace('/s/', ''));
+    expect(site).toMatch(/^127-0-0-1-\d+$/);
+    expect(((await (await fetch(`${base}/api/sites`)).json()) as { site: string }[]).some((s) => s.site === site)).toBe(true);
+  });
+
+  it('deletes an atlas after a confirmation', async () => {
+    await home.goto(`${base}/s/`);
+    const hostil = card('hostil');
+    await hostil.waitFor();
+    await hostil.getByTestId('atlas-delete').click();
+    await home.getByTestId('remove-confirm').click();
+    await expect.poll(() => card('hostil').count()).toBe(0);
+    expect((await fetch(`${base}/api/sites/hostil/map`)).status).toBe(404);
+  });
+});

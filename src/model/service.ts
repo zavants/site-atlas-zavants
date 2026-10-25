@@ -47,3 +47,48 @@ export async function mutate(store: SiteStore, site: string, op: OverlayOp, rev?
   const saved = await store.updateOverlay(site, (current) => applyOp(withComponents(current, scan), scan, op), rev);
   return buildMap(scan, saved);
 }
+
+/** What the home page shows per atlas: where it came from, how big it is and how much of the plan is done. */
+export interface SiteSummary {
+  site: string;
+  name: string;
+  startUrl: string | null;
+  origin: string | null;
+  lastScan: string | null;
+  pages: number;
+  blocks: number;
+  issues: { error: number; warn: number; info: number };
+  pending: number;
+  applied: number;
+}
+
+export async function listSiteSummaries(store: SiteStore): Promise<SiteSummary[]> {
+  const out: SiteSummary[] = [];
+  for (const { site, lastScan } of await store.listSites()) {
+    const info = await store.readSiteInfo(site);
+    const base: SiteSummary = { site, name: info.name, startUrl: null, origin: null, lastScan, pages: 0, blocks: 0, issues: { error: 0, warn: 0, info: 0 }, pending: 0, applied: 0 };
+    let scan: Scan | null = null;
+    try {
+      scan = await store.latestScan(site);
+    } catch {
+      // an unreadable scan still lists the site, so it can be deleted or re-scanned
+    }
+    if (!scan) {
+      out.push(base);
+      continue;
+    }
+    const changes = deriveChanges(scan, withComponents(await store.readOverlay(site), scan));
+    const count = (level: string) => scan!.issues.filter((i) => i.level === level).length;
+    out.push({
+      ...base,
+      startUrl: scan.options?.startUrl ?? null,
+      origin: scan.environment.origin + scan.environment.basePath,
+      pages: scan.pages.length,
+      blocks: scan.pages.reduce((n, p) => n + p.blocks.length, 0),
+      issues: { error: count('error'), warn: count('warn'), info: count('info') },
+      pending: changes.filter((c) => c.status === 'pending').length,
+      applied: changes.filter((c) => c.status === 'applied').length,
+    });
+  }
+  return out;
+}

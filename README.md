@@ -75,14 +75,19 @@ docker exec site-atlas site-atlas scan https://example.com
 ## Quick start
 
 ```bash
+site-atlas canvas        # opens http://127.0.0.1:4800
+```
+
+The start page is where everything begins: **paste a URL** (with optional limits on pages and paths), watch the scan progress, and the canvas of the new atlas opens when it finishes. Every atlas you made before is listed as a card with its size, its issues, how much of the plan is still pending, and buttons to open, re-scan, rename or delete it, plus a ready-made prompt for your AI agent.
+
+The same from the terminal:
+
+```bash
 # Scan (up to 30 pages by default)
 site-atlas scan http://localhost:4321/
 
 # More options
 site-atlas scan https://example.com --max-pages 5 --exclude "/blog/**"
-
-# Open the canvas
-site-atlas canvas
 ```
 
 ### CLI

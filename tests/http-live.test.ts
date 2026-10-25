@@ -74,3 +74,25 @@ describe('servidor en vivo', () => {
     expect(latest.pages).toHaveLength(1);
   }, 90_000);
 });
+
+describe('nuevo atlas desde una URL', () => {
+  it('escanea el sitio y avisa el progreso y el resultado por eventos', async () => {
+    const site = 'fx-new';
+    const listener = listen(site);
+    await listener.ready;
+    const res = await fetch(`${base}/api/scans`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url: `${fixture.url}/index.html`, site, maxPages: 1 }),
+    });
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ started: true, site });
+    expect((await fetch(`${base}/api/scans`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: `${fixture.url}/index.html`, site }) })).status).toBe(409);
+    await expect.poll(async () => (await store.latestScan(site))?.scanId, { timeout: 60_000 }).toBeTruthy();
+    await expect.poll(() => listener.events.join('').includes('event: scan'), { timeout: 5000 }).toBe(true);
+    expect(listener.events.join('')).toContain('event: progress');
+    listener.ctrl.abort();
+    const summary = ((await (await fetch(`${base}/api/sites`)).json()) as { site: string; pages: number }[]).find((s) => s.site === site);
+    expect(summary?.pages).toBe(1);
+  }, 90_000);
+});
