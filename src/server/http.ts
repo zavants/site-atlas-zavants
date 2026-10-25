@@ -1,9 +1,11 @@
+import { timingSafeEqual } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { existsSync, realpathSync, watch, type FSWatcher } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
+import { getCookie, setCookie } from 'hono/cookie';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { en } from '../i18n/en.js';
@@ -23,7 +25,8 @@ const TYPES: Record<string, string> = {
   '.png': 'image/png',
 };
 
-function defaultCanvasDir(): string {
+/** The built canvas: next to the compiled server (installed package) or in dist/ (source checkout). */
+export function defaultCanvasDir(): string {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [resolve(here, '../canvas'), resolve(here, '../../dist/canvas')];
   return candidates.find((c) => existsSync(join(c, 'index.html'))) ?? candidates[0]!;
@@ -113,8 +116,37 @@ const isLocalOrigin = (origin: string) => {
 
 const OpBody = z.object({ rev: z.number().int().nonnegative(), op: OverlayOpSchema });
 
-export function createApp(store: SiteStore, opts: { canvasDir?: string; keepAliveMs?: number } = {}) {
+export const TOKEN_COOKIE = 'site_atlas_token';
+
+const tokenMatches = (given: string | undefined, token: string): boolean => {
+  if (!given) return false;
+  const a = Buffer.from(given);
+  const b = Buffer.from(token);
+  return a.length === b.length && timingSafeEqual(a, b);
+};
+
+const hostOf = (origin: string): string | null => {
+  try {
+    return new URL(origin).host.toLowerCase();
+  } catch {
+    return null;
+  }
+};
+
+export interface AppOptions {
+  canvasDir?: string;
+  keepAliveMs?: number;
+  /**
+   * Shared secret for a canvas reachable from other machines. With a token, every request except
+   * /api/health needs `Authorization: Bearer <token>`, or the cookie that `/s/…?token=<token>` sets,
+   * and the Host check is dropped (the cookie is bound to the host name, so DNS rebinding gets nothing).
+   */
+  token?: string;
+}
+
+export function createApp(store: SiteStore, opts: AppOptions = {}) {
   const canvasDir = opts.canvasDir ?? defaultCanvasDir();
+  const token = opts.token || undefined;
   const events = new SiteEvents(store);
   const rescans = new Set<string>();
   const app = new Hono();
@@ -126,14 +158,40 @@ export function createApp(store: SiteStore, opts: { canvasDir?: string; keepAliv
     return c.json({ error: en.http.internal }, 500);
   });
 
-  // Solo el propio lienzo puede usar el servidor: Host local (contra DNS rebinding),
-  // Origin local en escrituras y cuerpos JSON (contra CSRF desde cualquier página, incluida la escaneada).
+  // Only the canvas itself may use the server.
+  // Local mode (default): local Host (against DNS rebinding), local Origin on writes and JSON bodies (against CSRF
+  // from any page, including the scanned one).
+  // Token mode: a bearer header or the token cookie on every request; a cookie-authenticated write must also be
+  // same-origin, since the browser attaches the cookie on its own.
   app.use('*', async (c, next) => {
-    const host = (c.req.header('host') ?? new URL(c.req.url).host).replace(/:\d+$/, '').toLowerCase();
-    if (!LOCAL_HOSTS.has(host)) return c.json({ error: en.http.hostNotAllowed }, 403);
-    if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
+    if (c.req.path === '/api/health') return next();
+    const hostHeader = (c.req.header('host') ?? new URL(c.req.url).host).toLowerCase();
+    const host = hostHeader.replace(/:\d+$/, '');
+    const read = c.req.method === 'GET' || c.req.method === 'HEAD';
+    let viaCookie = false;
+    if (token) {
+      const bearer = c.req.header('authorization')?.replace(/^Bearer\s+/i, '');
+      if (tokenMatches(bearer, token)) {
+        // header auth: nothing a cross-site page can forge
+      } else if (tokenMatches(getCookie(c, TOKEN_COOKIE), token)) {
+        viaCookie = true;
+      } else if (read && tokenMatches(c.req.query('token'), token)) {
+        const secure = new URL(c.req.url).protocol === 'https:' || c.req.header('x-forwarded-proto') === 'https';
+        setCookie(c, TOKEN_COOKIE, token, { httpOnly: true, sameSite: 'Strict', path: '/', secure });
+        return c.redirect(c.req.path.startsWith('/s/') ? c.req.path : '/s/');
+      } else {
+        return c.json({ error: en.http.unauthorized }, 401);
+      }
+    } else if (!LOCAL_HOSTS.has(host)) {
+      return c.json({ error: en.http.hostNotAllowed }, 403);
+    }
+    if (!read) {
       const origin = c.req.header('origin');
-      if (origin && !isLocalOrigin(origin)) return c.json({ error: en.http.originNotAllowed }, 403);
+      if (!token && origin && !isLocalOrigin(origin)) return c.json({ error: en.http.originNotAllowed }, 403);
+      if (viaCookie) {
+        const sameOrigin = c.req.header('sec-fetch-site') === 'same-origin' || (origin !== undefined && hostOf(origin) === hostHeader);
+        if (!sameOrigin) return c.json({ error: en.http.originNotAllowed }, 403);
+      }
       const type = c.req.header('content-type') ?? '';
       if (c.req.path.endsWith('/ops') && !type.startsWith('application/json')) {
         return c.json({ error: en.http.expectedJson }, 415);

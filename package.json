@@ -1,22 +1,30 @@
 {
   "name": "site-atlas",
   "version": "0.1.0",
-  "private": true,
-  "description": "Mapa semántico de sitios web: escaneo por bloques, lienzo con arrastrar y soltar y servidor MCP.",
+  "description": "Semantic map of websites: section-level scanning, a drag-and-drop canvas and an MCP server so AI agents can implement the plan.",
+  "keywords": ["website", "sitemap", "sections", "mcp", "playwright", "canvas", "ai-agents"],
   "license": "MIT",
+  "homepage": "https://github.com/zavants/site-atlas-zavants#readme",
+  "bugs": "https://github.com/zavants/site-atlas-zavants/issues",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zavants/site-atlas-zavants.git"
+    "url": "git+https://github.com/zavants/site-atlas-zavants.git"
   },
   "type": "module",
   "bin": {
     "site-atlas": "dist/cli.js"
   },
+  "files": ["dist", "README.md", "LICENSE"],
   "engines": {
     "node": ">=24"
   },
+  "packageManager": "pnpm@10.34.7",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json && vite build canvas",
+    "prepack": "npm run build",
     "test": "vitest run",
     "typecheck": "tsc -p . --noEmit && vue-tsc -p canvas/tsconfig.json",
     "atlas": "tsx src/cli.ts",
@@ -31,7 +39,6 @@
     "playwright": "^1.64.1",
     "robots-parser": "^3.0.1",
     "sharp": "^0.35.5",
-    "vue": "^3.5.44",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -42,6 +49,7 @@
     "typescript": "^5.9.3",
     "vite": "^8.3.4",
     "vitest": "^5.0.5",
+    "vue": "^3.5.44",
     "vue-tsc": "^3.3.13"
   }
 }

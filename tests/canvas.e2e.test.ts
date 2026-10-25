@@ -468,7 +468,13 @@ describe('org chart canvas', () => {
     await expect
       .poll(() => pieces.evaluateAll((els) => els.every((el) => { if (el.closest('[data-id="~delete"]')) return true; const img = el.querySelector('img.cap') as HTMLImageElement | null; return !!img && img.complete && img.naturalWidth > 0 && img.getBoundingClientRect().width > 0; })))
       .toBe(true);
-    const boxes = await page.locator('[data-testid="diagram"]').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { id: e.getAttribute("data-id"), x: r.left, y: r.top, w: r.width, h: r.height }; }));
+    const all = await page.locator('[data-testid="diagram"]').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { id: e.getAttribute("data-id"), x: r.left, y: r.top, w: r.width, h: r.height }; }));
+    // The trash is a fixed 36px button in the dock: it must not grow into a box that covers the canvas,
+    // and diagrams may pan under the dock, so it stays out of the pairwise check.
+    const trashBox = all.find((b) => b.id === '~delete')!;
+    expect(trashBox.w, `trash box ${JSON.stringify(trashBox)}`).toBeLessThanOrEqual(40);
+    expect(trashBox.h, `trash box ${JSON.stringify(trashBox)}`).toBeLessThanOrEqual(40);
+    const boxes = all.filter((b) => b.id !== '~delete');
     for (let i = 0; i < boxes.length; i++) {
       for (let j = i + 1; j < boxes.length; j++) {
         const a = boxes[i]!, b = boxes[j]!;
