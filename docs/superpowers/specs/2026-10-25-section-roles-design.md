@@ -83,7 +83,7 @@ signals: {
   smallImages: number;      // img/svg/picture with rendered width ≤ 160px
   largeImages: number;      // img/video/canvas/picture with area ≥ 20% of the block (an element, never a background)
   imageRatio: number;       // largest single image/video/canvas area ÷ block area, and a url() background on the block or a descendant up to two levels down, at the share of the box its painting covers (cover, contain or an explicit size; an auto size cannot be measured and a repeating tile is a texture) (replaces today's canvas/video-only visualRatio for roles; kind keeps using visualRatio)
-  contactHints: number;     // tel: / mailto: links, <address>, phone-like text
+  contactHints: number;     // tel: / mailto: links, <address>, phone-like text (a thousands-separated figure such as "+1.000.000" or "+1 000 000" is not one)
   tabs: number;             // [role=tab]
 }
 ```

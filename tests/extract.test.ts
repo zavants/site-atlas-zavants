@@ -100,12 +100,14 @@ describe('extractBlocks', () => {
     const by = (id: string) => raws.find((r) => r.anchor === id)!.signals;
     // "1.234.567" and "2019 2020 2021" are numbers, not phones.
     expect(by('stats').contactHints).toBe(0);
-    // A mailto link plus six phone shapes: "+598 2908 1234", "(02) 2908 1234",
-    // "+598 99 123 456", "+1 (555) 123-4567", "(011) 4321-5678" and "+34 910 123 456".
-    expect(by('contact').contactHints).toBe(7);
+    // A mailto link plus seven phone shapes: "+598 2908 1234", "(02) 2908 1234",
+    // "+598 99 123 456", "+1 (555) 123-4567", "(011) 4321-5678", "+34 910 123 456"
+    // and the dot-written "+598.99.765.432".
+    expect(by('contact').contactHints).toBe(8);
     // "$49/mes" is one price, not a currency match plus a period match.
     expect(by('feature').prices).toBe(1);
-    // "+1.000.000" and "+25.000.000" are thousands-separated figures, not phones.
+    // "+1.000.000", "+25.000.000" and "+1 000 000" are thousands-separated figures,
+    // not phones, whichever separator the page writes them with.
     expect(by('figures').contactHints).toBe(0);
   });
 

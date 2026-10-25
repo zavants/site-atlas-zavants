@@ -86,10 +86,13 @@ const IN_PAGE = String.raw`(() => {
   /* One match per price: an amount swallows its own period suffix, so "$49/mes" counts once. */
   const PRICE = /(?:(?:R\$|US\$|[$€£])\s?\d[\d.,]*|\d[\d.,]*\s?(?:USD|EUR|BRL)\b)(?:\s?\/\s?(?:mes|mês|month|mo)\b)?|\/\s?(?:mes|mês|month|mo)\b/gi;
   /* Phone-shaped text only: a leading "+" or a parenthesized area code. Digits with
-     separators alone are not a phone: "1.234.567" and "2019 2020 2021" are numbers.
-     A dot or a comma groups thousands, so it is not a phone separator either: that keeps
-     the marketing figure "+1.000.000" out while "+598 99 123 456" stays in. */
-  const PHONE = /\+\d[\d ()-]{6,}\d|\(\d{2,4}\)\s?\d[\d ()-]{3,}\d/g;
+     separators alone are not a phone: "1.234.567" and "2019 2020 2021" are numbers. */
+  const PHONE = /\+\d[\d .()-]{6,}\d|\(\d{2,4}\)\s?\d[\d .()-]{3,}\d/g;
+  /* A thousands-separated figure is not a phone, whichever separator the page writes it
+     with: every group after the first has exactly three digits and there are at most three
+     groups. That is "+1.000.000" and "+1 000 000", and not "+598 99 123 456",
+     "+34 910 123 456" or the dot-written "+598.99.765.432". */
+  const THOUSANDS = /^\+?\d{1,3}([ .])(\d{3}\1)?\d{3}$/;
   const QUOTED = /[“"][^”"]{20,}[”"]/g;
   const MAX_NODES = 5000;
   /* The block, its children and their children carry the backdrops worth reading. */
@@ -222,7 +225,8 @@ const IN_PAGE = String.raw`(() => {
       imageRatio: Math.round(imageRatio * 1000) / 1000,
       tabs: countRendered(el, '[role=tab]'),
       contactHints:
-        countRendered(el, 'a[href^="tel:"], a[href^="mailto:"], address') + (full.match(PHONE) || []).length,
+        countRendered(el, 'a[href^="tel:"], a[href^="mailto:"], address') +
+        (full.match(PHONE) || []).filter((t) => !THOUSANDS.test(t)).length,
     };
   };
 
