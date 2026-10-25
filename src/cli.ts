@@ -10,6 +10,10 @@ import { SiteStore } from './store/store.js';
 import { VERSION } from './version.js';
 
 const list = (v: string, prev: string[] = []) => [...prev, v];
+const envInt = (name: string): number | undefined => {
+  const n = Number.parseInt(process.env[name] ?? '', 10);
+  return Number.isNaN(n) ? undefined : n;
+};
 const BY = 'cli';
 const store = () => new SiteStore();
 const propose = async (site: string, op: OverlayOp) => {
@@ -50,10 +54,42 @@ program
 program
   .command('canvas [site]')
   .description(en.cli.canvas)
-  .option('--port <n>', en.cli.port, (v) => Number.parseInt(v, 10))
-  .action(async (site: string | undefined, o: { port?: number }) => {
-    const { url } = await startCanvasServer(new SiteStore(), { port: o.port });
-    console.log(en.cli.canvasUrl(`${url}/s/${site ?? ''}`));
+  .option('--port <n>', en.cli.port, (v) => Number.parseInt(v, 10), envInt('SITE_ATLAS_PORT'))
+  .option('--host <host>', en.cli.host, process.env.SITE_ATLAS_HOST)
+  .option('--token <token>', en.cli.token, process.env.SITE_ATLAS_TOKEN)
+  .action(async (site: string | undefined, o: { port?: number; host?: string; token?: string }) => {
+    const { url, token } = await startCanvasServer(new SiteStore(), o);
+    const page = `${url}/s/${site ?? ''}`;
+    console.log(en.cli.canvasUrl(page));
+    if (token) {
+      console.log(en.cli.canvasOpen(`${page}?token=${token}`));
+      console.log(en.cli.canvasToken(token));
+      console.log(en.cli.canvasRemoteHint);
+    }
+  });
+
+program
+  .command('setup')
+  .description(en.cli.setup)
+  .option('--with-deps', en.cli.withDeps)
+  .action(async (o: { withDeps?: boolean }) => {
+    const { installChromium } = await import('./setup.js');
+    const code = await installChromium({ withDeps: Boolean(o.withDeps) });
+    if (code !== 0) throw new Error(en.cli.setupFailed(code));
+    console.log(en.cli.setupDone);
+    if (process.platform === 'linux' && !o.withDeps) console.log(en.cli.setupLinuxHint);
+  });
+
+program
+  .command('doctor')
+  .description(en.cli.doctor)
+  .action(async () => {
+    const { doctor } = await import('./setup.js');
+    const checks = await doctor(store());
+    for (const c of checks) console.log(`${c.ok ? en.cli.doctorOk : en.cli.doctorFail}  ${c.text}`);
+    const fails = checks.filter((c) => !c.ok).length;
+    console.log(en.cli.doctorSummary(fails));
+    if (fails) process.exitCode = 1;
   });
 
 program

@@ -3,3 +3,4 @@ dist
 .site-atlas-test*
 .superpowers
 .claude/worktrees/
+*.tgz

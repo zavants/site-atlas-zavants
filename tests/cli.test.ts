@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -121,5 +121,25 @@ describe.concurrent('CLI plan commands', () => {
     const bad = await cli('component', 'rename', SITE, 'c:nope', 'X');
     expect(bad.code).toBe(1);
     expect(bad.err).toContain('Component c:nope does not exist.');
+  });
+});
+
+describe('CLI doctor', () => {
+  it('reports Node, the data folder, Chromium and the canvas, and exits 0 when all is ready', SLOW, async () => {
+    const { cli } = await setup();
+    const res = await cli('doctor');
+    expect(res.err).toBe('');
+    expect(res.out).toMatch(/ok {4}Node \d+/);
+    expect(res.out).toMatch(/ok {4}Data folder .* \(1 site\)/);
+    expect(res.out).toMatch(/ok {4}Chromium at/);
+    expect(res.out).toMatch(/ok {4}Canvas files in/);
+    expect(res.out).toContain('Everything is ready.');
+    expect(res.code).toBe(0);
+  });
+
+  it('prints the version from package.json', SLOW, async () => {
+    const { cli } = await setup();
+    const { version } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as { version: string };
+    expect((await cli('--version')).out.trim()).toBe(version);
   });
 });
