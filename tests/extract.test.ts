@@ -62,6 +62,25 @@ describe('extractBlocks', () => {
     expect(pageInfo.duplicateIds).toEqual([]);
   });
 
+  it('counts the role signals of each section of roles.html', async () => {
+    const { raws } = await extract('roles.html');
+    const by = (id: string) => raws.find((r) => r.anchor === id)!.signals;
+    expect(by('features')).toMatchObject({ cards: 6, cardHeadingLevel: 3 });
+    expect(by('two-up')).toMatchObject({ cards: 2 });
+    expect(by('logos').smallImages).toBeGreaterThanOrEqual(8);
+    expect(by('stats').bigNumbers).toBe(3);
+    expect(by('testimonials').quotes).toBe(3);
+    expect(by('pricing').prices).toBeGreaterThanOrEqual(3);
+    expect(by('faq')).toMatchObject({ questions: 4, accordions: 4 });
+    expect(by('steps').numbered).toBe(4);
+    expect(by('products')).toMatchObject({ listItems: 6 });
+    expect(by('products').largeImages).toBeGreaterThanOrEqual(1);
+    expect(by('contact').contactHints).toBeGreaterThanOrEqual(1);
+    expect(by('content').words).toBeGreaterThanOrEqual(150);
+    expect(by('gallery').largeImages).toBeGreaterThanOrEqual(4);
+    expect(by('banner').imageRatio).toBeGreaterThanOrEqual(0.3);
+  });
+
   it('termina rápido en páginas enormes', async () => {
     const t0 = Date.now();
     const { raws } = await extract('alta.html');

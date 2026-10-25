@@ -181,6 +181,11 @@ export async function scanSite(url: string, opts: ScanOptions): Promise<Scan> {
             textExcerpt: raw.text.slice(0, 200),
             components: raw.components,
             shot,
+            signals: raw.signals,
+            role: 'default',
+            roles: [],
+            cta: false,
+            roleReasons: [],
           });
         }
         pages.push({ path, url: current, title: info.title, status, error: null, blocks });

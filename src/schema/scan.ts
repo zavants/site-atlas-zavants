@@ -6,6 +6,60 @@ export type Kind = z.infer<typeof KindSchema>;
 /** Reads v1 data, where the narrative kind was stored as `narrativa`. */
 export const StoredKindSchema = z.preprocess((v) => (v === 'narrativa' ? 'narrative' : v), KindSchema);
 
+/** What a section is, in the vocabulary of marketing sites. The ids are stored in overlays and never change. */
+export const SectionRoleSchema = z.enum([
+  'navigation',
+  'footer',
+  'hero',
+  'form',
+  'contact',
+  'pricing',
+  'faq',
+  'testimonials',
+  'logos',
+  'stats',
+  'steps',
+  'audience',
+  'solutions',
+  'products',
+  'team',
+  'about',
+  'gallery',
+  'banner',
+  'features',
+  'feature',
+  'content',
+  'default',
+]);
+export type SectionRole = z.infer<typeof SectionRoleSchema>;
+
+/** Structure counted in the page by the extraction, read by the role classifier. */
+export const SignalsSchema = z.object({
+  /** Words of visible text. */
+  words: z.number(),
+  /** Largest run of two or more consecutive siblings of the same tag, each holding a heading or an image. */
+  cards: z.number(),
+  cardHeadingLevel: z.number().nullable(),
+  listItems: z.number(),
+  orderedItems: z.number(),
+  /** Short texts like "01" or "3)". */
+  numbered: z.number(),
+  accordions: z.number(),
+  quotes: z.number(),
+  prices: z.number(),
+  /** Numbers set in 32px or more. */
+  bigNumbers: z.number(),
+  questions: z.number(),
+  smallImages: z.number(),
+  largeImages: z.number(),
+  /** Largest single image, video or canvas area ÷ block area. */
+  imageRatio: z.number(),
+  tabs: z.number(),
+  /** tel:/mailto: links, an address element, phone-like text. */
+  contactHints: z.number(),
+});
+export type Signals = z.infer<typeof SignalsSchema>;
+
 export const ComponentsSchema = z.object({
   headings: z.array(z.object({ level: z.number(), text: z.string() })),
   links: z.array(
@@ -40,6 +94,14 @@ const BaseBlockSchema = z.object({
   textExcerpt: z.string(),
   components: ComponentsSchema,
   shot: z.string().nullable(),
+  /** Missing in scans made before roles existed. */
+  signals: SignalsSchema.optional(),
+  role: SectionRoleSchema.default('default'),
+  /** Up to two roles the section also matches. */
+  roles: z.array(SectionRoleSchema).default([]),
+  cta: z.boolean().default(false),
+  /** Short rule names behind the role ("cards>=3", "kw:steps"), for agents and debugging. */
+  roleReasons: z.array(z.string()).default([]),
 });
 /** Reads v1 scans, which lack `isComponent`: header/footer tags and global blocks count as components. */
 export const BlockSchema = z.preprocess((v) => {

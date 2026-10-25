@@ -39,7 +39,9 @@ afterAll(() => server.close());
 describe('anti-goal: Atlas never writes into the scanned site', () => {
   it('leaves the site folder untouched through scan, edits, plan, confirm, re-scan, canvas and MCP', async () => {
     const before = await snapshot(siteDir);
-    expect(Object.keys(before).sort()).toEqual(['alta.html', 'hostil.html', 'index.html', 'marcas.html', 'mixto.html', 'otra.html']);
+    expect(Object.keys(before).sort()).toEqual([
+      'alta.html', 'hostil.html', 'index.html', 'marcas.html', 'mixto.html', 'otra.html', 'pixel.png', 'roles.html',
+    ]);
 
     const home = await mkdtemp(join(tmpdir(), 'site-atlas-home-'));
     const store = new SiteStore(home);

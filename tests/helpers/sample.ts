@@ -15,6 +15,10 @@ function block(partial: Partial<Block> & Pick<Block, 'key' | 'name' | 'order'>):
     textExcerpt: `Texto de ${partial.name}`,
     components: noComponents(),
     shot: null,
+    role: 'default',
+    roles: [],
+    cta: false,
+    roleReasons: [],
     ...partial,
   };
 }

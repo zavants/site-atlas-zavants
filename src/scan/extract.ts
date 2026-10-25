@@ -63,6 +63,97 @@ const IN_PAGE = String.raw`(() => {
     }
   };
 
+  const SKIP_TAG = /^(SCRIPT|STYLE|TEMPLATE|NOSCRIPT)$/;
+  const CARDISH = 'h1,h2,h3,h4,h5,h6,img,picture,svg,video';
+  const HEADINGS = 'h1,h2,h3,h4,h5,h6';
+  const NUMBERED = /^\d{1,2}[.)]?$/;
+  const BIG_NUMBER = /^\D{0,2}\d[\d.,]*\s?(%|\+|k|M|x|[A-Za-zÀ-ÿ]{1,12}( [A-Za-zÀ-ÿ]{1,12})?)?$/;
+  const PRICE = /(?:R\$|US\$|[$€£])\s?\d|\d\s?(?:USD|EUR|BRL)\b|\/\s?(?:mes|mês|month|mo)\b/gi;
+  const PHONE = /\+?\d[\d ().-]{7,}\d/g;
+  const QUOTED = /[“"][^”"]{20,}[”"]/g;
+  const MAX_NODES = 5000;
+
+  /* Largest run of >= 2 consecutive children of one tag, each holding a heading or an image. */
+  const cardsOf = (block) => {
+    let best = [];
+    const walk = (container, depth) => {
+      const kids = [...container.children].filter((c) => !SKIP_TAG.test(c.tagName));
+      let i = 0;
+      while (i < kids.length) {
+        if (!kids[i].querySelector(CARDISH)) {
+          i++;
+          continue;
+        }
+        let j = i + 1;
+        while (j < kids.length && kids[j].tagName === kids[i].tagName && kids[j].querySelector(CARDISH)) j++;
+        if (j - i >= 2 && j - i > best.length) best = kids.slice(i, j);
+        i = j;
+      }
+      if (depth < 3) for (const k of kids) walk(k, depth + 1);
+    };
+    walk(block, 0);
+    return best;
+  };
+
+  const signalsOf = (el, rect, area, full) => {
+    const cards = cardsOf(el);
+    let cardHeadingLevel = null;
+    for (const c of cards) {
+      for (const h of c.querySelectorAll(HEADINGS)) {
+        const level = Number(h.tagName[1]);
+        if (cardHeadingLevel === null || level < cardHeadingLevel) cardHeadingLevel = level;
+      }
+    }
+    let numbered = 0;
+    let bigNumbers = 0;
+    const nodes = el.querySelectorAll('*');
+    for (let i = 0; i < nodes.length && i < MAX_NODES; i++) {
+      const node = nodes[i];
+      if (node.childElementCount > 0) continue;
+      const t = text(node);
+      if (t.length === 0 || t.length > 24) continue;
+      if (t.length <= 3 && NUMBERED.test(t)) numbered++;
+      if (BIG_NUMBER.test(t) && parseFloat(getComputedStyle(node).fontSize) >= 32) bigNumbers++;
+    }
+    let smallImages = 0;
+    let largeImages = 0;
+    let imageRatio = 0;
+    for (const m of el.querySelectorAll('img, svg, picture, video, canvas')) {
+      const tag = m.tagName.toUpperCase();
+      if (tag === 'PICTURE' && m.querySelector('img')) continue;
+      const r = m.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) continue;
+      if (r.width <= 160 && tag !== 'VIDEO' && tag !== 'CANVAS') smallImages++;
+      if (tag === 'SVG') continue;
+      const w = Math.max(0, Math.min(r.right, rect.right) - Math.max(r.left, rect.left));
+      const h = Math.max(0, Math.min(r.bottom, rect.bottom) - Math.max(r.top, rect.top));
+      const share = (w * h) / area;
+      if (share >= 0.2) largeImages++;
+      imageRatio = Math.max(imageRatio, share);
+    }
+    let questions = 0;
+    for (const h of el.querySelectorAll('h2, h3, h4, summary')) if (text(h).endsWith('?')) questions++;
+    return {
+      words: full ? full.split(' ').length : 0,
+      cards: cards.length,
+      cardHeadingLevel,
+      listItems: el.querySelectorAll('li').length,
+      orderedItems: el.querySelectorAll('ol li').length,
+      numbered,
+      accordions: el.querySelectorAll('details, [aria-expanded], [role=tab]').length,
+      quotes: Math.max(el.querySelectorAll('blockquote, q').length, (full.match(QUOTED) || []).length),
+      prices: (full.match(PRICE) || []).length,
+      bigNumbers,
+      questions,
+      smallImages,
+      largeImages,
+      imageRatio: Math.round(imageRatio * 1000) / 1000,
+      tabs: el.querySelectorAll('[role=tab]').length,
+      contactHints:
+        el.querySelectorAll('a[href^="tel:"], a[href^="mailto:"], address').length + (full.match(PHONE) || []).length,
+    };
+  };
+
   const raws = blocks.map((el, i) => {
     el.setAttribute('data-atlas-i', String(i));
     const rect = el.getBoundingClientRect();
@@ -79,6 +170,7 @@ const IN_PAGE = String.raw`(() => {
     const parentWraps = parent && parent !== document.body && parent.tagName !== 'MAIN' &&
       [...parent.children].filter((c) => !/^(SCRIPT|STYLE)$/.test(c.tagName)).length === 1;
     const forms = [...el.querySelectorAll('form')];
+    const full = (el.innerText || text(el)).replace(/\s+/g, ' ').trim();
     return {
       tag: el.tagName.toLowerCase(),
       landmark: el.matches('header, [role=banner], footer, [role=contentinfo]') && !el.parentElement?.closest('section, article, aside'),
@@ -88,10 +180,11 @@ const IN_PAGE = String.raw`(() => {
       heading: heading ? text(heading) || null : null,
       anchor: el.id || (parentWraps && parent.id) || null,
       height: Math.round(rect.height),
-      text: (el.innerText || text(el)).replace(/\s+/g, ' ').trim().slice(0, 2000),
+      text: full.slice(0, 2000),
       childTags: [...el.children].map((c) => c.tagName.toLowerCase()),
       hasForm: forms.length > 0,
       visualRatio: Math.round(visualRatio * 1000) / 1000,
+      signals: signalsOf(el, rect, area, full),
       components: {
         headings: [...el.querySelectorAll('h1,h2,h3,h4,h5,h6')].slice(0, 20)
           .map((h) => ({ level: Number(h.tagName[1]), text: text(h) })),
