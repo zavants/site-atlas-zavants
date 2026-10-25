@@ -91,6 +91,8 @@ describe('scanSite', () => {
       products: 'products',
       solutions: 'solutions',
       steps: 'steps',
+      // Cards with process words, no visible numbering: steps all the same.
+      process: 'steps',
       stats: 'stats',
       testimonials: 'testimonials',
       pricing: 'pricing',

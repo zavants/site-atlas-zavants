@@ -53,17 +53,39 @@ describe('classify', () => {
     expect(classify(input({ components: withForm(2) }))).toMatchObject({ role: 'form', secondary: [] });
   });
 
-  it('needs process words for numbered cards to be steps; audience words make them audience', () => {
+  it('needs process words for cards to be steps; audience words make them audience', () => {
     expect(classify(input({ kicker: 'Cómo trabajamos', signals: { cards: 4, numbered: 4, cardHeadingLevel: 3 } })).role).toBe('steps');
+    // Spec 5.3: three cards and process words are steps, whether or not the cards show a number.
+    expect(classify(input({ kicker: 'Cómo trabajamos', signals: { cards: 4, cardHeadingLevel: 3 } })).role).toBe('steps');
     expect(classify(input({ kicker: 'Para quién', signals: { cards: 3, numbered: 3, cardHeadingLevel: 3 } })).role).toBe('audience');
     expect(classify(input({ heading: 'Our platform', signals: { cards: 3, numbered: 3, cardHeadingLevel: 3 } })).role).toBe('features');
+    // Without process words, numbered cards alone are still a feature grid.
+    expect(classify(input({ heading: 'Our platform', signals: { cards: 3, cardHeadingLevel: 3 } })).role).toBe('features');
+  });
+
+  it('names in the reasons the arm of the rule that fired', () => {
+    expect(classify(input({ kicker: 'Cómo trabajamos', signals: { cards: 4, cardHeadingLevel: 3 } })).reasons).toEqual([
+      'kw:steps',
+      'cards>=3',
+    ]);
+    expect(classify(input({ heading: 'How it works', signals: { orderedItems: 4, cards: 2 } })).reasons).toEqual([
+      'kw:steps',
+      'orderedItems>=3',
+    ]);
+    expect(classify(input({ kicker: 'Para quién', signals: { numbered: 2 } })).reasons).toEqual([
+      'kw:audience',
+      'numbered>=2',
+    ]);
   });
 
   it('matches keywords only in kicker, heading and anchor, accent-insensitively', () => {
     expect(matchesKeyword('about', ['NOSOTROS'])).toBe(true);
     expect(matchesKeyword('about', ['Sobre nos'])).toBe(true);
     expect(matchesKeyword('steps', ['Processing payments'])).toBe(false); // whole word
-    expect(classify(input({ heading: 'About our process', signals: { cards: 3, cardHeadingLevel: 3 } })).role).toBe('features');
+    // 'about' asks for no cards, so a grid under "About us" stays a feature grid,
+    expect(classify(input({ heading: 'About us', signals: { cards: 3, cardHeadingLevel: 3 } })).role).toBe('features');
+    // while 'process' is a steps keyword and three cards are enough for steps (spec 5.3).
+    expect(classify(input({ heading: 'About our process', signals: { cards: 3, cardHeadingLevel: 3 } })).role).toBe('steps');
   });
 
   it('recognizes logos, stats, testimonials, pricing, faq, team, gallery, banner, feature, content, default', () => {
@@ -94,6 +116,14 @@ describe('classify', () => {
       }),
     );
     expect(d).toMatchObject({ role: 'contact', secondary: ['form'], cta: true });
+  });
+
+  it('keeps at most two secondary roles, and a form that holds the only buttons is not a cta', () => {
+    // prices, questions, quotes and cards match four rules; only the two after the primary are kept.
+    const crowded = classify(input({ signals: { prices: 3, questions: 4, quotes: 2, cards: 3, cardHeadingLevel: 3 } }));
+    expect(crowded.role).toBe('pricing');
+    expect(crowded.secondary).toEqual(['faq', 'testimonials']);
+    expect(classify(input({ components: { ...withForm(2), buttons: ['Send'] } })).cta).toBe(false);
   });
 
   it('classifies an old block without signals like today', () => {

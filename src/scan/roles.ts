@@ -1,4 +1,7 @@
 import type { Components, SectionRole, Signals } from '../schema/scan.js';
+import { ROLE_KEYWORDS } from './roleKeywords.js';
+
+export { ROLE_KEYWORDS };
 
 /** What the classifier reads about one section. Pure data: no DOM, no scan, no overlay. */
 export interface RoleInput {
@@ -51,101 +54,6 @@ export const ROLE_ORDER: SectionRole[] = [
   'content',
   'default',
 ];
-
-/**
- * Words that name a section, in Spanish, English and Portuguese. They are written without
- * accents because both sides of a comparison are accent-stripped: "sobre nos" also matches
- * "Sobre nós". Adding a language is adding entries, not code. Matched against the kicker,
- * the heading and the anchor only, never the body text.
- */
-export const ROLE_KEYWORDS: Record<SectionRole, string[]> = {
-  navigation: [],
-  footer: [],
-  hero: [],
-  form: [],
-  contact: [
-    'contacto',
-    'contactenos',
-    'cotizacion',
-    'presupuesto',
-    'hablemos',
-    'contact',
-    'get in touch',
-    'request a quote',
-    'contato',
-    'orcamento',
-  ],
-  pricing: ['precios', 'tarifas', 'planes y precios', 'pricing', 'prices', 'plans & pricing', 'precos'],
-  faq: ['preguntas frecuentes', 'faq', 'dudas', 'frequently asked', 'questions', 'perguntas frequentes'],
-  testimonials: [
-    'testimonios',
-    'opiniones',
-    'clientes dicen',
-    'testimonials',
-    'reviews',
-    'what our customers say',
-    'depoimentos',
-  ],
-  logos: ['integraciones', 'partners', 'clientes', 'confian', 'integrations', 'trusted by', 'integracoes', 'parceiros'],
-  stats: ['cifras', 'numeros', 'en numeros', 'stats', 'by the numbers'],
-  steps: [
-    'como trabajamos',
-    'como funciona',
-    'proceso',
-    'pasos',
-    'metodologia',
-    'how it works',
-    'process',
-    'steps',
-    'how we work',
-    'como trabalhamos',
-    'processo',
-    'etapas',
-  ],
-  audience: ['para quien', 'para quienes', 'who is it for', 'for whom', 'built for', 'made for', 'para quem'],
-  solutions: [
-    'soluciones',
-    'por industria',
-    'sectores',
-    'casos de uso',
-    'solutions',
-    'industries',
-    'use cases',
-    'solucoes',
-    'setores',
-  ],
-  products: [
-    'productos',
-    'modulos',
-    'plataforma',
-    'catalogo',
-    'planes',
-    'products',
-    'modules',
-    'plans',
-    'catalog',
-    'produtos',
-    'planos',
-  ],
-  team: ['equipo', 'nuestro equipo', 'team', 'our team', 'equipe', 'nossa equipe'],
-  about: [
-    'nosotros',
-    'quienes somos',
-    'sobre nosotros',
-    'about',
-    'about us',
-    'who we are',
-    'our story',
-    'sobre nos',
-    'quem somos',
-  ],
-  gallery: [],
-  banner: [],
-  features: [],
-  feature: [],
-  content: [],
-  default: [],
-};
 
 /** Lower case, accents stripped, anything that is not a letter or a digit turned into a space. */
 function fold(text: string): string {
@@ -237,14 +145,22 @@ const RULES: Record<SectionRole, Rule> = {
       : when(c.kw('logos') && c.s.smallImages >= 4, 'kw:logos', 'smallImages>=4'),
   stats: (c) => when(c.s.bigNumbers >= 3, 'bigNumbers>=3'),
   /*
-   * Cards alone are not a process: a feature grid under "About our process" is features.
-   * The cards arm asks for the numbering that a process shows.
+   * Process words are the discriminator, not the numbering: plenty of process sections draw
+   * their stages as plain cards. Cards alone are a feature grid, which is why the keyword is
+   * required on all three arms.
    */
-  steps: (c) =>
-    c.kw('steps') && (c.s.numbered >= 3 || c.s.orderedItems >= 3 || (c.s.cards >= 3 && c.s.numbered >= 2))
-      ? ['kw:steps', 'numbered items']
-      : when(c.s.orderedItems >= 3 && c.s.cards === 0, 'orderedItems>=3'),
-  audience: (c) => when(c.kw('audience') && (c.s.cards >= 2 || c.s.numbered >= 2), 'kw:audience', 'cards>=2'),
+  steps: (c) => {
+    if (c.kw('steps')) {
+      if (c.s.numbered >= 3) return ['kw:steps', 'numbered>=3'];
+      if (c.s.orderedItems >= 3) return ['kw:steps', 'orderedItems>=3'];
+      if (c.s.cards >= 3) return ['kw:steps', 'cards>=3'];
+    }
+    return when(c.s.orderedItems >= 3 && c.s.cards === 0, 'orderedItems>=3', 'cards==0');
+  },
+  audience: (c) =>
+    c.kw('audience') && (c.s.cards >= 2 || c.s.numbered >= 2)
+      ? ['kw:audience', c.s.cards >= 2 ? 'cards>=2' : 'numbered>=2']
+      : null,
   solutions: (c) => when(c.kw('solutions') && c.s.cards >= 2, 'kw:solutions', 'cards>=2'),
   products: (c) => {
     if (c.kw('products') && (c.s.cards >= 3 || c.s.listItems >= 5)) return ['kw:products', 'cards or list'];

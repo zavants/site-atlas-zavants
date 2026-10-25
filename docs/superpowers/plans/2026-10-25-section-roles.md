@@ -22,7 +22,8 @@
 ## Review Focus
 
 1. A section with two columns of text and image (a "two cards" layout): must count `cards = 2` so audience/solutions rules can fire and `feature`/`content` do not swallow it (Task 1 fixture `two-up` section; Task 2 unit test).
-2. A heading like "About our process" on a feature grid: keyword `about` and `process` must not beat `features` (Task 2 test: cards=3 + kw about → `features`, because `about` requires `cards == 0`; and kw steps without numbers/ordered/cards → not steps).
+2. A heading like "About us" on a feature grid: keyword `about` must not beat `features` (Task 2 test: cards=3 + kw about → `features`, because `about` requires `cards == 0`); and kw steps without numbers, ordered items **or cards** → not steps.
+   **Resolved while building (2026-10-25):** this focus originally also asked for "About our process" + cards=3 → `features`, which spec §5.3 contradicts: `cards ≥ 3` and kw:steps is `steps`, and `steps` precedes `features`. The rules are the spec's ("Adjust `roles.html`, never the rules", Task 2 Step 5), so that example asserts `steps`, and the `about` half of the focus is tested with a heading that carries no process word. Keeping the spec rule is also what §7 needs: SCAP's "Cómo trabajamos" draws its stages as cards, and its numbering is not guaranteed to reach the extraction as separate text nodes.
 3. An old scan without `signals`: map build and canvas must not throw; role falls back to navigation/footer/hero/form/default (Task 3 test with `sampleScan()` which has no signals).
 4. A role override on a block that later moves to another page (block key changes): the override follows it, as `kindOverrides` do (Task 3 test via `moveBlock` + reconcile path `renameKey`).
 5. A huge page (the existing 2,000-element fixture): signal counting must stay under the current time budget (Task 1 reuses that test's assertion, unchanged).
@@ -112,7 +113,8 @@ it('matches keywords only in kicker, heading and anchor, accent-insensitively', 
   expect(matchesKeyword('about', ['NOSOTROS'])).toBe(true);
   expect(matchesKeyword('about', ['Sobre nos'])).toBe(true);
   expect(matchesKeyword('steps', ['Processing payments'])).toBe(false); // whole word
-  expect(classify(input({ heading: 'About our process', signals: { cards: 3, cardHeadingLevel: 3 } })).role).toBe('features');
+  expect(classify(input({ heading: 'About us', signals: { cards: 3, cardHeadingLevel: 3 } })).role).toBe('features');
+  expect(classify(input({ heading: 'About our process', signals: { cards: 3, cardHeadingLevel: 3 } })).role).toBe('steps'); // kw:steps + cards>=3, spec §5.3
 });
 it('recognizes logos, stats, testimonials, pricing, faq, team, gallery, banner, feature, content, default', () => {
   expect(classify(input({ signals: { smallImages: 8, words: 20 } })).role).toBe('logos');
