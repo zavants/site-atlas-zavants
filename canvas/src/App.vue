@@ -212,8 +212,8 @@ onBeforeUnmount(() => unsubscribe?.());
         </span>
         <span class="grow" />
         <div class="seg" role="group" :aria-label="t.head.mode">
-          <button type="button" data-testid="toggle-real" :aria-pressed="!planned" @click="planned = false">{{ t.head.real }}</button>
-          <button type="button" data-testid="toggle-planned" :aria-pressed="planned" @click="planned = true">{{ t.head.planned }}</button>
+          <button type="button" data-testid="toggle-real" :aria-pressed="!planned" :title="t.head.viewTitle" @click="planned = false">{{ t.head.real }}</button>
+          <button type="button" data-testid="toggle-planned" :aria-pressed="planned" :title="t.head.editTitle(changes.length)" @click="planned = true">{{ t.head.editLabel(changes.length) }}</button>
         </div>
         <button type="button" data-testid="rescan" :disabled="scanning" :aria-busy="scanning" @click="startRescan">{{ scanning ? t.head.scanningShort : t.head.rescan }}</button>
       </div>
