@@ -94,12 +94,24 @@ describe('classify', () => {
     expect(classify(input({ signals: { quotes: 2, cards: 2 } })).role).toBe('testimonials');
     expect(classify(input({ signals: { prices: 3, cards: 3, cardHeadingLevel: 3 } })).role).toBe('pricing');
     expect(classify(input({ signals: { questions: 4, accordions: 4 } })).role).toBe('faq');
-    expect(classify(input({ signals: { cards: 4, cardHeadingLevel: 3, smallImages: 4, words: 60 } })).role).toBe('team');
+    expect(classify(input({ heading: 'Our team', signals: { cards: 4, cardHeadingLevel: 3, smallImages: 4, words: 60 } })).role).toBe('team');
     expect(classify(input({ signals: { largeImages: 5, words: 10 } })).role).toBe('gallery');
     expect(classify(input({ heading: 'Control absoluto', signals: { largeImages: 1, imageRatio: 0.8, words: 12 } })).role).toBe('banner');
     expect(classify(input({ heading: 'Una sola infraestructura', signals: { largeImages: 1, words: 80 } })).role).toBe('feature');
     expect(classify(input({ signals: { words: 300 } })).role).toBe('content');
     expect(classify(input({ signals: { words: 30 } })).role).toBe('default');
+  });
+
+  it('needs team words for cards with an image each: an icon grid is features', () => {
+    // A card icon is a small image, so the card shape alone cannot tell a six-card
+    // feature grid (SCAP Tech's "Tecnología") from a team of six.
+    const grid = { cards: 6, cardHeadingLevel: 4, smallImages: 6, words: 120 };
+    expect(classify(input({ heading: 'Tecnología', signals: grid })).role).toBe('features');
+    expect(classify(input({ heading: 'Our team', signals: grid })).role).toBe('team');
+    expect(classify(input({ heading: 'Our team', signals: grid })).reasons).toEqual([
+      'kw:team',
+      'cards with a portrait and a short name',
+    ]);
   });
 
   it('products: keyword with a list, or a list next to a large image, or tabs', () => {

@@ -52,7 +52,7 @@ This design replaces that with a **role** per section: what kind of section it i
 | `audience` | who it is for | audience keywords ("para quién", "who is it for", "para quem") with cards |
 | `solutions` | by business model or industry | solutions / industries keywords with cards |
 | `products` | catalog, modules, plans without prices | product keywords, or a list of ≥ 5 short items next to one large image (tabbed showcase) |
-| `team` | the people | ≥ 3 cards with an image and a short name + role text, or team keywords |
+| `team` | the people | team keywords; ≥ 3 cards with an image and a short name + role text confirm them |
 | `about` | who we are | about keywords, no cards |
 | `gallery` | images dominate | ≥ 4 large images and few words |
 | `banner` | a closing band with a line and maybe one button | one heading, ≤ 40 words, a large image or visual ratio ≥ 0.3, not the hero |
@@ -139,7 +139,7 @@ The builder keeps the list in one table in `roles.ts`; adding a language is addi
 - audience: kw:audience and (`cards ≥ 2` or `numbered ≥ 2`).
 - solutions: kw:solutions and `cards ≥ 2`.
 - products: kw:products and (`cards ≥ 3` or `listItems ≥ 5`), or (`listItems ≥ 5 && largeImages ≥ 1 && words ≤ 200`), or `tabs ≥ 3`.
-- team: `cards ≥ 3 && smallImages + largeImages ≥ cards && cardHeadingLevel ≥ 3 && words / cards ≤ 25`, or kw:team.
+- team: kw:team. The card shape (`cards ≥ 3 && smallImages + largeImages ≥ cards && cardHeadingLevel ≥ 3 && words / cards ≤ 25`) is added to the reasons when it also holds, but it no longer classifies on its own: a card icon is a small image, so it cannot be told from a portrait.
 - about: kw:about and `cards == 0`.
 - gallery: `largeImages ≥ 4 && words ≤ 60`.
 - banner: `headings.length ≤ 2 && words ≤ 40 && (imageRatio ≥ 0.3 || largeImages ≥ 1) && !pageHasH1Here`.
@@ -188,6 +188,7 @@ Two tests cover it. Always on: a **fixture page** `tests/fixtures/site/roles.htm
 - **Keywords in three languages in one table.** Enough for the user's sites; adding more is data, not code.
 - **CTA as an attribute**, so a pricing section with buttons is still pricing.
 - **Kind stays.** Removing it would touch the plan wording and colors for no gain here.
+- **Changed after review (2026-10-25):** the structural arm of `team` now needs kw:team as well, because an icon-per-card feature grid satisfied it (six icons are six small images), which made §7 expect `features` for sections the rules called `team`.
 - **Order of work.** Roles land first, on a branch cut from `feat/start-page` (the current tip); the AI plugin plan comes after and reads `role` from the map. Both touch `formatMap`, `atlas_get_block` and `en.ts`, so the second one rebases.
 
 Calls made after the builder check: `cards` counts groups of two or more; keywords match headings, kickers and anchors only (ambiguous single words such as "time" dropped); the SCAP acceptance is a live test behind `ATLAS_BETA1_URL` plus the always-on fixture page; roles go before the plugin.

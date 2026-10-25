@@ -167,7 +167,13 @@ const RULES: Record<SectionRole, Rule> = {
     if (c.s.listItems >= 5 && c.s.largeImages >= 1 && c.s.words <= 200) return ['listItems>=5', 'largeImages>=1'];
     return when(c.s.tabs >= 3, 'tabs>=3');
   },
+  /*
+   * A card icon is a small image too, so the card shape cannot tell a team of six from an
+   * icon-per-card feature grid. The team words are the discriminator; the card shape only
+   * confirms them, and shows up in the reasons when it does.
+   */
   team: (c) => {
+    if (!c.kw('team')) return null;
     const portraits = c.s.smallImages + c.s.largeImages;
     const named =
       c.s.cards >= 3 &&
@@ -175,7 +181,7 @@ const RULES: Record<SectionRole, Rule> = {
       c.s.cardHeadingLevel !== null &&
       c.s.cardHeadingLevel >= 3 &&
       c.s.words / Math.max(1, c.s.cards) <= 25;
-    return named ? ['cards with a portrait and a short name'] : when(c.kw('team'), 'kw:team');
+    return named ? ['kw:team', 'cards with a portrait and a short name'] : ['kw:team'];
   },
   about: (c) => when(c.kw('about') && c.s.cards === 0, 'kw:about', 'cards==0'),
   gallery: (c) => when(c.s.largeImages >= 4 && c.s.words <= 60, 'largeImages>=4', 'words<=60'),
