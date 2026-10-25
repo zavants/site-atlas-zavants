@@ -269,5 +269,6 @@ export const en = {
     locked: (lockFile: string) => `The user layer is locked by another process (${lockFile}).`,
     invalidScan: (file: string, msg: string) => `Invalid scan in ${file}: ${msg}`,
     invalidOverlay: (file: string, msg: string) => `Invalid user layer in ${file}: ${msg}`,
+    summaryTooLong: 'The advice summary must be 200 characters or fewer.',
   },
 };

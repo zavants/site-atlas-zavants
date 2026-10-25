@@ -6,11 +6,26 @@ import { en } from '../i18n/en.js';
 import { ScanSchema, type Scan } from '../schema/scan.js';
 import { atlasHome, siteDir } from './paths.js';
 
+/** Who may change the site: `own` when the agent can edit its code, `advisory` when it can only recommend. */
+export type SiteMode = 'own' | 'advisory';
+
 export interface SiteInfo {
   site: string;
   createdAt: string;
   name: string;
+  mode: SiteMode | null;
 }
+
+/** The latest recommendation stored next to an atlas: a signed note, its one-line summary and the full Markdown. */
+export interface Advice {
+  by: string;
+  at: string;
+  summary: string;
+  markdown: string;
+}
+
+const MODES: SiteMode[] = ['own', 'advisory'];
+const SUMMARY_MAX = 200;
 
 export class StaleRevError extends Error {
   constructor(
@@ -127,17 +142,58 @@ export class SiteStore {
     return join(this.dir(site), 'site.json');
   }
 
-  /** site.json: the id, when the site was first scanned and the display name the user gave it, if any. */
-  async readSiteInfo(site: string): Promise<SiteInfo> {
-    const raw = (await readJson(this.siteFile(site))) as Partial<SiteInfo> | undefined;
-    return { site, createdAt: raw?.createdAt ?? '', name: typeof raw?.name === 'string' ? raw.name : '' };
+  private adviceFile(site: string): string {
+    return join(this.dir(site), 'advice.json');
   }
 
-  async setSiteName(site: string, name: string): Promise<SiteInfo> {
-    const info = { ...(await this.readSiteInfo(site)), name: name.trim() };
-    await mkdir(this.dir(site), { recursive: true });
-    await writeAtomic(this.siteFile(site), JSON.stringify(info, null, 2));
+  private adviceMarkdownFile(site: string): string {
+    return join(this.dir(site), 'advice.md');
+  }
+
+  /** site.json: the id, when the site was first scanned, the display name the user gave it and the mode, if any. */
+  async readSiteInfo(site: string): Promise<SiteInfo> {
+    const raw = (await readJson(this.siteFile(site))) as Partial<SiteInfo> | undefined;
+    const mode = MODES.find((m) => m === raw?.mode) ?? null;
+    return { site, createdAt: raw?.createdAt ?? '', name: typeof raw?.name === 'string' ? raw.name : '', mode };
+  }
+
+  private async writeSiteInfo(info: SiteInfo): Promise<SiteInfo> {
+    await mkdir(this.dir(info.site), { recursive: true });
+    await writeAtomic(this.siteFile(info.site), JSON.stringify(info, null, 2));
     return info;
+  }
+
+  setSiteName(site: string, name: string): Promise<SiteInfo> {
+    return this.readSiteInfo(site).then((info) => this.writeSiteInfo({ ...info, name: name.trim() }));
+  }
+
+  setSiteMode(site: string, mode: SiteMode | null): Promise<SiteInfo> {
+    return this.readSiteInfo(site).then((info) => this.writeSiteInfo({ ...info, mode }));
+  }
+
+  /** The latest advice, or null when it was never written (or only half of it survived). */
+  async readAdvice(site: string): Promise<Advice | null> {
+    const raw = (await readJson(this.adviceFile(site))) as Partial<Advice> | undefined;
+    if (!raw || typeof raw.by !== 'string' || typeof raw.at !== 'string' || typeof raw.summary !== 'string') return null;
+    let markdown: string;
+    try {
+      markdown = await readFile(this.adviceMarkdownFile(site), 'utf8');
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+      throw err;
+    }
+    return { by: raw.by, at: raw.at, summary: raw.summary, markdown };
+  }
+
+  /** Stores the advice, replacing any earlier one: only the latest is kept. */
+  async writeAdvice(site: string, advice: { by: string; summary: string; markdown: string }): Promise<Advice> {
+    const summary = advice.summary.trim();
+    if (summary.length > SUMMARY_MAX) throw new Error(en.store.summaryTooLong);
+    const saved: Advice = { by: advice.by, at: new Date().toISOString(), summary, markdown: advice.markdown };
+    await mkdir(this.dir(site), { recursive: true });
+    await writeAtomic(this.adviceMarkdownFile(site), saved.markdown);
+    await writeAtomic(this.adviceFile(site), JSON.stringify({ by: saved.by, at: saved.at, summary: saved.summary }, null, 2));
+    return saved;
   }
 
   /** Removes the site folder: scans, thumbnails and the user layer. */
