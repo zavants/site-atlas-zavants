@@ -225,6 +225,7 @@ export interface OrgContext {
   grab: (e: PointerEvent, el: HTMLElement, diagramId: string, piece: PieceModel) => void;
   plug: (e: PointerEvent, el: HTMLElement, piece: PieceModel) => void;
   setKind: (key: string, kind: BlockView['kind'] | null) => void;
+  setRole: (key: string, role: BlockView['effectiveRole'] | null) => void;
   setTags: (key: string, tagIds: string[]) => void;
   restore: (key: string) => void;
   targetLabel: (target: Target | null) => string;

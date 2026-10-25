@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { StoredKindSchema } from './scan.js';
+import { SectionRoleSchema, StoredKindSchema } from './scan.js';
 
 export const TagSchema = z.object({ id: z.string(), name: z.string(), color: z.string() });
 export type Tag = z.infer<typeof TagSchema>;
@@ -22,6 +22,8 @@ export const OverlaySchema = z.object({
   tags: z.array(TagSchema),
   blockTags: z.record(z.string(), z.array(z.string())),
   kindOverrides: z.record(z.string(), StoredKindSchema),
+  /** Hand-corrected roles by block key; they travel with the block as kind overrides do. */
+  roleOverrides: z.record(z.string(), SectionRoleSchema).default({}),
   plannedPages: z.array(z.object({ path: z.string(), title: z.string() })),
   plannedOrder: z.record(z.string(), z.array(z.string())),
   plannedDeletions: z.array(z.string()),
@@ -47,6 +49,7 @@ export function emptyOverlay(): Overlay {
     tags: [],
     blockTags: {},
     kindOverrides: {},
+    roleOverrides: {},
     plannedPages: [],
     plannedOrder: {},
     plannedDeletions: [],

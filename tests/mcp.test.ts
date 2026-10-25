@@ -35,17 +35,17 @@ beforeEach(async () => {
 });
 
 describe('servidor MCP', () => {
-  it('exposes the 21 tools', async () => {
+  it('exposes the 22 tools', async () => {
     const names = (await client.listTools()).tools.map((t) => t.name).sort();
     expect(names).toEqual(
       [
         'atlas_add_planned_page', 'atlas_get_block', 'atlas_get_map', 'atlas_get_plan', 'atlas_list_issues', 'atlas_list_sites',
-        'atlas_move_block', 'atlas_open_canvas', 'atlas_scan', 'atlas_set_block_tags', 'atlas_tags',
+        'atlas_move_block', 'atlas_open_canvas', 'atlas_scan', 'atlas_set_block_tags', 'atlas_set_block_role', 'atlas_tags',
         'atlas_confirm_change', 'atlas_reopen_change', 'atlas_relink', 'atlas_unlink', 'atlas_add_link', 'atlas_remove_link',
         'atlas_remove_planned_page', 'atlas_mark_deleted', 'atlas_restore', 'atlas_rename_component',
       ].sort(),
     );
-    expect(names).toHaveLength(21);
+    expect(names).toHaveLength(22);
   });
 
   it('describes atlas_get_plan for plan v2 with an optional status', async () => {
@@ -168,6 +168,14 @@ describe('servidor MCP', () => {
     const bad = await call('atlas_rename_component', { site: SITE, componentId: 'c:nope', name: 'X' });
     expect(bad.isError).toBe(true);
     expect(text(bad)).toBe('Component c:nope does not exist.');
+  });
+
+  it('shows roles on the map, in block details, and lets the agent correct one', async () => {
+    expect(text(await call('atlas_get_map', { site: SITE }))).toMatch(/\[(narrative|visual|conversion) · [a-z]+\]/);
+    const before = JSON.parse(text(await call('atlas_get_block', { site: SITE, blockKey: '/#top' })).split('\n\n').slice(1).join('\n\n'));
+    expect(before).toHaveProperty('effectiveRole');
+    expect((await call('atlas_set_block_role', { site: SITE, blockKey: '/#top', role: 'banner' })).isError).toBeFalsy();
+    expect(text(await call('atlas_get_map', { site: SITE }))).toContain('· banner]');
   });
 
   it('entrega la miniatura como imagen', async () => {

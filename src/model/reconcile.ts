@@ -21,6 +21,7 @@ function referencedKeys(o: Overlay): Set<string> {
   return new Set([
     ...Object.keys(o.blockTags),
     ...Object.keys(o.kindOverrides),
+    ...Object.keys(o.roleOverrides),
     ...Object.values(o.plannedOrder).flat(),
     ...o.plannedDeletions,
     ...Object.keys(o.linkEdits).map(ownerOfLink).filter(isBlockKey),

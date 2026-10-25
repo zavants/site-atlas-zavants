@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { Components, Kind } from '../schema/scan.js';
+import type { Components, Kind, Signals } from '../schema/scan.js';
 
 /** Lo que la extracción en el navegador devuelve por cada bloque. */
 export interface RawBlock {
@@ -17,6 +17,8 @@ export interface RawBlock {
   landmark: boolean;
   /** Área del canvas/video más grande ÷ área del bloque. */
   visualRatio: number;
+  /** Structure counted in the page, read by the role classifier. */
+  signals: Signals;
   components: Components;
 }
 

@@ -1,4 +1,4 @@
-import { t } from './strings';
+import { t } from './strings.js';
 import type { BlockView, ComponentView, PageView, SiteMap, TargetView } from '../../src/model/map.js';
 import type { EffectiveLink } from '../../src/model/links.js';
 import type { Change } from '../../src/model/changes.js';

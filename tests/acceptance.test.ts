@@ -33,8 +33,29 @@ describe.skipIf(!url)('aceptación: SCAP Tech Beta 1', () => {
       'Cómo trabajamos',
       'Nosotros',
       'Tecnología de vanguardia. Control absoluto.',
-      'Solicite una propuesta',
+      'Cotización',
     ]);
+
+    // Roles (design §7), in page order.
+    const roles = blocks.map((b) => b.role);
+    expect(roles).toEqual([
+      'navigation',
+      'hero',
+      'logos',
+      'feature',
+      'features',
+      'features',
+      'products',
+      'solutions',
+      'features',
+      'audience',
+      'steps',
+      'about',
+      'banner',
+      'contact',
+      'footer',
+    ]);
+    expect(roles).not.toContain('default');
 
     const byName = (n: string) => blocks.find((b) => b.name === n)!.key;
     const has = (rule: string, key: string, text?: string) =>
@@ -43,7 +64,7 @@ describe.skipIf(!url)('aceptación: SCAP Tech Beta 1', () => {
     expect(has('block-no-anchor', byName('Para quién'))).toBe(true);
     expect(has('block-no-anchor', byName('Cómo trabajamos'))).toBe(true);
     expect(has('placeholder-image', byName('Gestión tecnológica'))).toBe(true);
-    expect(has('form-no-action', byName('Solicite una propuesta'))).toBe(true);
+    expect(has('form-no-action', byName('Cotización'))).toBe(true);
     expect(elapsed).toBeLessThan(30_000);
 
     // Org chart (spec §11.1): lines out of the pieces of `/`, and the shared header.

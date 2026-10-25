@@ -4,6 +4,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { TargetSchema, type Target } from '../schema/overlay.js';
+import { SectionRoleSchema } from '../schema/scan.js';
 import { en } from '../i18n/en.js';
 import type { BlockView, SiteMap } from '../model/map.js';
 import { OpError, type OverlayOp } from '../model/ops.js';
@@ -30,7 +31,7 @@ function blockLine(b: BlockView, i: number, tagNames: Map<string, string>): stri
   const flags = [b.issues.length ? `⚠${b.issues.length}` : '', b.deleted ? en.mcp.flags.delete : '', b.isNew ? en.mcp.flags.new : '', b.moved ? en.mcp.flags.moved : '']
     .filter(Boolean)
     .join(' ');
-  return `  ${String(i + 1).padStart(2, '0')}. ${b.name} [${en.kind[b.effectiveKind]}]${tags}${flags ? ` ${flags}` : ''}  (${b.key})`;
+  return `  ${String(i + 1).padStart(2, '0')}. ${b.name} [${en.kind[b.effectiveKind]} · ${b.effectiveRole}]${b.cta ? ' CTA' : ''}${tags}${flags ? ` ${flags}` : ''}  (${b.key})`;
 }
 
 export function formatMap(map: SiteMap, page?: string): string {
@@ -190,6 +191,15 @@ export function createMcpServer(store: SiteStore): McpServer {
       inputSchema: { site: z.string(), blockKey: z.string(), tags: z.array(z.string()) },
     },
     guard(async ({ site, blockKey, tags }) => apply(site, { type: 'setBlockTags', blockKey, tagIds: await resolveTagIds(site, tags) })),
+  );
+
+  server.registerTool(
+    'atlas_set_block_role',
+    {
+      description: en.mcp.tools.setBlockRole,
+      inputSchema: { site: z.string(), blockKey: z.string(), role: SectionRoleSchema.nullable().describe(en.mcp.tools.setBlockRoleValue) },
+    },
+    guard(async ({ site, blockKey, role }) => apply(site, { type: 'setRole', blockKey, role })),
   );
 
   server.registerTool(

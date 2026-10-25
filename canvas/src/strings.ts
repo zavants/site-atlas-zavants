@@ -1,5 +1,38 @@
+import type { SectionRole } from '../../src/schema/scan.js';
+
+/** Display names of the detected roles, plus the two extra chips the canvas shows next to them. */
+const roles = {
+  navigation: 'Navigation',
+  footer: 'Footer',
+  hero: 'Hero',
+  form: 'Form',
+  contact: 'Contact',
+  pricing: 'Pricing',
+  faq: 'FAQ',
+  testimonials: 'Testimonials',
+  logos: 'Logos',
+  stats: 'Stats',
+  steps: 'Steps',
+  audience: 'Audience',
+  solutions: 'Solutions',
+  products: 'Products',
+  team: 'Team',
+  about: 'About',
+  gallery: 'Gallery',
+  banner: 'Banner',
+  features: 'Features',
+  feature: 'Feature',
+  content: 'Content',
+  default: 'Default',
+  /** Shown as a second chip on any role, never as a role of its own. */
+  cta: 'Call to action',
+  /** The "no override" option of the role control. */
+  auto: 'Auto (detected)',
+} satisfies Record<SectionRole | 'cta' | 'auto', string>;
+
 /** Every string the canvas shows. Text taken from scanned sites comes from the map data, never from here. */
 export const t = {
+  roles,
   conflict: 'The map changed while you were editing; it was reloaded.',
   historyReset: 'The map changed elsewhere; history was reset.',
   resetConfirm: 'Are you sure you want to undo all changes?',
@@ -123,6 +156,7 @@ export const t = {
     issues: (n: number) => `${n} issues`,
     plug: 'Drag to create a connector',
     type: 'Type',
+    role: 'Role',
     auto: 'Automatic',
     height: (px: number) => `height ${px} px`,
     headings: 'Headings',
@@ -205,11 +239,6 @@ export const t = {
     done: 'Done',
   },
   autoTags: {
-    'auto:nav': 'Navigation',
-    'auto:hero': 'Hero',
-    'auto:form': 'Form',
-    'auto:cta': 'Call to action',
-    'auto:default': 'Default',
     hint: 'Detected by Atlas from the scan',
   },
   issues: {

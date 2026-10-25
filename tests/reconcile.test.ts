@@ -39,9 +39,11 @@ describe('reconcile', () => {
     const next = clone(prev);
     const integ = page(next, '/').blocks[2]!;
     Object.assign(integ, { key: '/~integraciones-nativas', name: 'Integraciones nativas', fingerprint: 'otra-huella' });
-    const o = reconcile(tagged({ '/~integraciones': ['t'] }, { kindOverrides: { '/~integraciones': 'visual' } }), prev, next);
+    const overrides = { kindOverrides: { '/~integraciones': 'visual' }, roleOverrides: { '/~integraciones': 'banner' } } as const;
+    const o = reconcile(tagged({ '/~integraciones': ['t'] }, overrides), prev, next);
     expect(o.blockTags).toEqual({ '/~integraciones-nativas': ['t'] });
     expect(o.kindOverrides).toEqual({ '/~integraciones-nativas': 'visual' });
+    expect(o.roleOverrides).toEqual({ '/~integraciones-nativas': 'banner' });
   });
 
   it('deja huérfano a un bloque que desapareció y lo quita del orden', () => {

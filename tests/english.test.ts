@@ -39,6 +39,7 @@ describe('English only', () => {
     const outputs = [cli('--help'), ...[
       ['scan'], ['canvas'], ['mcp'], ['plan'], ['confirm'], ['reopen'], ['move'], ['page'], ['page', 'add'], ['page', 'remove'],
       ['relink'], ['unlink'], ['link'], ['link', 'add'], ['link', 'remove'], ['delete'], ['restore'], ['setup'], ['doctor'], ['component'],
+      ['role'],
     ].map((c) => cli(...c, '--help'))];
     for (const out of outputs) expect(out).not.toMatch(SPANISH);
   });

@@ -57,4 +57,23 @@ describe('overlay v2', () => {
     expect(BlockSchema.parse({ ...base, tag: 'section', global: true }).isComponent).toBe(true);
     expect(BlockSchema.parse({ ...base, tag: 'section', global: false }).isComponent).toBe(false);
   });
+
+  it('classifies blocks of a scan saved before roles existed', () => {
+    const components = { headings: [], links: [], buttons: [], forms: [], media: [] };
+    const base = {
+      key: 'k', name: 'n', heading: null, anchor: null, order: 0, height: 1, kind: 'narrative', fingerprint: 'f',
+      textExcerpt: '', components, shot: null, global: false, isComponent: false,
+    };
+    const parse = (over: Record<string, unknown>) => BlockSchema.parse({ ...base, ...over });
+    expect(parse({ tag: 'header', isComponent: true }).role).toBe('navigation');
+    expect(parse({ tag: 'footer', isComponent: true }).role).toBe('footer');
+    expect(parse({ tag: 'section', components: { ...components, headings: [{ level: 1, text: 'Hi' }] } }).role).toBe('hero');
+    expect(parse({ tag: 'section', components: { ...components, forms: [{ fields: 2, action: null, method: 'get' }] } })).toMatchObject({
+      role: 'form',
+      roleReasons: ['form with fields'],
+    });
+    expect(parse({ tag: 'section', components: { ...components, buttons: ['Ask'] } })).toMatchObject({ role: 'default', cta: true });
+    // A scanner that already classified the block is the one truth: its role is never recomputed.
+    expect(parse({ tag: 'header', isComponent: true, role: 'default' }).role).toBe('default');
+  });
 });

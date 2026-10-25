@@ -302,15 +302,39 @@ describe('org chart canvas', () => {
     await openMenu('filters');
     const chips = page.getByTestId('auto-tag');
     expect(await chips.count()).toBe(5);
-    // The fixture's quote section holds the form: filtering by Form dims every other piece.
-    await page.locator('[data-testid="auto-tag"][data-id="auto:form"]').click();
+    // The fixture's last section is its contact form: filtering by Contact dims every other piece.
+    await page.locator('[data-testid="auto-tag"][data-id="auto:contact"]').click();
     await expect.poll(() => piece('/', '/#top').evaluate((el) => getComputedStyle(el).opacity)).toBe('0.3');
     expect(await piece('/', '/#cotizacion').evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
     // The active filter stays visible next to the menus, and clears from there.
     await closeMenus();
-    expect(await page.getByTestId('active-filter').textContent()).toContain('Form');
+    expect(await page.getByTestId('active-filter').textContent()).toContain('Contact');
     await page.getByTestId('active-filter').getByRole('button').click();
     expect(await page.getByTestId('active-filter').count()).toBe(0);
+  });
+
+  it('shows the detected role on each piece and filters by it', async () => {
+    const chips = page.locator('[data-testid="detected-tag"]');
+    await expect.poll(() => chips.count()).toBeGreaterThan(5);
+    expect(await chips.filter({ hasText: 'Default' }).count()).toBeLessThan(await chips.count() / 2);
+    await openMenu('filters');
+    const roleButtons = page.locator('[data-testid="auto-tag"]');
+    expect(await roleButtons.count()).toBeGreaterThanOrEqual(3);
+    await roleButtons.filter({ hasText: 'Hero' }).click();
+    await closeMenus();
+    await expect.poll(() => piece('/', '/#top').evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
+    await openMenu('filters'); await roleButtons.filter({ hasText: 'Hero' }).click(); await closeMenus();
+  });
+
+  it('overrides a role from the piece and the map remembers it', async () => {
+    const top = piece('/', '/#top');
+    await top.locator('.lh').click();
+    await top.getByTestId('role-select').selectOption('banner');
+    await expect.poll(async () => (await serverMap()).pages[0]!.blocks.find((b) => b.key === '/#top')!.effectiveRole).toBe('banner');
+    expect(await top.locator('[data-testid="detected-tag"]').first().textContent()).toBe('Banner');
+    await top.getByTestId('role-select').selectOption('auto');
+    await expect.poll(async () => (await serverMap()).pages[0]!.blocks.find((b) => b.key === '/#top')!.roleOverridden).toBe(false);
+    await top.locator('.lh').click();
   });
 
   it('removes every link to a NOT FOUND or external target from its ×, and the target goes away', async () => {
@@ -500,8 +524,10 @@ describe('org chart canvas', () => {
     await openMenu('options');
     await page.getByTestId('open-tag-colors').click();
     const dialog = page.getByTestId('tag-colors-dialog');
+    // Every role is listed, under the ids the canvas has always used; the fixture has a Contact section to recolor.
     await page.getByTestId('color-auto:form').fill('#ff0000');
-    await expect.poll(() => page.locator('[data-testid="detected-tag"]', { hasText: 'Form' }).first().evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 0, 0)');
+    await page.getByTestId('color-auto:contact').fill('#ff0000');
+    await expect.poll(() => page.locator('[data-testid="detected-tag"]', { hasText: 'Contact' }).first().evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 0, 0)');
     await dialog.getByRole('button', { name: t.options.reset }).click();
     await dialog.getByRole('button', { name: t.options.done }).click();
   });

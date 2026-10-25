@@ -1,44 +1,75 @@
 import { reactive } from 'vue';
-import type { BlockView } from '../api';
+import type { BlockView } from '../api.js';
+import { t } from '../strings.js';
+import { ROLE_ORDER } from '../../../src/scan/roles.js';
+import type { SectionRole } from '../../../src/schema/scan.js';
 
 /** Tags the canvas detects on its own, next to the person's tags. Ids never clash: user tag ids are not prefixed. */
-export const AUTO_TAGS = ['auto:nav', 'auto:hero', 'auto:form', 'auto:cta', 'auto:default'] as const;
-export type AutoTag = (typeof AUTO_TAGS)[number];
+export type AutoTag = `auto:${SectionRole}` | 'auto:cta';
+
+/** One id per role, in the classifier's precedence order. */
+export const ROLE_IDS: AutoTag[] = ROLE_ORDER.map((r): AutoTag => `auto:${r}`);
+export const AUTO_TAGS: AutoTag[] = [...ROLE_IDS, 'auto:cta'];
+
+/** 'auto:pricing' → 'Pricing'. The role ids are stored in overlays; only the label is translated. */
+export const roleLabel = (id: AutoTag): string => t.roles[id.slice('auto:'.length) as SectionRole | 'cta'];
 
 /**
- * Navigation for a header or nav; Hero for the section with the page's h1; Form when it has a form;
- * Call to action for a button-styled link or a button outside a form; Default when none applies.
+ * The role the scanner detected (or the one the person corrected), plus a Call to action chip
+ * when the section has a button-styled link or a button outside a form.
  */
 export function autoTags(b: BlockView): AutoTag[] {
-  const { forms, links, buttons, headings } = b.components;
-  const nav = b.tag === 'header' || b.tag === 'nav';
-  const form = forms.length > 0;
-  const cta = links.some((l) => l.cta) || (!form && buttons.length > 0);
-  const out: AutoTag[] = [];
-  if (nav) out.push('auto:nav');
-  if (!nav && headings.some((h) => h.level === 1)) out.push('auto:hero');
-  if (form) out.push('auto:form');
-  if (cta) out.push('auto:cta');
-  return out.length ? out : ['auto:default'];
+  return [`auto:${b.effectiveRole}`, ...(b.cta ? (['auto:cta'] as const) : [])];
 }
 
 export const hasTag = (b: BlockView, tag: string): boolean =>
   tag.startsWith('auto:') ? autoTags(b).includes(tag as AutoTag) : b.tags.includes(tag);
 
-/** Default stays gray; the others can be recolored from Options. */
+/**
+ * One color per role, by family: structure violet, conversion green, visual pink, content gray-blue.
+ * Navigation, Hero, Form and Call to action keep the colors the canvas has always used, and
+ * Default stays gray; every other one can be recolored from Options.
+ */
 export const DEFAULT_AUTO_COLORS: Record<AutoTag, string> = {
-  'auto:nav': '#7f77dd',
+  'auto:navigation': '#7f77dd',
+  'auto:footer': '#6b64bd',
   'auto:hero': '#d4537e',
   'auto:form': '#1d9e75',
-  'auto:cta': '#378add',
+  'auto:contact': '#17a28c',
+  'auto:pricing': '#2f9e52',
+  'auto:faq': '#4d7fa8',
+  'auto:testimonials': '#5f86b3',
+  'auto:logos': '#c86fb0',
+  'auto:stats': '#3f8fb0',
+  'auto:steps': '#5a81c4',
+  'auto:audience': '#6e7fb8',
+  'auto:solutions': '#4a8ab2',
+  'auto:products': '#3d94a6',
+  'auto:team': '#7a8bb5',
+  'auto:about': '#67839e',
+  'auto:gallery': '#c0619b',
+  'auto:banner': '#b86a9c',
+  'auto:features': '#4f86c6',
+  'auto:feature': '#6896cc',
+  'auto:content': '#7d8a99',
   'auto:default': '#888780',
+  'auto:cta': '#378add',
 };
-export const CONFIGURABLE: AutoTag[] = ['auto:nav', 'auto:hero', 'auto:form', 'auto:cta'];
+export const CONFIGURABLE: AutoTag[] = AUTO_TAGS.filter((id) => id !== 'auto:default');
 
 const KEY = 'site-atlas:auto-tag-colors';
+/** Colors saved before roles existed used 'auto:nav'; that one becomes 'auto:navigation'. */
 function load(): Partial<Record<AutoTag, string>> {
   try {
-    return JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<Record<AutoTag, string>>;
+    const stored = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Record<string, string>;
+    const out: Partial<Record<AutoTag, string>> = {};
+    for (const id of AUTO_TAGS) {
+      const color = stored[id];
+      if (color) out[id] = color;
+    }
+    const nav = stored['auto:nav'];
+    if (nav && !out['auto:navigation']) out['auto:navigation'] = nav;
+    return out;
   } catch {
     return {};
   }

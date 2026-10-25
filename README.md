@@ -22,9 +22,9 @@ Site Atlas makes that visible and turns your decisions into a **concrete plan** 
 
 | | |
 |---|---|
-| **Section-level scanning** | Renders each page in Chromium, splits it into sections and records name, type (narrative, visual, conversion), headings, links, forms, media and a thumbnail. |
+| **Section-level scanning** | Renders each page in Chromium, splits it into sections and records name, type (narrative, visual, conversion), detected role, headings, links, forms, media and a thumbnail. |
 | **Issues** | Broken links, missing anchors, forms without an action, placeholder images, sections without an anchor, missing or duplicate headings, duplicate ids. |
-| **Org chart** | Each page is a diagram of pieces, with **one line per link, drawn from the exact section that contains it**: blue to another section, red to a page that doesn't exist, gray to an external site. Shared components (header, footer) get their own diagram. Drag a piece to reorder it or move it to another page, drag a line's end to point it at a new target, drag from the `+` of a piece to add a connector, add planned pages, and undo or redo any of it. A **Screenshots** view swaps the diagram for the real thumbnails. Also: tags with filters, a trash zone, Real / Planned views and live updates. |
+| **Org chart** | Each page is a diagram of pieces, with **one line per link, drawn from the exact section that contains it**: blue to another section, red to a page that doesn't exist, gray to an external site. Shared components (header, footer) get their own diagram. Drag a piece to reorder it or move it to another page, drag a line's end to point it at a new target, drag from the `+` of a piece to add a connector, add planned pages, and undo or redo any of it. A **Screenshots** view swaps the diagram for the real thumbnails. Also: tags with filters, a trash zone, Real / Planned views and live updates. Every piece shows its **detected role** (hero, logos, features, steps, products, pricing, FAQ, testimonials, team, contact…), read from the structure and the wording of the rendered page in Spanish, English and Portuguese; the filter bar lists the roles present on the map, and in Edit mode you can correct a role by hand, which survives every re-scan. |
 | **Plan for AI** | The differences between the real site and the plan, in plain language and JSON. Each change is **pending** until the AI that implements it confirms it (with a note), and then it is **applied**. |
 | **Lossless re-scans** | Your organization survives site changes: sections are matched by anchor, fingerprint or text similarity, and anything unmatched becomes an orphan you can reassign. |
 | **Local and safe** | Runs on your machine or on a server. By default the canvas listens on `127.0.0.1` only, protected against CSRF and DNS rebinding; on a server it is guarded by a token. No telemetry. Atlas never writes to your site's repository. |
@@ -99,6 +99,7 @@ site-atlas scan https://example.com --max-pages 5 --exclude "/blog/**"
 | `plan <site>` | Print the plan: pending and applied changes |
 | `confirm <site> <changeId> --note "<what you changed and where>"` · `reopen <site> <changeId> --note "<why>"` | Mark a change applied once it is in the code · set it back to pending |
 | `move <site> <blockKey> <toPage>` · `delete <site> <blockKey>` · `restore <site> <blockKey>` | Propose moving or deleting a section, or cancel the deletion |
+| `role <site> <blockKey> <role>` | Correct the detected role of a section (`features`, `pricing`, `faq`, `steps`…), or `auto` to go back to the detected one |
 | `page add <site> <path>` · `page remove <site> <path>` | Planned pages |
 | `relink <site> <owner>` · `unlink <site> <owner>` · `link add <site> <owner>` · `link remove <site> <linkId>` | Change, remove, add or drop links |
 | `component rename <site> <componentId> <name>` | Rename a shared component (header, footer) |
@@ -176,16 +177,17 @@ args = ["mcp"]
 
 On Windows, npm installs `site-atlas.cmd`; if a client cannot start it, use `"command": "node"` with `"args": ["<npm prefix>/node_modules/site-atlas/dist/cli.js", "mcp"]` (`npm prefix -g` prints the folder).
 
-### Tools (21)
+### Tools (22)
 
 | Tool | Purpose |
 |---|---|
 | `atlas_scan` | Scan a site and reconcile your existing organization |
 | `atlas_list_sites` | List scanned sites |
-| `atlas_get_map` | Map of pages and sections, with tags and planned order |
+| `atlas_get_map` | Map of pages and sections, with kinds, detected roles, tags and planned order |
 | `atlas_get_block` | Section details (components, issues, thumbnail) |
 | `atlas_list_issues` | Issues from the latest scan |
 | `atlas_tags` · `atlas_set_block_tags` | Create, rename, delete and assign tags |
+| `atlas_set_block_role` | Correct the detected role of a section, or clear it to go back to the detected one |
 | `atlas_move_block` · `atlas_add_planned_page` | Rearrange the planned order |
 | `atlas_get_plan` | The plan (Markdown + JSON, optional `status`): what to change in the site's code |
 | `atlas_confirm_change` · `atlas_reopen_change` | Mark a change applied (with a note) or set it back to pending |

@@ -1,5 +1,5 @@
 import type { Overlay } from '../schema/overlay.js';
-import type { Block, Issue, Kind, Scan } from '../schema/scan.js';
+import type { Block, Issue, Kind, Scan, SectionRole } from '../schema/scan.js';
 import { componentOf } from './components.js';
 import { effectiveLinks, externalOrigins, missingPaths, type EffectiveLink } from './links.js';
 import { effectiveOrders, indexScan, type PlanFields } from './ops.js';
@@ -11,6 +11,9 @@ export type BlockView = Block & {
   tags: string[];
   effectiveKind: Kind;
   kindOverridden: boolean;
+  /** The role shown everywhere: the corrected one when there is an override, the detected one otherwise. */
+  effectiveRole: SectionRole;
+  roleOverridden: boolean;
   deleted: boolean;
   isNew: boolean;
   moved: boolean;
@@ -84,6 +87,8 @@ export function buildMap(scan: Scan, overlay: Overlay): SiteMap {
     tags: overlay.blockTags[block.key] ?? [],
     effectiveKind: overlay.kindOverrides[block.key] ?? block.kind,
     kindOverridden: block.key in overlay.kindOverrides,
+    effectiveRole: overlay.roleOverrides[block.key] ?? block.role,
+    roleOverridden: block.key in overlay.roleOverrides,
     deleted: deleted.has(block.key),
     isNew: fresh.has(block.key),
     moved,
