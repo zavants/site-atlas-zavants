@@ -17,6 +17,15 @@ const IN_PAGE = String.raw`(() => {
     const cs = getComputedStyle(el);
     return cs.display !== 'none' && cs.visibility !== 'hidden' && el.getBoundingClientRect().height > 0;
   };
+  /* An element with no client rects is not laid out: display:none, or inside a display:none
+     subtree. Cheaper than getComputedStyle per node, and it is what the signals need, because
+     a responsive page that ships a hidden copy of a block would double every count. */
+  const rendered = (el) => el.getClientRects().length > 0;
+  const countRendered = (el, selector) => {
+    let n = 0;
+    for (const m of el.querySelectorAll(selector)) if (rendered(m)) n++;
+    return n;
+  };
   const text = (el) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
   const isHeading = (el) => /^H[1-6]$/.test(el.tagName);
   const contains = (a, b) => a !== b && a.contains(b);
@@ -78,11 +87,11 @@ const IN_PAGE = String.raw`(() => {
   const QUOTED = /[“"][^”"]{20,}[”"]/g;
   const MAX_NODES = 5000;
 
-  /* Largest run of >= 2 consecutive children of one tag, each holding a heading or an image. */
+  /* Largest run of >= 2 consecutive rendered children of one tag, each holding a heading or an image. */
   const cardsOf = (block) => {
     let best = [];
     const walk = (container, depth) => {
-      const kids = [...container.children].filter((c) => !SKIP_TAG.test(c.tagName));
+      const kids = [...container.children].filter((c) => !SKIP_TAG.test(c.tagName) && rendered(c));
       let i = 0;
       while (i < kids.length) {
         if (!kids[i].querySelector(CARDISH)) {
@@ -105,6 +114,7 @@ const IN_PAGE = String.raw`(() => {
     let cardHeadingLevel = null;
     for (const c of cards) {
       for (const h of c.querySelectorAll(HEADINGS)) {
+        if (!rendered(h)) continue;
         const level = Number(h.tagName[1]);
         if (cardHeadingLevel === null || level < cardHeadingLevel) cardHeadingLevel = level;
       }
@@ -117,8 +127,12 @@ const IN_PAGE = String.raw`(() => {
       if (node.childElementCount > 0) continue;
       const t = text(node);
       if (t.length === 0 || t.length > 24) continue;
-      if (t.length <= 3 && NUMBERED.test(t)) numbered++;
-      if (BIG_NUMBER.test(t) && parseFloat(getComputedStyle(node).fontSize) >= 32) bigNumbers++;
+      const isNumbered = t.length <= 3 && NUMBERED.test(t);
+      const isBig = BIG_NUMBER.test(t);
+      /* The rect check comes last: only a handful of nodes per block get this far. */
+      if ((!isNumbered && !isBig) || !rendered(node)) continue;
+      if (isNumbered) numbered++;
+      if (isBig && parseFloat(getComputedStyle(node).fontSize) >= 32) bigNumbers++;
     }
     let smallImages = 0;
     let largeImages = 0;
@@ -127,6 +141,7 @@ const IN_PAGE = String.raw`(() => {
       const tag = m.tagName.toUpperCase();
       if (tag === 'PICTURE' && m.querySelector('img')) continue;
       const r = m.getBoundingClientRect();
+      /* An empty box is also how a media element inside a display:none subtree measures. */
       if (r.width <= 0 || r.height <= 0) continue;
       if (r.width <= 160 && tag !== 'VIDEO' && tag !== 'CANVAS') smallImages++;
       if (tag === 'SVG') continue;
@@ -137,15 +152,15 @@ const IN_PAGE = String.raw`(() => {
       imageRatio = Math.max(imageRatio, share);
     }
     let questions = 0;
-    for (const h of el.querySelectorAll('h2, h3, h4, summary')) if (text(h).endsWith('?')) questions++;
+    for (const h of el.querySelectorAll('h2, h3, h4, summary')) if (text(h).endsWith('?') && rendered(h)) questions++;
     return {
       words: full ? full.split(' ').length : 0,
       cards: cards.length,
       cardHeadingLevel,
-      listItems: el.querySelectorAll('li').length,
-      orderedItems: el.querySelectorAll('ol li').length,
+      listItems: countRendered(el, 'li'),
+      orderedItems: countRendered(el, 'ol li'),
       numbered,
-      accordions: el.querySelectorAll('details, [aria-expanded], [role=tab]').length,
+      accordions: countRendered(el, 'details, [aria-expanded], [role=tab]'),
       quotes: Math.max(el.querySelectorAll('blockquote, q').length, (full.match(QUOTED) || []).length),
       prices: (full.match(PRICE) || []).length,
       bigNumbers,
@@ -153,7 +168,7 @@ const IN_PAGE = String.raw`(() => {
       smallImages,
       largeImages,
       imageRatio: Math.round(imageRatio * 1000) / 1000,
-      tabs: el.querySelectorAll('[role=tab]').length,
+      tabs: countRendered(el, '[role=tab]'),
       contactHints:
         el.querySelectorAll('a[href^="tel:"], a[href^="mailto:"], address').length + (full.match(PHONE) || []).length,
     };

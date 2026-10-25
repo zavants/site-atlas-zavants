@@ -31,6 +31,8 @@
   #banner img { position: absolute; inset: 0; width: 100%; height: 100%; }
   #banner .copy { position: relative; }
   form { display: flex; gap: 12px; margin: 0 0 12px; }
+  .narrow { display: none; }
+  .count { display: block; font-size: 40px; }
 </style>
 </head>
 <body>
@@ -88,6 +90,35 @@
     <div class="grid">
       <article><h3>Equipos que empiezan</h3><p>Acompañamos al equipo desde el primer día con una guía clara de adopción, revisiones semanales, tableros compartidos y un canal directo para resolver dudas sin esperar, de modo que cada persona sepa siempre cuál es el próximo paso concreto.</p></article>
       <article><h3>Equipos que escalan</h3><p>Acompañamos al equipo desde el primer día con una guía clara de adopción, revisiones semanales, tableros compartidos y un canal directo para resolver dudas sin esperar, de modo que cada persona sepa siempre cuál es el próximo paso concreto.</p></article>
+    </div>
+  </section>
+
+  <section id="responsive">
+    <p class="kicker">Para quién</p>
+    <h2>Equipos de operaciones</h2>
+    <div class="grid">
+      <div class="wide">
+        <article>
+          <span class="num">01</span>
+          <img src="pixel.png" alt="" width="96" height="96">
+          <h3>Equipos de operaciones</h3>
+          <p><strong class="count">120</strong></p>
+          <ol><li>Primer paso</li></ol>
+          <details><summary>¿Cómo se activa?</summary><p>Con una llamada corta.</p></details>
+          <button role="tab" aria-controls="resumen">Resumen</button>
+        </article>
+      </div>
+      <div class="narrow">
+        <article>
+          <span class="num">01</span>
+          <img src="pixel.png" alt="" width="96" height="96">
+          <h3>Equipos de operaciones</h3>
+          <p><strong class="count">120</strong></p>
+          <ol><li>Primer paso</li></ol>
+          <details><summary>¿Cómo se activa?</summary><p>Con una llamada corta.</p></details>
+          <button role="tab" aria-controls="resumen">Resumen</button>
+        </article>
+      </div>
     </div>
   </section>
 

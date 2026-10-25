@@ -88,6 +88,8 @@ describe('scanSite', () => {
       feature: 'feature',
       features: 'features',
       'two-up': 'audience',
+      // One card and a hidden copy of it: not a grid, so the audience words are not enough.
+      responsive: 'default',
       products: 'products',
       solutions: 'solutions',
       steps: 'steps',

@@ -95,6 +95,22 @@ describe('extractBlocks', () => {
     expect(by('figures').contactHints).toBe(0);
   });
 
+  it('leaves a hidden copy of a block out of the structural signals', async () => {
+    const { raws } = await extract('roles.html');
+    // The section ships one card twice: a wide copy and a display:none narrow copy.
+    expect(raws.find((r) => r.anchor === 'responsive')!.signals).toMatchObject({
+      cards: 0,
+      listItems: 1,
+      orderedItems: 1,
+      numbered: 1,
+      accordions: 2,
+      questions: 1,
+      tabs: 1,
+      smallImages: 1,
+      bigNumbers: 1,
+    });
+  });
+
   it('termina rápido en páginas enormes', async () => {
     const t0 = Date.now();
     const { raws } = await extract('alta.html');
