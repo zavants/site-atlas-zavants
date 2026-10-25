@@ -79,6 +79,34 @@ describe('scanSite', () => {
     }
   });
 
+  it('assigns one role per section of roles.html', async () => {
+    const scan = await scanSite(`${server.url}/roles.html`, { site: 'roles', maxPages: 1, shotsDir: () => shots });
+    const roles = Object.fromEntries(scan.pages[0]!.blocks.map((b) => [b.anchor ?? b.name, b.role]));
+    expect(roles).toMatchObject({
+      hero: 'hero',
+      logos: 'logos',
+      feature: 'feature',
+      features: 'features',
+      'two-up': 'audience',
+      products: 'products',
+      solutions: 'solutions',
+      steps: 'steps',
+      stats: 'stats',
+      testimonials: 'testimonials',
+      pricing: 'pricing',
+      faq: 'faq',
+      team: 'team',
+      about: 'about',
+      gallery: 'gallery',
+      banner: 'banner',
+      contact: 'contact',
+      content: 'content',
+      plain: 'default',
+    });
+    expect(scan.pages[0]!.blocks[0]!.role).toBe('navigation');
+    expect(scan.pages[0]!.blocks.at(-1)!.role).toBe('footer');
+  });
+
   it('respeta maxPages', async () => {
     const one = await scanSite(`${server.url}/index.html`, { maxPages: 1, shotsDir: (id) => join(shots, `one-${id}`) });
     expect(one.pages.map((p) => p.path)).toEqual(['/']);

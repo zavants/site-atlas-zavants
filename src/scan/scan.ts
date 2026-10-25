@@ -14,6 +14,7 @@ import { inScope, isLocalHost, normalizeUrl } from './crawl.js';
 import { extractBlocks } from './extract.js';
 import { mapLimit } from './limit.js';
 import { computeIssues } from './issues.js';
+import { classify } from './roles.js';
 
 export interface ScanOptions {
   site?: string;
@@ -162,10 +163,16 @@ export async function scanSite(url: string, opts: ScanOptions): Promise<Scan> {
         const names = raws.map((r, i) => blockName(r, i + 1));
         const keys = blockKeys(path, raws.map((r, i) => ({ name: names[i]!, anchor: r.anchor })));
         const blocks: Block[] = [];
+        const firstSection = raws.findIndex((r) => !r.landmark);
         for (const [i, raw] of raws.entries()) {
           const key = keys[i]!;
           const fileName = `${createHash('sha1').update(key).digest('hex')}.webp`;
           const shot = (await captureShot(page, handles[i] ?? null, join(shotsDir, fileName))) ? fileName : null;
+          const detected = classify({
+            ...raw,
+            isFirstSection: i === firstSection,
+            pageHasH1Here: raw.components.headings.some((h) => h.level === 1),
+          });
           blocks.push({
             key,
             name: names[i]!,
@@ -182,10 +189,10 @@ export async function scanSite(url: string, opts: ScanOptions): Promise<Scan> {
             components: raw.components,
             shot,
             signals: raw.signals,
-            role: 'default',
-            roles: [],
-            cta: false,
-            roleReasons: [],
+            role: detected.role,
+            roles: detected.secondary,
+            cta: detected.cta,
+            roleReasons: detected.reasons,
           });
         }
         pages.push({ path, url: current, title: info.title, status, error: null, blocks });
