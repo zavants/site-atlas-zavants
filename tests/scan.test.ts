@@ -94,6 +94,8 @@ describe('scanSite', () => {
       // Cards with process words, no visible numbering: steps all the same.
       process: 'steps',
       stats: 'stats',
+      // A band of marketing figures: "+1.000.000" is not a phone, so it is not contact.
+      figures: 'stats',
       testimonials: 'testimonials',
       pricing: 'pricing',
       faq: 'faq',

@@ -71,8 +71,10 @@ const IN_PAGE = String.raw`(() => {
   /* One match per price: an amount swallows its own period suffix, so "$49/mes" counts once. */
   const PRICE = /(?:(?:R\$|US\$|[$€£])\s?\d[\d.,]*|\d[\d.,]*\s?(?:USD|EUR|BRL)\b)(?:\s?\/\s?(?:mes|mês|month|mo)\b)?|\/\s?(?:mes|mês|month|mo)\b/gi;
   /* Phone-shaped text only: a leading "+" or a parenthesized area code. Digits with
-     separators alone are not a phone: "1.234.567" and "2019 2020 2021" are numbers. */
-  const PHONE = /\+\d[\d ().-]{6,}\d|\(\d{2,4}\)\s?\d[\d ().-]{3,}\d/g;
+     separators alone are not a phone: "1.234.567" and "2019 2020 2021" are numbers.
+     A dot or a comma groups thousands, so it is not a phone separator either: that keeps
+     the marketing figure "+1.000.000" out while "+598 99 123 456" stays in. */
+  const PHONE = /\+\d[\d ()-]{6,}\d|\(\d{2,4}\)\s?\d[\d ()-]{3,}\d/g;
   const QUOTED = /[“"][^”"]{20,}[”"]/g;
   const MAX_NODES = 5000;
 
