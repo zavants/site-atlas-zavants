@@ -92,6 +92,27 @@ const IN_PAGE = String.raw`(() => {
   const PHONE = /\+\d[\d ()-]{6,}\d|\(\d{2,4}\)\s?\d[\d ()-]{3,}\d/g;
   const QUOTED = /[“"][^”"]{20,}[”"]/g;
   const MAX_NODES = 5000;
+  /* The block, its children and their children carry the backdrops worth reading. */
+  const MAX_BACKDROPS = 40;
+  const BG_PX = /^-?[\d.]+px$/;
+  const BG_PERCENT = /^-?[\d.]+%$/;
+
+  /* The share of an element's own box that one painting of its background image covers.
+     "cover" and "contain" are sized to the box, and an explicit size is measured against it.
+     "auto" cannot be measured without the intrinsic size of the image, and a background that
+     repeats is a texture rather than one image, so neither of those counts as an image. */
+  const backgroundFill = (cs, w, h) => {
+    if (cs.backgroundImage.indexOf('url(') === -1) return 0;
+    const size = cs.backgroundSize.split(',')[0].trim();
+    if (size === 'cover' || size === 'contain') return 1;
+    if (cs.backgroundRepeat.split(',')[0].trim() !== 'no-repeat') return 0;
+    const parts = size.split(' ');
+    const axis = (v, full) => (BG_PX.test(v) ? parseFloat(v) : BG_PERCENT.test(v) ? (parseFloat(v) * full) / 100 : -1);
+    const bw = axis(parts[0] || '', w);
+    const bh = parts.length > 1 ? axis(parts[1], h) : -1;
+    if (bw < 0 || bh < 0) return 0;
+    return Math.min(1, (Math.min(bw, w) * Math.min(bh, h)) / Math.max(1, w * h));
+  };
 
   /* Largest run of >= 2 consecutive rendered children of one tag, each holding a heading or an image. */
   const cardsOf = (block) => {
@@ -160,19 +181,27 @@ const IN_PAGE = String.raw`(() => {
       if (share >= 0.2) largeImages++;
       imageRatio = Math.max(imageRatio, share);
     }
-    /* A band often carries its image as a CSS background instead of an element. Only the block
-       and its direct children are read, so this is a handful of getComputedStyle calls per
-       block, never one per node. A gradient is not an image: the value must name a url. */
-    for (const b of [el, ...el.children]) {
-      if (SKIP_TAG.test(b.tagName) || !rendered(b)) continue;
-      const bg = getComputedStyle(b).backgroundImage;
-      if (!bg || bg.indexOf('url(') === -1) continue;
+    /* A band often carries its image as a CSS background instead of an element. The block, its
+       children and their children are read, up to a cap, so this stays a handful of
+       getComputedStyle calls per block and never one per node. A backdrop says how visual the
+       band is, which is imageRatio; it is not one of the images the block shows, so it never
+       adds to largeImages, and how much of the box it covers is measured, not assumed. */
+    const backdrops = [el, ...el.children];
+    for (const c of el.children) {
+      for (const g of c.children) {
+        if (backdrops.length >= MAX_BACKDROPS) break;
+        backdrops.push(g);
+      }
+    }
+    for (let i = 0; i < backdrops.length && i < MAX_BACKDROPS; i++) {
+      const b = backdrops[i];
       const r = b.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) continue;
+      const fill = backgroundFill(getComputedStyle(b), r.width, r.height);
+      if (fill <= 0) continue;
       const w = Math.max(0, Math.min(r.right, rect.right) - Math.max(r.left, rect.left));
       const h = Math.max(0, Math.min(r.bottom, rect.bottom) - Math.max(r.top, rect.top));
-      const share = (w * h) / area;
-      if (share >= 0.2) largeImages++;
-      imageRatio = Math.max(imageRatio, share);
+      imageRatio = Math.max(imageRatio, (fill * w * h) / area);
     }
     let questions = 0;
     for (const h of el.querySelectorAll('h2, h3, h4, summary')) if (text(h).endsWith('?') && rendered(h)) questions++;

@@ -81,7 +81,18 @@ describe('extractBlocks', () => {
     expect(by('banner').imageRatio).toBeGreaterThanOrEqual(0.3);
     // A band whose image is a CSS background reads like a banner too.
     expect(by('backdrop').imageRatio).toBeGreaterThanOrEqual(0.3);
-    expect(by('backdrop').largeImages).toBeGreaterThanOrEqual(1);
+  });
+
+  it('measures a CSS background instead of assuming it fills the block', async () => {
+    const { raws } = await extract('roles.html');
+    const by = (id: string) => raws.find((r) => r.anchor === id)!.signals;
+    // A backdrop is behind the block, not one of the images the block shows.
+    expect(by('backdrop').largeImages).toBe(0);
+    // A 24px icon painted once covers almost none of the band.
+    expect(by('badge').imageRatio).toBeLessThan(0.05);
+    expect(by('badge').largeImages).toBe(0);
+    // A repeating tile is a texture: it is not one large image.
+    expect(by('texture')).toMatchObject({ largeImages: 0, imageRatio: 0 });
   });
 
   it('counts one price per price, and only phone-shaped text as a contact hint', async () => {

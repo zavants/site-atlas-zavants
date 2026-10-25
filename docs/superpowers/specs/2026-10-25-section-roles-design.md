@@ -55,7 +55,7 @@ This design replaces that with a **role** per section: what kind of section it i
 | `team` | the people | team keywords; ≥ 3 cards with an image and a short name + role text confirm them |
 | `about` | who we are | about keywords, no cards |
 | `gallery` | images dominate | ≥ 4 large images and few words |
-| `banner` | a closing band with a line and maybe one button | one heading, ≤ 40 words, a large image or visual ratio ≥ 0.3, not the hero |
+| `banner` | a closing band with a line and maybe one button | one heading, ≤ 40 words, a large image or visual ratio ≥ 0.3 (a CSS background sized to fill the band counts as the ratio), not the hero |
 | `features` | grid of benefits or modules | ≥ 3 cards with a heading each |
 | `feature` | one benefit spotlighted | one heading, one large image, ≤ 120 words, no cards |
 | `content` | long text | ≥ 150 words, no cards, no large image |
@@ -81,8 +81,8 @@ signals: {
   bigNumbers: number;       // elements with font-size ≥ 32px whose text is a number with optional % + k M x or ≤ 2 unit words
   questions: number;        // h2-h4 or summary ending in "?"
   smallImages: number;      // img/svg/picture with rendered width ≤ 160px
-  largeImages: number;      // img/video/canvas/picture with area ≥ 20% of the block, plus a url() background-image on the block or a direct child
-  imageRatio: number;       // largest single image/video/canvas area ÷ block area, counting those backgrounds (replaces today's canvas/video-only visualRatio for roles; kind keeps using visualRatio)
+  largeImages: number;      // img/video/canvas/picture with area ≥ 20% of the block (an element, never a background)
+  imageRatio: number;       // largest single image/video/canvas area ÷ block area, and a url() background on the block or a descendant up to two levels down, at the share of the box its painting covers (cover, contain or an explicit size; an auto size cannot be measured and a repeating tile is a texture) (replaces today's canvas/video-only visualRatio for roles; kind keeps using visualRatio)
   contactHints: number;     // tel: / mailto: links, <address>, phone-like text
   tabs: number;             // [role=tab]
 }
@@ -191,6 +191,7 @@ Two tests cover it. Always on: a **fixture page** `tests/fixtures/site/roles.htm
 - **CTA as an attribute**, so a pricing section with buttons is still pricing.
 - **Kind stays.** Removing it would touch the plan wording and colors for no gain here.
 - **Changed after review (2026-10-25):** every structural count is of rendered elements, so a hidden responsive copy of a block does not double its signals; `quotes` and `contactHints` were the last two raw counts and now follow the same rule.
+- **Changed after review (2026-10-25):** a CSS background feeds `imageRatio` only, at the measured share of the box its painting covers, and never `largeImages`. Counting any `url()` background as a full-block image made a 24px icon or a repeating tile a `banner`, and took `content` away from every long text section with a texture behind it. A backdrop says how visual a band is; it is not one of the images the block shows, which is what `largeImages` feeds (`products`, `gallery`, `feature`, `content`). `banner` reads the ratio, so the band D4 asked for still classifies as `banner`.
 - **Changed after review (2026-10-25):** the structural arm of `team` now needs kw:team as well, because an icon-per-card feature grid satisfied it (six icons are six small images), which made §7 expect `features` for sections the rules called `team`.
 - **Order of work.** Roles land first, on a branch cut from `feat/start-page` (the current tip); the AI plugin plan comes after and reads `role` from the map. Both touch `formatMap`, `atlas_get_block` and `en.ts`, so the second one rebases.
 

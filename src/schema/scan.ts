@@ -53,7 +53,7 @@ export const SignalsSchema = z.object({
   questions: z.number(),
   smallImages: z.number(),
   largeImages: z.number(),
-  /** Largest single image, video or canvas area ÷ block area. */
+  /** Largest single image, video, canvas or filling background area ÷ block area. */
   imageRatio: z.number(),
   tabs: z.number(),
   /** tel:/mailto: links, an address element, phone-like text. */

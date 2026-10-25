@@ -110,6 +110,10 @@ describe('scanSite', () => {
       banner: 'banner',
       // Same band, with the image as a CSS background instead of an img.
       backdrop: 'banner',
+      // A 24px background icon is not the band's image, so this stays a plain short band.
+      badge: 'default',
+      // A tiled background texture does not cost a long text section its role either.
+      texture: 'content',
       contact: 'contact',
       content: 'content',
       plain: 'default',
