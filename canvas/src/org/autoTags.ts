@@ -1,6 +1,6 @@
 import { reactive } from 'vue';
-import type { BlockView } from '../api';
-import { t } from '../strings';
+import type { BlockView } from '../api.js';
+import { t } from '../strings.js';
 import { ROLE_ORDER } from '../../../src/scan/roles.js';
 import type { SectionRole } from '../../../src/schema/scan.js';
 

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { classify } from '../scan/roles.js';
 
 export const KindSchema = z.enum(['narrative', 'visual', 'conversion']);
 export type Kind = z.infer<typeof KindSchema>;
@@ -103,11 +104,41 @@ const BaseBlockSchema = z.object({
   /** Short rule names behind the role ("cards>=3", "kw:steps"), for agents and debugging. */
   roleReasons: z.array(z.string()).default([]),
 });
+/**
+ * A block saved before roles existed carries no `role`, so the classifier runs here, on what
+ * the scan did keep: tag, landmark, headings, forms and links, with every signal at zero
+ * (spec §5.4). Without this the field would default to `default` and the canvas, the map, MCP
+ * and the CLI would show one flat "Default" for sections they have always labelled Navigation,
+ * Hero or Form. A re-scan upgrades the block with the real signals. Nothing is rewritten on
+ * disk, and a block that already has a role keeps it: roles stay deterministic.
+ */
+function detectedRole(b: { tag?: unknown; heading?: unknown; anchor?: unknown; isComponent?: unknown; components?: unknown }) {
+  const components = ComponentsSchema.safeParse(b.components);
+  if (!components.success) return {}; // Invalid data: let the schema report it instead of throwing here.
+  const detection = classify({
+    tag: typeof b.tag === 'string' ? b.tag : '',
+    landmark: b.isComponent === true,
+    // The first-section test needs the page, which this block does not have; an old hero is
+    // found by its h1, exactly as the canvas found it before roles existed.
+    isFirstSection: false,
+    pageHasH1Here: components.data.headings.some((h) => h.level === 1),
+    heading: typeof b.heading === 'string' ? b.heading : null,
+    // Old scans never stored the kicker; the heading and the anchor carry the keywords.
+    kicker: null,
+    anchor: typeof b.anchor === 'string' ? b.anchor : null,
+    components: components.data,
+    signals: undefined,
+  });
+  return { role: detection.role, roles: detection.secondary, cta: detection.cta, roleReasons: detection.reasons };
+}
+
 /** Reads v1 scans, which lack `isComponent`: header/footer tags and global blocks count as components. */
 export const BlockSchema = z.preprocess((v) => {
-  if (typeof v !== 'object' || v === null || 'isComponent' in v) return v;
-  const b = v as { tag?: unknown; global?: unknown };
-  return { ...b, isComponent: b.tag === 'header' || b.tag === 'footer' || b.global === true };
+  if (typeof v !== 'object' || v === null) return v;
+  const b = v as { tag?: unknown; global?: unknown; isComponent?: unknown };
+  const block =
+    'isComponent' in b ? b : { ...b, isComponent: b.tag === 'header' || b.tag === 'footer' || b.global === true };
+  return 'role' in block ? block : { ...block, ...detectedRole(block) };
 }, BaseBlockSchema);
 export type Block = z.infer<typeof BaseBlockSchema>;
 
