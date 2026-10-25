@@ -139,9 +139,14 @@ const RULES: Record<SectionRole, Rule> = {
   faq: (c) => (c.s.questions >= 3 ? ['questions>=3'] : when(c.s.accordions >= 3 && c.kw('faq'), 'accordions>=3', 'kw:faq')),
   testimonials: (c) =>
     c.s.quotes >= 2 ? ['quotes>=2'] : when(c.kw('testimonials') && c.s.cards >= 2, 'kw:testimonials', 'cards>=2'),
+  /*
+   * A logo is an image with a caption at most; a card carries a heading of its own. Without
+   * that last condition a grid of six icons with one word each (SCAP Tech's "Gestión
+   * tecnológica") is few words per image, and logos precedes features.
+   */
   logos: (c) =>
-    c.s.smallImages >= 6 && c.s.words / Math.max(1, c.s.smallImages) <= 6
-      ? ['smallImages>=6', 'few words per image']
+    c.s.smallImages >= 6 && c.s.words / Math.max(1, c.s.smallImages) <= 6 && c.s.cardHeadingLevel === null
+      ? ['smallImages>=6', 'few words per image', 'no heading per image']
       : when(c.kw('logos') && c.s.smallImages >= 4, 'kw:logos', 'smallImages>=4'),
   stats: (c) => when(c.s.bigNumbers >= 3, 'bigNumbers>=3'),
   /*

@@ -114,6 +114,16 @@ describe('classify', () => {
     ]);
   });
 
+  it('a grid of captioned icons is a feature grid, not a wall of logos', () => {
+    // One icon and one word per card (SCAP Tech's "Gestión tecnológica") is few words per
+    // image, which read as a logo wall. A logo carries no heading of its own; a card does.
+    const grid = { cards: 6, cardHeadingLevel: 3, smallImages: 6, words: 8 };
+    expect(classify(input({ heading: 'Gestión tecnológica', signals: grid })).role).toBe('features');
+    expect(classify(input({ signals: { smallImages: 8, words: 20, cards: 8 } })).role).toBe('logos');
+    // The keyword arm names a wall of partner logos however it is built.
+    expect(classify(input({ heading: 'Integraciones', signals: { ...grid, smallImages: 4 } })).role).toBe('logos');
+  });
+
   it('products: keyword with a list, or a list next to a large image, or tabs', () => {
     expect(classify(input({ kicker: 'Productos', signals: { listItems: 6, words: 120 } })).role).toBe('products');
     expect(classify(input({ signals: { listItems: 6, largeImages: 1, words: 120 } })).role).toBe('products');

@@ -46,7 +46,7 @@ This design replaces that with a **role** per section: what kind of section it i
 | `pricing` | prices and plans | prices (currency or "/month"), or pricing keywords with cards |
 | `faq` | questions and answers | ≥ 3 headings or summaries ending in "?", or accordions with faq keywords |
 | `testimonials` | opinions | ≥ 2 quotes (blockquote, `q`, or quoted text with a name after it) or testimonial keywords with cards |
-| `logos` | wall of logos or integrations | ≥ 6 small images or icon-chips and few words per item |
+| `logos` | wall of logos or integrations | ≥ 6 small images or icon-chips, few words per item, no heading inside each one |
 | `stats` | figures | ≥ 3 big numbers (large font, with `%`, `+`, `k`, `M`, `x` or a unit) |
 | `steps` | a process | numbered or ordered items **and** process keywords, or an `ol` with ≥ 3 items |
 | `audience` | who it is for | audience keywords ("para quién", "who is it for", "para quem") with cards |
@@ -135,7 +135,7 @@ The builder keeps the list in one table in `roles.ts`; adding a language is addi
 - pricing: `prices ≥ 2` or (kw:pricing and `cards ≥ 2`).
 - faq: `questions ≥ 3` or (`accordions ≥ 3` and kw:faq).
 - testimonials: `quotes ≥ 2` or (kw:testimonials and `cards ≥ 2`).
-- logos: `smallImages ≥ 6 && words / max(1, smallImages) ≤ 6` or (kw:logos and `smallImages ≥ 4`).
+- logos: `smallImages ≥ 6 && words / max(1, smallImages) ≤ 6 && cardHeadingLevel == null` or (kw:logos and `smallImages ≥ 4`). A logo carries a caption at most, so a card with a heading of its own is not one.
 - stats: `bigNumbers ≥ 3`.
 - steps: (`numbered ≥ 3` or `orderedItems ≥ 3` or `cards ≥ 3`) and kw:steps, or `orderedItems ≥ 3 && cards == 0`.
 - audience: kw:audience and (`cards ≥ 2` or `numbered ≥ 2`).
@@ -192,6 +192,7 @@ Two tests cover it. Always on: a **fixture page** `tests/fixtures/site/roles.htm
 - **Kind stays.** Removing it would touch the plan wording and colors for no gain here.
 - **Changed after review (2026-10-25):** every structural count is of rendered elements, so a hidden responsive copy of a block does not double its signals; `quotes` and `contactHints` were the last two raw counts and now follow the same rule.
 - **Changed after review (2026-10-25):** a CSS background feeds `imageRatio` only, at the measured share of the box its painting covers, and never `largeImages`. Counting any `url()` background as a full-block image made a 24px icon or a repeating tile a `banner`, and took `content` away from every long text section with a texture behind it. A backdrop says how visual a band is; it is not one of the images the block shows, which is what `largeImages` feeds (`products`, `gallery`, `feature`, `content`). `banner` reads the ratio, so the band D4 asked for still classifies as `banner`.
+- **Changed after review (2026-10-25):** the structural arm of `logos` also asks for `cardHeadingLevel == null`. An icon grid with one word per card is few words per image, and `logos` precedes `features`, so the sections §7 expects as `features` would have landed there instead of on `team`. A logo carries a caption, not a heading.
 - **Changed after review (2026-10-25):** the structural arm of `team` now needs kw:team as well, because an icon-per-card feature grid satisfied it (six icons are six small images), which made §7 expect `features` for sections the rules called `team`.
 - **Order of work.** Roles land first, on a branch cut from `feat/start-page` (the current tip); the AI plugin plan comes after and reads `role` from the map. Both touch `formatMap`, `atlas_get_block` and `en.ts`, so the second one rebases.
 

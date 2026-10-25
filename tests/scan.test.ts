@@ -87,6 +87,8 @@ describe('scanSite', () => {
       logos: 'logos',
       feature: 'feature',
       features: 'features',
+      // An icon and one word per card: a feature grid all the same, not a wall of logos.
+      'icon-grid': 'features',
       'two-up': 'audience',
       // One card and a hidden copy of it: not a grid, so the audience words are not enough.
       // Its only mailto and one of its two quotes are in the hidden copy, so neither counts.
