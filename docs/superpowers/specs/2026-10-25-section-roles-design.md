@@ -81,8 +81,8 @@ signals: {
   bigNumbers: number;       // elements with font-size ≥ 32px whose text is a number with optional % + k M x or ≤ 2 unit words
   questions: number;        // h2-h4 or summary ending in "?"
   smallImages: number;      // img/svg/picture with rendered width ≤ 160px
-  largeImages: number;      // img/video/canvas/picture with area ≥ 20% of the block
-  imageRatio: number;       // largest single image/video/canvas area ÷ block area (replaces today's canvas/video-only visualRatio for roles; kind keeps using visualRatio)
+  largeImages: number;      // img/video/canvas/picture with area ≥ 20% of the block, plus a url() background-image on the block or a direct child
+  imageRatio: number;       // largest single image/video/canvas area ÷ block area, counting those backgrounds (replaces today's canvas/video-only visualRatio for roles; kind keeps using visualRatio)
   contactHints: number;     // tel: / mailto: links, <address>, phone-like text
   tabs: number;             // [role=tab]
 }

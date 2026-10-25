@@ -151,6 +151,20 @@ const IN_PAGE = String.raw`(() => {
       if (share >= 0.2) largeImages++;
       imageRatio = Math.max(imageRatio, share);
     }
+    /* A band often carries its image as a CSS background instead of an element. Only the block
+       and its direct children are read, so this is a handful of getComputedStyle calls per
+       block, never one per node. A gradient is not an image: the value must name a url. */
+    for (const b of [el, ...el.children]) {
+      if (SKIP_TAG.test(b.tagName) || !rendered(b)) continue;
+      const bg = getComputedStyle(b).backgroundImage;
+      if (!bg || bg.indexOf('url(') === -1) continue;
+      const r = b.getBoundingClientRect();
+      const w = Math.max(0, Math.min(r.right, rect.right) - Math.max(r.left, rect.left));
+      const h = Math.max(0, Math.min(r.bottom, rect.bottom) - Math.max(r.top, rect.top));
+      const share = (w * h) / area;
+      if (share >= 0.2) largeImages++;
+      imageRatio = Math.max(imageRatio, share);
+    }
     let questions = 0;
     for (const h of el.querySelectorAll('h2, h3, h4, summary')) if (text(h).endsWith('?') && rendered(h)) questions++;
     return {

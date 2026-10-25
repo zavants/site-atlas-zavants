@@ -79,6 +79,9 @@ describe('extractBlocks', () => {
     expect(by('content').words).toBeGreaterThanOrEqual(150);
     expect(by('gallery').largeImages).toBeGreaterThanOrEqual(4);
     expect(by('banner').imageRatio).toBeGreaterThanOrEqual(0.3);
+    // A band whose image is a CSS background reads like a banner too.
+    expect(by('backdrop').imageRatio).toBeGreaterThanOrEqual(0.3);
+    expect(by('backdrop').largeImages).toBeGreaterThanOrEqual(1);
   });
 
   it('counts one price per price, and only phone-shaped text as a contact hint', async () => {

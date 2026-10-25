@@ -105,6 +105,8 @@ describe('scanSite', () => {
       about: 'about',
       gallery: 'gallery',
       banner: 'banner',
+      // Same band, with the image as a CSS background instead of an img.
+      backdrop: 'banner',
       contact: 'contact',
       content: 'content',
       plain: 'default',
