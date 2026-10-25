@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
 import type { SiteMap } from '../api';
-import { AUTO_TAGS, autoColors, autoTags } from '../org/autoTags';
+import { AUTO_TAGS, autoColors, autoTags, roleLabel, type AutoTag } from '../org/autoTags';
+import { blockIndex } from '../org/diagrams';
 import { t } from '../strings';
 
 const props = defineProps<{ map: SiteMap; filterTag: string | null; inline?: boolean }>();
+/** Every piece of the map, shared components and footers included: they carry roles too. */
 const autoCounts = computed(() => {
-  const counts = new Map<string, number>(AUTO_TAGS.map((id) => [id, 0]));
-  for (const page of props.map.pages) for (const b of page.blocks) for (const id of autoTags(b)) counts.set(id, counts.get(id)! + 1);
+  const counts = new Map<AutoTag, number>();
+  for (const b of blockIndex(props.map).values()) for (const id of autoTags(b)) counts.set(id, (counts.get(id) ?? 0) + 1);
   return counts;
 });
+/** Only the roles the map actually has: the full list of 22 would bury the few that are there. */
+const present = computed(() => AUTO_TAGS.filter((id) => (autoCounts.value.get(id) ?? 0) > 0));
 const emit = defineEmits<{
   filter: [tagId: string | null];
   create: [name: string];
@@ -52,7 +56,7 @@ function remove(id: string) {
   <div class="bar" :class="{ inline }" role="group" :aria-label="t.tags.aria">
     <span class="head muted">{{ t.tags.detected }}</span>
     <button
-      v-for="id in AUTO_TAGS"
+      v-for="id in present"
       :key="id"
       type="button"
       class="auto"
@@ -62,7 +66,7 @@ function remove(id: string) {
       :title="t.autoTags.hint"
       :aria-pressed="filterTag === id"
       @click="emit('filter', filterTag === id ? null : id)"
-    ><i class="dot" />{{ t.autoTags[id] }} <span class="muted n">{{ autoCounts.get(id) }}</span></button>
+    ><i class="dot" />{{ roleLabel(id) }} <span class="muted n">{{ autoCounts.get(id) }}</span></button>
     <span class="head muted">{{ t.tags.yours }}</span>
     <span v-for="tag in map.tags" :key="tag.id" class="tag">
       <input

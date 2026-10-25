@@ -2,7 +2,8 @@
 import { computed, inject } from 'vue';
 import { shotUrl, type BlockView } from '../api';
 import { t } from '../strings';
-import { autoColors, autoTags, hasTag } from './autoTags';
+import { autoColors, autoTags, hasTag, roleLabel } from './autoTags';
+import { ROLE_ORDER } from '../../../src/scan/roles.js';
 import { orgContextKey, PAGES, type PieceModel } from './diagrams';
 
 const props = defineProps<{ piece: PieceModel; diagramId: string; number: number; hole?: boolean; settled?: boolean }>();
@@ -33,6 +34,9 @@ function onPlug(e: PointerEvent) {
 }
 function onKind(value: string) {
   ctx.setKind(b.value.key, value === 'auto' ? null : (value as BlockView['kind']));
+}
+function onRole(value: string) {
+  ctx.setRole(b.value.key, value === 'auto' ? null : (value as BlockView['effectiveRole']));
 }
 function onTag(tagId: string, on: boolean) {
   ctx.setTags(b.value.key, on ? [...b.value.tags, tagId] : b.value.tags.filter((x) => x !== tagId));
@@ -65,7 +69,7 @@ function onTag(tagId: string, on: boolean) {
       </span>
       <span v-if="b.issues.length" class="warn" :title="t.piece.issues(b.issues.length)">⚠{{ b.issues.length }}</span>
       <span v-if="showLabel" class="tag comp-tag">{{ t.piece.component }}</span>
-      <span v-for="id in detected" :key="id" class="atag" :style="{ '--c': autoColors[id] }" data-testid="detected-tag" :title="t.autoTags.hint">{{ t.autoTags[id] }}</span>
+      <span v-for="id in detected" :key="id" class="atag" :style="{ '--c': autoColors[id] }" data-testid="detected-tag" :title="t.autoTags.hint">{{ roleLabel(id) }}</span>
     </div>
     <img v-if="shot" class="cap" :src="shot" alt="" loading="lazy" draggable="false" />
     <div v-else class="cap empty" />
@@ -82,6 +86,13 @@ function onTag(tagId: string, on: boolean) {
           <option value="conversion">{{ t.kind.conversion }}</option>
         </select>
         <span class="muted">· {{ t.piece.height(Math.round(b.height)) }}</span>
+      </label>
+      <label v-if="ctx.planned()" class="row">
+        {{ t.piece.role }}
+        <select data-testid="role-select" :value="b.roleOverridden ? b.effectiveRole : 'auto'" @change="onRole(($event.target as HTMLSelectElement).value)">
+          <option value="auto">{{ t.roles.auto }}</option>
+          <option v-for="r in ROLE_ORDER" :key="r" :value="r">{{ t.roles[r] }}</option>
+        </select>
       </label>
       <p v-if="b.deleted || b.isNew || b.moved" class="flags">
         <span v-if="b.deleted" class="pill flag">{{ t.piece.deleted }}</span>

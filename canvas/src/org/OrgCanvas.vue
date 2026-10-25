@@ -351,6 +351,7 @@ provide(orgContextKey, {
   },
   plug: startConnector,
   setKind: (key, kind) => void props.act([{ type: 'setKind', blockKey: key, kind }], false),
+  setRole: (key, role) => void props.act([{ type: 'setRole', blockKey: key, role }], false),
   setTags: (key, tagIds) => void props.act([{ type: 'setBlockTags', blockKey: key, tagIds }], false),
   restore: (key) => void props.act([{ type: 'restore', blockKey: key }]),
   targetLabel: labelOf,

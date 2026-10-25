@@ -6,7 +6,7 @@ import Home from './components/Home.vue';
 import Menu from './components/Menu.vue';
 import NavList from './components/NavList.vue';
 import TagBar from './components/TagBar.vue';
-import { AUTO_TAGS, autoColors, CONFIGURABLE, resetAutoColors, saveAutoColors } from './org/autoTags';
+import { autoColors, CONFIGURABLE, resetAutoColors, roleLabel, saveAutoColors, type AutoTag } from './org/autoTags';
 import OrgCanvas from './org/OrgCanvas.vue';
 import { createHistory } from './org/history';
 import { blockIndex, PAGES, type Mode } from './org/diagrams';
@@ -162,7 +162,7 @@ const viewName = computed(() => (view.value === PAGES ? t.head.pages : component
 const filterName = computed(() => {
   const id = filterTag.value;
   if (!id) return null;
-  if (id.startsWith('auto:')) return { name: t.autoTags[id as (typeof AUTO_TAGS)[number]], color: autoColors[id as (typeof AUTO_TAGS)[number]] };
+  if (id.startsWith('auto:')) return { name: roleLabel(id as AutoTag), color: autoColors[id as AutoTag] };
   const tag = map.value?.tags.find((x) => x.id === id);
   return tag ? { name: tag.name, color: tag.color } : null;
 });
@@ -308,11 +308,13 @@ onBeforeUnmount(() => unsubscribe?.());
     <dialog ref="colorsDlg" class="colors" data-testid="tag-colors-dialog">
       <h2>{{ t.options.colorsTitle }}</h2>
       <p class="muted">{{ t.options.colorsHint }}</p>
-      <label v-for="id in CONFIGURABLE" :key="id" class="color-row">
-        <input v-model="autoColors[id]" type="color" :data-testid="`color-${id}`" @change="saveAutoColors" />
-        {{ t.autoTags[id] }}
-      </label>
-      <p class="color-row muted"><i class="dot" :style="{ background: autoColors['auto:default'] }" /> {{ t.autoTags['auto:default'] }} · {{ t.options.defaultFixed }}</p>
+      <div class="color-list">
+        <label v-for="id in CONFIGURABLE" :key="id" class="color-row">
+          <input v-model="autoColors[id]" type="color" :data-testid="`color-${id}`" @change="saveAutoColors" />
+          {{ roleLabel(id) }}
+        </label>
+      </div>
+      <p class="color-row muted"><i class="dot" :style="{ background: autoColors['auto:default'] }" /> {{ t.roles.default }} · {{ t.options.defaultFixed }}</p>
       <div class="row">
         <button type="button" @click="resetAutoColors">{{ t.options.reset }}</button>
         <button type="button" class="primary" @click="colorsDlg?.close()">{{ t.options.done }}</button>
@@ -354,6 +356,7 @@ h1 { font-size: 18px; margin: 0; }
 dialog.colors { border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; background: var(--surface); color: var(--text); min-width: 300px; }
 dialog.colors h2 { font-size: 15px; margin: 0 0 4px; }
 dialog.colors::backdrop { background: rgba(0, 0, 0, 0.3); }
+.color-list { max-height: 50vh; overflow: auto; }
 .color-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
 .color-row input { width: 34px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: none; }
 .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
