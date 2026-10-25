@@ -33,6 +33,8 @@
   #backdrop { height: 320px; box-sizing: border-box; background: url(pixel.png) center / cover no-repeat #111; color: #fff; }
   form { display: flex; gap: 12px; margin: 0 0 12px; }
   .narrow { display: none; }
+  .contents { display: contents; }
+  .contents > article { width: 300px; }
   .count { display: block; font-size: 40px; }
 </style>
 </head>
@@ -107,6 +109,7 @@
           <ol><li>Primer paso</li></ol>
           <details><summary>¿Cómo se activa?</summary><p>Con una llamada corta.</p></details>
           <button role="tab" aria-controls="resumen">Resumen</button>
+          <blockquote><p>Una sola pantalla para todo el turno, sin planillas aparte.</p></blockquote>
         </article>
       </div>
       <div class="narrow">
@@ -118,7 +121,21 @@
           <ol><li>Primer paso</li></ol>
           <details><summary>¿Cómo se activa?</summary><p>Con una llamada corta.</p></details>
           <button role="tab" aria-controls="resumen">Resumen</button>
+          <blockquote><p>Una sola pantalla para todo el turno, sin planillas aparte.</p></blockquote>
+          <p><a href="mailto:hola@demo.test">hola@demo.test</a></p>
         </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="contents-grid">
+    <h2>Tecnología aplicada</h2>
+    <div class="grid">
+      <div class="contents">
+        <article><h3>Ruteo</h3><p>Control fino sobre cada etapa, con reglas propias y registro completo.</p></article>
+        <article><h3>Conciliación</h3><p>Control fino sobre cada etapa, con reglas propias y registro completo.</p></article>
+        <article><h3>Alertas</h3><p>Control fino sobre cada etapa, con reglas propias y registro completo.</p></article>
+        <article><h3>Reportes</h3><p>Control fino sobre cada etapa, con reglas propias y registro completo.</p></article>
       </div>
     </div>
   </section>

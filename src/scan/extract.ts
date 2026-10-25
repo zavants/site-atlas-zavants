@@ -17,10 +17,16 @@ const IN_PAGE = String.raw`(() => {
     const cs = getComputedStyle(el);
     return cs.display !== 'none' && cs.visibility !== 'hidden' && el.getBoundingClientRect().height > 0;
   };
-  /* An element with no client rects is not laid out: display:none, or inside a display:none
-     subtree. Cheaper than getComputedStyle per node, and it is what the signals need, because
-     a responsive page that ships a hidden copy of a block would double every count. */
-  const rendered = (el) => el.getClientRects().length > 0;
+  /* An element with no box of its own area is not rendered: display:none, inside a display:none
+     subtree, or collapsed to nothing. Cheaper than getComputedStyle per node, and it is what the
+     signals need, because a responsive page that ships a hidden copy of a block would double
+     every count. A visibility:hidden copy still measures as rendered: seeing it would cost a
+     style read per node, which the signals cannot afford. */
+  const rendered = (el) => {
+    const rects = el.getClientRects();
+    for (let i = 0; i < rects.length; i++) if (rects[i].width > 0 && rects[i].height > 0) return true;
+    return false;
+  };
   const countRendered = (el, selector) => {
     let n = 0;
     for (const m of el.querySelectorAll(selector)) if (rendered(m)) n++;
@@ -91,16 +97,19 @@ const IN_PAGE = String.raw`(() => {
   const cardsOf = (block) => {
     let best = [];
     const walk = (container, depth) => {
-      const kids = [...container.children].filter((c) => !SKIP_TAG.test(c.tagName) && rendered(c));
+      const kids = [...container.children].filter((c) => !SKIP_TAG.test(c.tagName));
+      /* Only a rendered child can be a card, but every child is walked into: an element with
+         display:contents has no box of its own and still lays out its children on the page. */
+      const shown = kids.filter(rendered);
       let i = 0;
-      while (i < kids.length) {
-        if (!kids[i].querySelector(CARDISH)) {
+      while (i < shown.length) {
+        if (!shown[i].querySelector(CARDISH)) {
           i++;
           continue;
         }
         let j = i + 1;
-        while (j < kids.length && kids[j].tagName === kids[i].tagName && kids[j].querySelector(CARDISH)) j++;
-        if (j - i >= 2 && j - i > best.length) best = kids.slice(i, j);
+        while (j < shown.length && shown[j].tagName === shown[i].tagName && shown[j].querySelector(CARDISH)) j++;
+        if (j - i >= 2 && j - i > best.length) best = shown.slice(i, j);
         i = j;
       }
       if (depth < 3) for (const k of kids) walk(k, depth + 1);
@@ -175,7 +184,7 @@ const IN_PAGE = String.raw`(() => {
       orderedItems: countRendered(el, 'ol li'),
       numbered,
       accordions: countRendered(el, 'details, [aria-expanded], [role=tab]'),
-      quotes: Math.max(el.querySelectorAll('blockquote, q').length, (full.match(QUOTED) || []).length),
+      quotes: Math.max(countRendered(el, 'blockquote, q'), (full.match(QUOTED) || []).length),
       prices: (full.match(PRICE) || []).length,
       bigNumbers,
       questions,
@@ -184,7 +193,7 @@ const IN_PAGE = String.raw`(() => {
       imageRatio: Math.round(imageRatio * 1000) / 1000,
       tabs: countRendered(el, '[role=tab]'),
       contactHints:
-        el.querySelectorAll('a[href^="tel:"], a[href^="mailto:"], address').length + (full.match(PHONE) || []).length,
+        countRendered(el, 'a[href^="tel:"], a[href^="mailto:"], address') + (full.match(PHONE) || []).length,
     };
   };
 

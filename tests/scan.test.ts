@@ -89,7 +89,10 @@ describe('scanSite', () => {
       features: 'features',
       'two-up': 'audience',
       // One card and a hidden copy of it: not a grid, so the audience words are not enough.
+      // Its only mailto and one of its two quotes are in the hidden copy, so neither counts.
       responsive: 'default',
+      // A display:contents wrapper has no box, but the cards inside it are on the page.
+      'contents-grid': 'features',
       products: 'products',
       solutions: 'solutions',
       steps: 'steps',

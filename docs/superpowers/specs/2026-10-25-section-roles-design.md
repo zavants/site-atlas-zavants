@@ -88,6 +88,8 @@ signals: {
 }
 ```
 
+Every element count above is of **rendered** elements only: one with no box of its own area (`display: none`, inside a `display: none` subtree, or collapsed to zero) is not counted, and the text signals come from `innerText`, which already leaves it out. A responsive page that ships a desktop copy and a hidden mobile copy of the same block therefore counts that block once. A `display: contents` wrapper has no box of its own, which does not hide its children: the cards inside it count. A `visibility: hidden` copy is the one case still counted, because seeing it costs a style read per node.
+
 Keywords are matched by the classifier (not in the page) against the **kicker, the heading and the anchor only** (never the body text, where words like "about" or "process" appear in passing), lower-cased and accent-stripped, as whole words or phrases, per role, in three languages (§5.2). The one exception is `contactHints`, which the extraction counts in the body (links and an `address` element, not words).
 
 ## 5. Classification
@@ -188,6 +190,7 @@ Two tests cover it. Always on: a **fixture page** `tests/fixtures/site/roles.htm
 - **Keywords in three languages in one table.** Enough for the user's sites; adding more is data, not code.
 - **CTA as an attribute**, so a pricing section with buttons is still pricing.
 - **Kind stays.** Removing it would touch the plan wording and colors for no gain here.
+- **Changed after review (2026-10-25):** every structural count is of rendered elements, so a hidden responsive copy of a block does not double its signals; `quotes` and `contactHints` were the last two raw counts and now follow the same rule.
 - **Changed after review (2026-10-25):** the structural arm of `team` now needs kw:team as well, because an icon-per-card feature grid satisfied it (six icons are six small images), which made §7 expect `features` for sections the rules called `team`.
 - **Order of work.** Roles land first, on a branch cut from `feat/start-page` (the current tip); the AI plugin plan comes after and reads `role` from the map. Both touch `formatMap`, `atlas_get_block` and `en.ts`, so the second one rebases.
 

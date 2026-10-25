@@ -111,6 +111,18 @@ describe('extractBlocks', () => {
       tabs: 1,
       smallImages: 1,
       bigNumbers: 1,
+      // One quote is visible and one is in the hidden copy; the only mailto is in the hidden copy.
+      quotes: 1,
+      contactHints: 0,
+    });
+  });
+
+  it('counts the cards of a grid held by a display:contents wrapper', async () => {
+    const { raws } = await extract('roles.html');
+    // The wrapper generates no box of its own, which does not hide the cards inside it.
+    expect(raws.find((r) => r.anchor === 'contents-grid')!.signals).toMatchObject({
+      cards: 4,
+      cardHeadingLevel: 3,
     });
   });
 
