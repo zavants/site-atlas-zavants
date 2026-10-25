@@ -75,6 +75,10 @@ export const en = {
     planUpdated: (site: string) => `Plan updated. Read it with: site-atlas plan ${site}`,
     confirmed: (id: string) => `Change ${id} is now applied.`,
     reopened: (id: string) => `Change ${id} is pending again.`,
+    role: 'Correct the detected role of a section (features, pricing, faq, steps…), or set it to auto to go back to the detected one.',
+    roleValue: 'new role, or auto to go back to the detected one',
+    roleSet: (blockKey: string, role: string) =>
+      role === 'auto' ? `Section ${blockKey} uses its detected role again.` : `Section ${blockKey} is now "${role}".`,
     component: 'Shared components (headers, footers).',
     componentRename: 'Rename a shared component, for example "Header 1" to "Main header".',
     componentRenamed: (id: string, name: string) => `Component ${id} is now "${name}".`,
@@ -111,13 +115,17 @@ export const en = {
       scanInclude: 'Glob patterns of paths to include',
       scanExclude: 'Glob patterns of paths to exclude',
       listSites: 'List the scanned sites and their latest scan.',
-      getMap: 'Site map by pages and blocks, with the team organization applied (planned order, tags, deletions).',
+      getMap:
+        'Site map by pages and blocks, with the team organization applied (planned order, tags, deletions). Each section shows its kind and its detected role (hero, features, logos, steps, pricing, faq, testimonials, contact…).',
       getMapPage: 'Path of one page, for example /',
       getBlock: 'Details of one block: components, issues and, on request, its thumbnail.',
       listIssues: 'Issues from the latest scan (broken links, missing anchors, forms without a destination, placeholder images…).',
       tags: 'Create, rename or delete the site tags.',
       tagsId: 'Tag id or name (rename/delete)',
       setBlockTags: 'Replace the tags of a block. Accepts tag ids or names.',
+      setBlockRole:
+        'Correct the detected role of a section (features, pricing, faq, steps…), or null to go back to the detected one. The correction is kept across scans. Does not modify the site.',
+      setBlockRoleValue: 'One of the roles, or null to go back to the detected one',
       moveBlock: 'Move a block in the planned order: within its page or to another one (real or planned). Does not modify the site.',
       addPlannedPage: 'Create a planned page (not yet on the site) so blocks can be moved to it.',
       getPlan:

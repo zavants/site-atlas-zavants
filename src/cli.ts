@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-import { Command, Option } from 'commander';
+import { Argument, Command, Option } from 'commander';
 import { en } from './i18n/en.js';
 import { OpError, type OverlayOp } from './model/ops.js';
 import { getPlan, mutate } from './model/service.js';
 import type { Target } from './schema/overlay.js';
+import type { SectionRole } from './schema/scan.js';
 import { runScan } from './run.js';
+import { ROLE_ORDER } from './scan/roles.js';
 import { startCanvasServer } from './server/serve.js';
 import { SiteStore } from './store/store.js';
 import { VERSION } from './version.js';
@@ -47,7 +49,9 @@ program
     console.log(en.cli.summary(scan.pages.length, blocks, count('error'), count('warn'), count('info')));
     for (const p of scan.pages) {
       console.log(`\n${p.path}${p.error ? `  [${p.error}]` : ''}`);
-      p.blocks.forEach((b, i) => console.log(`  ${String(i + 1).padStart(2, '0')}. ${b.name} [${b.kind}]${b.global ? ` ${en.cli.global}` : ''}`));
+      p.blocks.forEach((b, i) =>
+        console.log(`  ${String(i + 1).padStart(2, '0')}. ${b.name} [${b.kind} · ${b.role}]${b.cta ? ' CTA' : ''}${b.global ? ` ${en.cli.global}` : ''}`),
+      );
     }
   });
 
@@ -181,6 +185,17 @@ program
   .command('restore <site> <blockKey>')
   .description(en.cli.restore)
   .action((site: string, blockKey: string) => propose(site, { type: 'restore', blockKey, by: BY }));
+
+program
+  .command('role')
+  .description(en.cli.role)
+  .argument('<site>')
+  .argument('<blockKey>')
+  .addArgument(new Argument('<role>', en.cli.roleValue).choices([...ROLE_ORDER, 'auto']))
+  .action(async (site: string, blockKey: string, role: string) => {
+    await mutate(store(), site, { type: 'setRole', blockKey, role: role === 'auto' ? null : (role as SectionRole) });
+    console.log(en.cli.roleSet(blockKey, role));
+  });
 
 program
   .command('component')

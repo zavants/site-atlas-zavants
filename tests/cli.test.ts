@@ -113,6 +113,13 @@ describe.concurrent('CLI plan commands', () => {
     expect((await plan()).changes).toEqual([]);
   });
 
+  it('role sets and clears an override', SLOW, async () => {
+    const { cli } = await setup();
+    expect((await cli('role', SITE, '/#top', 'pricing')).code).toBe(0);
+    expect((await cli('role', SITE, '/#top', 'nonsense')).code).toBe(1);
+    expect((await cli('role', SITE, '/#top', 'auto')).code).toBe(0);
+  });
+
   it('renames a shared component', SLOW, async () => {
     const { cli } = await setup();
     const ok = await cli('component', 'rename', SITE, 'c:fp-header', 'Main header');
