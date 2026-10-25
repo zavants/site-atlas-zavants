@@ -5,7 +5,7 @@ import { OverlaySchema, TargetSchema, type Overlay, type Target } from '../schem
 import { applyConfirmation } from './changes.js';
 import { componentOf } from './components.js';
 import { externalOrigins, linkId, missingPaths, owner as ownerOf, resolveTarget } from './links.js';
-import type { Block, Kind, Scan } from '../schema/scan.js';
+import { SectionRoleSchema, type Block, type Kind, type Scan, type SectionRole } from '../schema/scan.js';
 
 export type OverlayOp =
   | { type: 'createTag'; name: string; color?: string }
@@ -13,6 +13,7 @@ export type OverlayOp =
   | { type: 'deleteTag'; tagId: string }
   | { type: 'setBlockTags'; blockKey: string; tagIds: string[] }
   | { type: 'setKind'; blockKey: string; kind: Kind | null }
+  | { type: 'setRole'; blockKey: string; role: SectionRole | null }
   | { type: 'renameComponent'; componentId: string; name: string }
   | { type: 'moveBlock'; blockKey: string; toPage: string; index: number; by?: string }
   | { type: 'addPlannedPage'; path: string; title: string; by?: string }
@@ -113,6 +114,11 @@ export function renameKey(overlay: Overlay, from: string, to: string): Overlay {
     kindOverrides[to] ??= kindOverrides[from]!;
     delete kindOverrides[from];
   }
+  const roleOverrides = { ...overlay.roleOverrides };
+  if (from in roleOverrides) {
+    roleOverrides[to] ??= roleOverrides[from]!;
+    delete roleOverrides[from];
+  }
   const plannedOrder = Object.fromEntries(
     Object.entries(overlay.plannedOrder).map(([p, keys]) => [p, [...new Set(keys.map(swap))]]),
   );
@@ -133,6 +139,7 @@ export function renameKey(overlay: Overlay, from: string, to: string): Overlay {
     ...overlay,
     blockTags,
     kindOverrides,
+    roleOverrides,
     plannedOrder,
     plannedDeletions: [...new Set(overlay.plannedDeletions.map(swap))],
     newKeys: overlay.newKeys.map(swap),
@@ -175,6 +182,16 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
       if (op.kind === null) delete kindOverrides[op.blockKey];
       else kindOverrides[op.blockKey] = op.kind;
       return { ...overlay, kindOverrides };
+    }
+    case 'setRole': {
+      requireBlock(idx, op.blockKey);
+      const roleOverrides = { ...overlay.roleOverrides };
+      if (op.role === null) delete roleOverrides[op.blockKey];
+      else {
+        if (!SectionRoleSchema.safeParse(op.role).success) throw new OpError(en.op.noRole(String(op.role)));
+        roleOverrides[op.blockKey] = op.role;
+      }
+      return { ...overlay, roleOverrides };
     }
     case 'renameComponent': {
       const component = overlay.components[op.componentId];
@@ -240,6 +257,8 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
       delete blockTags[op.orphanKey];
       const kindOverrides = { ...rest.kindOverrides };
       delete kindOverrides[op.orphanKey];
+      const roleOverrides = { ...rest.roleOverrides };
+      delete roleOverrides[op.orphanKey];
       // A link orphan's key is its linkId; a block orphan also takes the links it owns or receives.
       const key = op.orphanKey;
       const isKey = (t: Target) => 'block' in t && t.block === key;
@@ -250,6 +269,7 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
         ...rest,
         blockTags,
         kindOverrides,
+        roleOverrides,
         linkEdits,
         removedLinks: Object.fromEntries(Object.entries(rest.removedLinks).filter(([id]) => id !== key && !id.startsWith(`${key}|`))),
         addedLinks: rest.addedLinks.filter((l) => l.from !== key && !isKey(l.to)),
@@ -344,6 +364,7 @@ export function applyOp(overlay: Overlay, scan: Scan, op: OverlayOp): Overlay {
 
 const by = z.string().default('canvas');
 const KindOrNull = z.enum(['narrative', 'visual', 'conversion']).nullable();
+const RoleOrNull = SectionRoleSchema.nullable();
 /**
  * Ops the canvas may send over HTTP. `confirmChange` / `reopenChange` are left out on purpose:
  * only agents (MCP, CLI) confirm changes; the canvas only shows their status (spec §8.3).
@@ -354,6 +375,7 @@ export const OverlayOpSchema: z.ZodType<OverlayOp> = z.discriminatedUnion('type'
   z.object({ type: z.literal('deleteTag'), tagId: z.string() }),
   z.object({ type: z.literal('setBlockTags'), blockKey: z.string(), tagIds: z.array(z.string()) }),
   z.object({ type: z.literal('setKind'), blockKey: z.string(), kind: KindOrNull }),
+  z.object({ type: z.literal('setRole'), blockKey: z.string(), role: RoleOrNull }),
   z.object({ type: z.literal('renameComponent'), componentId: z.string(), name: z.string() }),
   z.object({ type: z.literal('moveBlock'), blockKey: z.string(), toPage: z.string(), index: z.number(), by }),
   z.object({ type: z.literal('addPlannedPage'), path: z.string(), title: z.string(), by }),

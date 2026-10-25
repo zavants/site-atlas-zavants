@@ -115,6 +115,21 @@ describe('applyOp + buildMap', () => {
     expect(view(o).pages[0]!.blocks.find((b) => b.key === '/~integraciones')).toMatchObject({ effectiveKind: 'narrative', kindOverridden: false });
   });
 
+  it('setRole overrides the detected role, null clears it, and the override follows a renamed key', () => {
+    const scan = sampleScan();
+    let o = applyOp(emptyOverlay(), scan, { type: 'setRole', blockKey: '/#top', role: 'banner' });
+    expect(o.roleOverrides['/#top']).toBe('banner');
+    expect(buildMap(scan, o).pages[0]!.blocks.find((b) => b.key === '/#top')).toMatchObject({ effectiveRole: 'banner', roleOverridden: true });
+    expect(() => applyOp(o, scan, { type: 'setRole', blockKey: '/#nada', role: 'banner' })).toThrow(/No section/);
+    o = applyOp(o, scan, { type: 'setRole', blockKey: '/#top', role: null });
+    expect(o.roleOverrides).toEqual({});
+  });
+
+  it('an old scan without signals still builds a map with roles', () => {
+    const map = buildMap(sampleScan(), emptyOverlay());
+    for (const b of map.pages.flatMap((p) => p.blocks)) expect(typeof b.effectiveRole).toBe('string');
+  });
+
   it('ignora claves globales que quedaron en el orden planificado', () => {
     const o: Overlay = { ...emptyOverlay(), plannedOrder: { '/': ['/~header', '/#cotizacion', '/#top', '/~integraciones', '/~footer'] } };
     expect(keysOf(o, '/')).toEqual(['/#cotizacion', '/#top', '/~integraciones']);

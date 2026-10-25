@@ -211,6 +211,7 @@ export const en = {
     tagNeedsName: 'A tag needs a name.',
     noComponent: (id: string) => `Component ${id} does not exist.`,
     componentNeedsName: 'A component needs a name.',
+    noRole: (role: string) => `Role ${role} does not exist.`,
     noPage: (path: string) => `Page ${path} does not exist.`,
     globalBlock: (name: string) => `"${name}" is a global block: it is shared across pages and cannot be moved.`,
     componentBlock: (name: string) => `"${name}" is a shared component and cannot be moved.`,
