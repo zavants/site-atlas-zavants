@@ -46,6 +46,8 @@ Site Atlas makes that visible and turns your decisions into a **concrete plan** 
 
 ## Installation
 
+New here? [**docs/tutorial.md**](docs/tutorial.md) walks the whole thing: install, your first scan, reading and rearranging the canvas, connecting Claude Code or Codex, and the round trip where an agent implements your plan and confirms it. What follows is the reference.
+
 **One line, Linux or macOS** (servers included). It finds or installs Node 24, installs the package with npm, downloads Chromium and runs `site-atlas doctor`:
 
 ```bash
