@@ -38,8 +38,11 @@ export class StaleRevError extends Error {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Unique per call: two writes of one file must never share a temp file, or they interleave into a corrupt result. */
+let tmpSeq = 0;
+
 async function writeAtomic(file: string, data: string): Promise<void> {
-  const tmp = `${file}.tmp-${process.pid}`;
+  const tmp = `${file}.tmp-${process.pid}-${++tmpSeq}`;
   await writeFile(tmp, data);
   for (let attempt = 0; ; attempt++) {
     try {
@@ -47,7 +50,10 @@ async function writeAtomic(file: string, data: string): Promise<void> {
       return;
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
-      if (attempt >= 3 || (code !== 'EPERM' && code !== 'EBUSY')) throw err;
+      if (attempt >= 3 || (code !== 'EPERM' && code !== 'EBUSY')) {
+        await unlink(tmp).catch(() => undefined);
+        throw err;
+      }
       await sleep(50);
     }
   }
@@ -99,11 +105,18 @@ async function withFileLock<T>(lockFile: string, fn: () => Promise<T>): Promise<
 
 export class SiteStore {
   readonly home: string;
-  /** Serializa escrituras de overlay dentro del proceso. */
+  /** Serializes writes inside this process; `withFileLock` covers the other processes. */
   private chain: Promise<unknown> = Promise.resolve();
 
   constructor(home?: string) {
     this.home = home ?? atlasHome();
+  }
+
+  /** Queues a write behind the ones already running here, so none of them sees another one half-done. */
+  private serialize<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.chain.then(fn);
+    this.chain = run.catch(() => undefined);
+    return run;
   }
 
   dir(site: string): string {
@@ -163,12 +176,14 @@ export class SiteStore {
     return info;
   }
 
+  // Read and write are one step: two callers setting the name and the mode at once must not each
+  // write back the other's missing field.
   setSiteName(site: string, name: string): Promise<SiteInfo> {
-    return this.readSiteInfo(site).then((info) => this.writeSiteInfo({ ...info, name: name.trim() }));
+    return this.serialize(async () => this.writeSiteInfo({ ...(await this.readSiteInfo(site)), name: name.trim() }));
   }
 
   setSiteMode(site: string, mode: SiteMode | null): Promise<SiteInfo> {
-    return this.readSiteInfo(site).then((info) => this.writeSiteInfo({ ...info, mode }));
+    return this.serialize(async () => this.writeSiteInfo({ ...(await this.readSiteInfo(site)), mode }));
   }
 
   /** The latest advice, or null when it was never written (or only half of it survived). */
@@ -190,10 +205,14 @@ export class SiteStore {
     const summary = advice.summary.trim();
     if (summary.length > SUMMARY_MAX) throw new Error(en.store.summaryTooLong);
     const saved: Advice = { by: advice.by, at: new Date().toISOString(), summary, markdown: advice.markdown };
-    await mkdir(this.dir(site), { recursive: true });
-    await writeAtomic(this.adviceMarkdownFile(site), saved.markdown);
-    await writeAtomic(this.adviceFile(site), JSON.stringify({ by: saved.by, at: saved.at, summary: saved.summary }, null, 2));
-    return saved;
+    // The two files are one advice: written apart, a second writer could slip its markdown under this
+    // one's json. The markdown goes first, so the json that names it is never ahead of its own text.
+    return this.serialize(async () => {
+      await mkdir(this.dir(site), { recursive: true });
+      await writeAtomic(this.adviceMarkdownFile(site), saved.markdown);
+      await writeAtomic(this.adviceFile(site), JSON.stringify({ by: saved.by, at: saved.at, summary: saved.summary }, null, 2));
+      return saved;
+    });
   }
 
   /** Removes the site folder: scans, thumbnails and the user layer. */

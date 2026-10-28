@@ -100,4 +100,30 @@ describe('SiteStore', () => {
     expect((await store.readAdvice(SITE))?.summary).toBe('Second');
     await expect(store.writeAdvice(SITE, { by: 'x', summary: 'a'.repeat(201), markdown: '' })).rejects.toThrow(/200 characters/);
   });
+
+  it('never publishes half a site.json when the name and the mode are set at once', async () => {
+    await store.saveScan(sampleScan());
+    for (let round = 0; round < 5; round++) {
+      await Promise.all([store.setSiteName(SITE, `Demo ${'o'.repeat(4000)}`), store.setSiteMode(SITE, 'advisory')]);
+      expect(await store.readSiteInfo(SITE)).toMatchObject({ site: SITE });
+    }
+  });
+
+  it('publishes one whole advice when several are written at once', async () => {
+    await store.saveScan(sampleScan());
+    const writers = ['alice', 'bob', 'carol', 'dave'];
+    const markdownOf = (by: string) => `# Advice by ${by}\n\n${by.repeat(20_000)}`;
+    for (let round = 0; round < 5; round++) {
+      const written = await Promise.allSettled(
+        writers.map((by) => store.writeAdvice(SITE, { by, summary: `Summary by ${by}`, markdown: markdownOf(by) })),
+      );
+      expect(written.map((r) => (r.status === 'rejected' ? (r.reason as Error).message : 'fulfilled'))).toEqual(
+        writers.map(() => 'fulfilled'),
+      );
+      const saved = await store.readAdvice(SITE);
+      expect(writers).toContain(saved?.by);
+      expect(saved?.summary).toBe(`Summary by ${saved?.by}`);
+      expect(saved?.markdown).toBe(markdownOf(saved!.by));
+    }
+  });
 });
