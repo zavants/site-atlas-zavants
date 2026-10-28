@@ -170,10 +170,12 @@ export function createMcpServer(store: SiteStore): McpServer {
       },
     },
     // A site with no scan has no atlas to advise on: fail before writing, so no folder is created for it.
+    // The advice is written first because it is what validates the summary, and the mode is the gate the
+    // apply skill reads: a rejected call must not leave the mode flipped with no advice behind it.
     guard(async ({ site, summary, markdown, mode }) => {
       await requireScan(store, site);
-      await store.setSiteMode(site, mode);
       await store.writeAdvice(site, { by: clientName(), summary, markdown });
+      await store.setSiteMode(site, mode);
       return plain(en.mcp.adviceSaved(site));
     }),
   );
