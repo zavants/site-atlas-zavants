@@ -255,6 +255,10 @@ export const en = {
     invalidOp: 'Invalid operation.',
     invalidScan: 'Give an http or https URL to scan (and, if you set one, a site name made of letters, digits, dots, dashes or underscores).',
     invalidName: 'Give a name of up to 120 characters.',
+    invalidMode: 'mode must be "own" or "advisory".',
+    invalidAdvice:
+      'Give by (up to 80 characters), a summary of up to 200 characters and the markdown; mode, if set, is "own" or "advisory".',
+    noAdvice: 'No advice yet.',
     mapChanged: 'The map changed while you were editing; it was reloaded.',
     scanRunning: 'A scan is already in progress.',
     invalidPath: 'Invalid path.',
