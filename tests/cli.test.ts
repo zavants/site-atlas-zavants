@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -25,7 +25,7 @@ async function setup() {
       });
     });
   const plan = async (...args: string[]) => JSON.parse((await cli('plan', SITE, '--json', ...args)).out) as PlanJson;
-  return { cli, plan };
+  return { cli, plan, home };
 }
 
 const SLOW = { timeout: 180_000 };
@@ -131,6 +131,21 @@ describe.concurrent('CLI plan commands', () => {
   });
 });
 
+describe('CLI advise', () => {
+  it('stores advice from a file and prints it back', SLOW, async () => {
+    const { cli, home } = await setup();
+    const file = join(home, 'advice.md');
+    await writeFile(file, '# Advice\n\nMove pricing up.');
+    expect((await cli('advise', SITE)).code).toBe(1);
+    const saved = await cli('advise', SITE, '--file', file, '--summary', 'Move pricing up', '--mode', 'own', '--by', 'terminal-agent');
+    expect(saved.code).toBe(0);
+    const shown = await cli('advise', SITE);
+    expect(shown.out).toMatch(/^Advice by terminal-agent · .* · mode own/);
+    expect(shown.out).toContain('Move pricing up.');
+    expect((await cli('advise', SITE, '--file', file, '--summary', 's', '--mode', 'maybe')).code).toBe(1);
+  });
+});
+
 describe('CLI doctor', () => {
   it('reports Node, the data folder, Chromium and the canvas, and exits 0 when all is ready', SLOW, async () => {
     const { cli } = await setup();
@@ -148,5 +163,13 @@ describe('CLI doctor', () => {
     const { cli } = await setup();
     const { version } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as { version: string };
     expect((await cli('--version')).out.trim()).toBe(version);
+  });
+
+  it('doctor --json prints machine-readable checks', SLOW, async () => {
+    const { cli } = await setup();
+    const res = await cli('doctor', '--json');
+    const parsed = JSON.parse(res.out) as { ok: boolean; checks: { ok: boolean; text: string }[] };
+    expect(parsed.ok).toBe(true);
+    expect(parsed.checks.length).toBeGreaterThanOrEqual(5);
   });
 });

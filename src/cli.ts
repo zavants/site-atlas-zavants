@@ -1,14 +1,15 @@
 #!/usr/bin/env node
+import { readFile } from 'node:fs/promises';
 import { Argument, Command, Option } from 'commander';
 import { en } from './i18n/en.js';
 import { OpError, type OverlayOp } from './model/ops.js';
-import { getPlan, mutate } from './model/service.js';
+import { getPlan, mutate, requireScan } from './model/service.js';
 import type { Target } from './schema/overlay.js';
 import type { SectionRole } from './schema/scan.js';
 import { runScan } from './run.js';
 import { ROLE_ORDER } from './scan/roles.js';
 import { startCanvasServer } from './server/serve.js';
-import { SiteStore } from './store/store.js';
+import { SiteStore, type SiteMode } from './store/store.js';
 import { VERSION } from './version.js';
 
 const list = (v: string, prev: string[] = []) => [...prev, v];
@@ -87,13 +88,44 @@ program
 program
   .command('doctor')
   .description(en.cli.doctor)
-  .action(async () => {
+  .option('--json', en.cli.doctorJson)
+  .action(async (o: { json?: boolean }) => {
     const { doctor } = await import('./setup.js');
     const checks = await doctor(store());
-    for (const c of checks) console.log(`${c.ok ? en.cli.doctorOk : en.cli.doctorFail}  ${c.text}`);
     const fails = checks.filter((c) => !c.ok).length;
-    console.log(en.cli.doctorSummary(fails));
+    if (o.json) {
+      console.log(JSON.stringify({ ok: fails === 0, checks }, null, 2));
+    } else {
+      for (const c of checks) console.log(`${c.ok ? en.cli.doctorOk : en.cli.doctorFail}  ${c.text}`);
+      console.log(en.cli.doctorSummary(fails));
+    }
     if (fails) process.exitCode = 1;
+  });
+
+program
+  .command('advise <site>')
+  .description(en.cli.advise)
+  .option('--file <path>', en.cli.adviseFile)
+  .option('--summary <text>', en.cli.adviseSummary)
+  .addOption(new Option('--mode <mode>', en.cli.adviseMode).choices(['own', 'advisory']))
+  .option('--by <name>', en.cli.adviseBy, BY)
+  .action(async (site: string, o: { file?: string; summary?: string; mode?: SiteMode; by: string }) => {
+    const sites = store();
+    if (o.file === undefined && o.summary === undefined && o.mode === undefined) {
+      const advice = await sites.readAdvice(site);
+      if (!advice) throw new Error(en.cli.noAdvice);
+      const { mode } = await sites.readSiteInfo(site);
+      console.log(`${en.cli.adviceHeader(advice.by, advice.at, mode)}\n\n${advice.markdown.trimEnd()}`);
+      return;
+    }
+    if (o.file === undefined || o.summary === undefined || o.mode === undefined) throw new Error(en.cli.adviseNeedsAll);
+    // A site with no scan has no atlas to advise on: fail before writing, so no folder is created for it.
+    // The advice goes first because it is what validates the summary, and the mode is the gate the apply
+    // skill reads: a rejected call must not leave the mode flipped with no advice behind it.
+    await requireScan(sites, site);
+    await sites.writeAdvice(site, { by: o.by, summary: o.summary, markdown: await readFile(o.file, 'utf8') });
+    await sites.setSiteMode(site, o.mode);
+    console.log(en.cli.adviceSaved(site));
   });
 
 program
