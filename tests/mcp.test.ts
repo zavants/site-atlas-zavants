@@ -35,7 +35,7 @@ beforeEach(async () => {
 });
 
 describe('servidor MCP', () => {
-  it('exposes the 22 tools', async () => {
+  it('exposes the 24 tools', async () => {
     const names = (await client.listTools()).tools.map((t) => t.name).sort();
     expect(names).toEqual(
       [
@@ -43,9 +43,10 @@ describe('servidor MCP', () => {
         'atlas_move_block', 'atlas_open_canvas', 'atlas_scan', 'atlas_set_block_tags', 'atlas_set_block_role', 'atlas_tags',
         'atlas_confirm_change', 'atlas_reopen_change', 'atlas_relink', 'atlas_unlink', 'atlas_add_link', 'atlas_remove_link',
         'atlas_remove_planned_page', 'atlas_mark_deleted', 'atlas_restore', 'atlas_rename_component',
+        'atlas_set_advice', 'atlas_get_advice',
       ].sort(),
     );
-    expect(names).toHaveLength(22);
+    expect(names).toHaveLength(24);
   });
 
   it('describes atlas_get_plan for plan v2 with an optional status', async () => {
@@ -176,6 +177,25 @@ describe('servidor MCP', () => {
     expect(before).toHaveProperty('effectiveRole');
     expect((await call('atlas_set_block_role', { site: SITE, blockKey: '/#top', role: 'banner' })).isError).toBeFalsy();
     expect(text(await call('atlas_get_map', { site: SITE }))).toContain('· banner]');
+  });
+
+  it('stores advice as the client, reads it back marked untrusted, and lists it with the site', async () => {
+    expect((await call('atlas_get_advice', { site: SITE })).isError).toBe(true);
+    const set = await call('atlas_set_advice', { site: SITE, summary: 'Move pricing up', markdown: '# Advice\n\nMove pricing up.', mode: 'own' });
+    expect(set.isError).toBeFalsy();
+    const got = await call('atlas_get_advice', { site: SITE });
+    expect(got._meta).toEqual({ 'site-atlas/untrusted': true });
+    expect(text(got)).toContain('Advice by test');
+    expect(text(got)).toContain('mode own');
+    expect(text(got)).toContain('Move pricing up.');
+    expect(text(await call('atlas_list_sites', {}))).toContain('advice by test: Move pricing up');
+    expect((await call('atlas_set_advice', { site: 'nada', summary: 's', markdown: 'm', mode: 'own' })).isError).toBe(true);
+  });
+
+  it('tells agents when the plan is a proposal only', async () => {
+    const tools = (await client.listTools()).tools;
+    expect(tools.find((t) => t.name === 'atlas_get_plan')!.description).toMatch(/advisory/);
+    expect(tools.find((t) => t.name === 'atlas_confirm_change')!.description).toMatch(/code you changed yourself/);
   });
 
   it('entrega la miniatura como imagen', async () => {
