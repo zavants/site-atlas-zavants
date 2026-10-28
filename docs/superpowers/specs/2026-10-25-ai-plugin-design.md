@@ -20,7 +20,7 @@ It covers **both situations** the user named:
 
 **Goals**
 
-1. One install step for the agent: a Claude Code plugin that brings the MCP server, slash commands and the advisory method; the plugin installs the `site-atlas` CLI itself when it is missing (PR #13's installer and `doctor`).
+1. One install step per agent, for **Claude Code and Codex alike**: a plugin that brings the MCP server, the slash commands and the advisory method, installable from this repository with two commands and reachable from the assistant's own panel; it installs the `site-atlas` CLI itself when it is missing (PR #13's installer and `doctor`).
 2. A documented **advisory method** the agent follows, so the advice is grounded in the scan (sections, links, issues, thumbnails) instead of generic SEO talk, and so it always ends in something the person can see on the canvas.
 3. A place for that advice to live: each atlas can hold the latest recommendation, shown on its home card and in the canvas, written by the agent through MCP or the CLI.
 4. The agent knows the tool's limits and says so when they affect the advice (page cap, no login, rendered-DOM heuristics, desktop viewport only).
@@ -28,7 +28,7 @@ It covers **both situations** the user named:
 
 **Non-goals (for this version)**
 
-- Agents other than Claude Code get the MCP server and the method as text (a snippet for `AGENTS.md` / `.cursorrules`), not a packaged plugin.
+- Cursor, Windsurf and Claude Desktop get the MCP server and the method as text (a snippet for `AGENTS.md` / `.cursorrules`), not a packaged plugin. Claude Code and Codex both get the real plugin (§4.1); a `.cursor-plugin/plugin.json` would be a third manifest in the same tree and can be added later if anyone asks.
 - Atlas does not run an LLM itself: the analysis happens in the agent; Atlas supplies data and stores conclusions.
 - No hosted, multi-tenant service: the agent and Atlas run on the person's machine or server (PR #13 covers servers).
 - No change to section detection heuristics; that is its own piece of work (the user flagged misidentified sections, to be looked at with concrete examples).
@@ -50,28 +50,61 @@ It covers **both situations** the user named:
 
 ## 4. Pieces
 
-### 4.1 The plugin (`plugin/` in this repository)
+### 4.1 The plugin (`plugin/` in this repository), for Claude Code **and** Codex
 
-A Claude Code plugin served from a marketplace in this repo (`.claude-plugin/marketplace.json` at the root pointing at `plugin/`), so installation is:
+One plugin directory, installable into both agents from this repository, so the person reaches Site Atlas from the assistant itself instead of wiring an MCP server by hand. Everything below was verified on 2026-10-28 against Claude Code 2.1.296 and codex-cli 0.164.0-alpha.11.1 by installing a throwaway plugin into an isolated home and watching what each agent launched; where the two agents differ, the difference is stated and the reason given.
 
 ```
-/plugin marketplace add zavants/site-atlas-zavants
-/plugin install site-atlas@site-atlas
+.claude-plugin/marketplace.json     at the repo root; BOTH agents read this filename
+.agents/plugins/marketplace.json    the agent-plugins.org 1.0.0 location, for Codex
+plugin/
+  .claude-plugin/plugin.json        Claude Code's manifest
+  .codex-plugin/plugin.json         Codex's manifest; Claude Code ignores it
+  .mcp.json                         the server, as Claude Code starts it
+  scripts/site-atlas-mcp.js         the one launcher both agents run
+  skills/atlas/SKILL.md
+  skills/atlas-advise/SKILL.md
+  skills/atlas-apply/SKILL.md
+  skills/site-atlas-setup/SKILL.md
+  assets/site-atlas.svg             the icon Codex shows in its panel
+  README.md
 ```
 
-Contents:
+**Installing.** Two commands per agent, no file editing and no administrator rights:
 
-- `.claude-plugin/plugin.json`: name `site-atlas`, version mirrors `package.json`.
-- `.mcp.json`: the `site-atlas` server started through a small launcher shipped in the plugin (`bin/site-atlas-mcp.js`, plain Node, no dependencies) that finds the CLI in this order: `SITE_ATLAS_BIN`, the PATH, `~/.site-atlas/npm/bin`, `~/.local/bin`, `npm prefix -g`, and a source checkout's `dist/cli.js` when the working folder is this repository. When nothing is found it exits with a message naming `/atlas` as the fix. Claude Code starts plugin MCP servers at session start, so after an install the tools appear on `/mcp` reconnect or the next session: the commands are written **CLI-first** (they work with `site-atlas …` in a shell) and use the `atlas_*` tools when they are available. The launcher is the one piece of the CLI the plugin carries; it does not duplicate the CLI's logic.
-- `commands/atlas.md` (`/atlas <url> [--max-pages n] [--site id]`): ensure installed → scan → open canvas → print the summary and the two or three most visible issues.
-- `commands/atlas-advise.md` (`/atlas-advise [site]`): runs the advisory method (4.2) and stores the result.
-- `commands/atlas-apply.md` (`/atlas-apply [site]`): implementation loop for own sites (4.3).
-- `skills/site-atlas-setup/SKILL.md`: how to detect whether Atlas is installed (`site-atlas doctor`), how to install it (`install.sh` on Linux/macOS, `npm install -g site-atlas` elsewhere, then `site-atlas setup`), how to recognize the canvas URL, and what to do when Chromium or the port are missing.
-- `skills/site-atlas-advise/SKILL.md`: the advisory method, the mode rules, the limits (4.4), and the report format.
-- `skills/site-atlas-apply/SKILL.md`: the implementation method: read the plan, implement in code, verify in the running site, re-scan, confirm with a note, never confirm what was not applied.
-- `README.md` for the plugin, plus a short section in the main README ("Use it from your AI").
+```
+claude plugin marketplace add zavants/site-atlas-zavants
+claude plugin install site-atlas@site-atlas
 
-The plugin does not duplicate the CLI: it depends on the package being installed and tells the agent how to install it.
+codex plugin marketplace add zavants/site-atlas-zavants
+codex plugin add site-atlas@site-atlas
+```
+
+In the Claude Code desktop app the second step is instead `+` → **Add plugins** → Site Atlas. Both agents start a plugin's MCP server when a session starts, so a session already open needs `/reload-plugins` (Claude Code offers it) or a new session (Codex).
+
+**Why the server is declared twice.** The two agents anchor a bundled stdio server in incompatible ways, and no single declaration satisfies both. Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` in a server's `command`, `args` and `env`, and exports it into the server's environment. Codex substitutes nothing: `${PLUGIN_ROOT}` passes its validator but is not expanded at launch (its own bug, and `${CODEX_PLUGIN_ROOT}` does not exist), it strips every plugin variable from the server's environment, and a relative `command` is resolved against the user's project, not the plugin. What Codex does honour is `cwd: "./"`, which re-roots the process at the installed plugin copy. So:
+
+- `plugin/.mcp.json`, which Claude Code reads: `{"mcpServers":{"site-atlas":{"command":"node","args":["${CLAUDE_PLUGIN_ROOT}/scripts/site-atlas-mcp.js"]}}}`
+- `plugin/.codex-plugin/plugin.json`, which Codex reads and which overrides `.mcp.json` for Codex: an inline `mcpServers` map with `{"command":"node","args":["scripts/site-atlas-mcp.js"],"cwd":"./"}`.
+
+Both run the same launcher. The duplication is two lines of JSON, kept honest by a test (§6, task 6) that asserts the two entries name the same server and the same file, and by the release workflow writing both versions from `package.json`.
+
+**The launcher** (`scripts/site-atlas-mcp.js`, plain Node, no dependencies) finds the CLI and executes `site-atlas mcp`, searching: `SITE_ATLAS_BIN`, the PATH, `~/.site-atlas/npm/bin`, `~/.local/bin`, `npm prefix -g`, and a source checkout's `dist/cli.js`. It locates itself from `__dirname`, never from an environment variable, because Codex gives the server process no plugin variables. When nothing is found it exits non-zero with a message naming the setup skill. `command` is always `node` with the script as an argument: a `.cmd` or shebang script as `command` cannot be spawned without a shell, and Codex fails to resolve a relative one.
+
+**No `bin/` directory.** Claude Code would put it on the Bash tool's PATH, which is convenient, but a top-level `bin/` stops the plugin installing through claude.ai and Cowork, and Codex does not add it to the server's PATH at all. The launcher lives in `scripts/` instead.
+
+**Skills, not commands.** A skill is both the slash command the person types and the guidance the model loads on its own, and both agents read `skills/`; `commands/*.md` is Claude Code's older format and Codex does not read it. So the three commands and three skills of the first draft collapse into four skills:
+
+- `skills/atlas/SKILL.md` (`/site-atlas:atlas <url>`): ensure installed → scan → open canvas → report the shape of the site and its most visible issues.
+- `skills/atlas-advise/SKILL.md`: the advisory method (§4.2), the mode rules, the limits (§4.4) and the report format.
+- `skills/atlas-apply/SKILL.md`: the implementation loop (§4.3), and the refusal in advisory mode.
+- `skills/site-atlas-setup/SKILL.md`: detecting the install (`site-atlas doctor --json`), installing it (`install.sh` on Linux and macOS, `npm install -g site-atlas` elsewhere, then `site-atlas setup`), and what to do when Chromium or the port are missing.
+
+**The Codex manifest also carries an `interface` block** (`displayName`, `shortDescription`, `category`, `capabilities`, `brandColor`, `composerIcon`, `defaultPrompt`). That block is what puts Site Atlas in Codex's plugin browser and composer with a name and an icon, which is the "use it from the AI panel" the person asked for.
+
+**Pinning.** A marketplace entry with a relative source (`"./plugin"`) takes no `ref` or `sha`: those exist only on `github`, `url` and `git-subdir` sources. Users pin the marketplace instead (`…#v0.2.0`), and the release workflow keeps both manifests' versions equal to `package.json`.
+
+The plugin still does not duplicate the CLI: it carries the launcher and the method, and tells the agent how to install the package when it is missing.
 
 ### 4.2 The advisory method (what the agent does in `/atlas-advise`)
 
@@ -130,7 +163,9 @@ Everything else the method needs already exists (scan, map, block details with t
 
 ## 7. Decisions made in this design (to confirm or change)
 
-- **Claude Code plugin first**, other agents via MCP plus a text snippet. Reason: it is the only agent with a plugin format that packages commands, skills and MCP together; the method itself is agent-neutral.
+- **Claude Code and Codex both get a real plugin, from one directory.** Superseded on 2026-10-28, after checking: Codex has had a plugin system since the agent-plugins.org 1.0.0 spec, it reads `.claude-plugin/marketplace.json` as well as its own location, and the manifests sit side by side in one tree (the installed Cloudflare plugin on this machine does exactly that). The earlier reasoning, that Claude Code was the only agent with a plugin format, was simply out of date.
+- **The server is declared twice on purpose** (§4.1). Rejected alternatives: `${PLUGIN_ROOT}` in Codex, which its validator accepts and its launcher ignores, failing with a Windows "invalid directory" error; a real on-disk directory literally named `${CLAUDE_PLUGIN_ROOT}`, which does work in both agents and is unmaintainable; and `cwd` in Claude Code, which passes validation but is undocumented for stdio servers.
+- **No npm publish is required.** The launcher plus each agent's anchoring reaches the CLI from inside the plugin, so `npx -y site-atlas mcp` is not needed. Publishing stays a release convenience, not a prerequisite.
 - **Advice stored per atlas inside Atlas**, not only in chat. Reason: the user wants Atlas to be where the work continues; advice that lives in a chat log is lost.
 - **Proposals go on the canvas as pending changes** rather than a separate "suggestions" layer. Reason: the canvas, the plan and the agents already share one vocabulary; a second layer would need its own UI and MCP surface. The author field already distinguishes who proposed what.
 - **Mode is inferred, stated, and only asked when ambiguous.** Reason: asking every time is friction; a wrong guess is cheap because the agent says it before doing anything, and implementation is gated by it.
