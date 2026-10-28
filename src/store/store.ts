@@ -163,6 +163,11 @@ export class SiteStore {
     return join(this.dir(site), 'advice.md');
   }
 
+  /** advice.md and advice.json are one record: every process reads and writes the pair under this lock. */
+  private adviceLockFile(site: string): string {
+    return `${this.adviceFile(site)}.lock`;
+  }
+
   /** site.json: the id, when the site was first scanned, the display name the user gave it and the mode, if any. */
   async readSiteInfo(site: string): Promise<SiteInfo> {
     const raw = (await readJson(this.siteFile(site))) as Partial<SiteInfo> | undefined;
@@ -188,16 +193,21 @@ export class SiteStore {
 
   /** The latest advice, or null when it was never written (or only half of it survived). */
   async readAdvice(site: string): Promise<Advice | null> {
-    const raw = (await readJson(this.adviceFile(site))) as Partial<Advice> | undefined;
-    if (!raw || typeof raw.by !== 'string' || typeof raw.at !== 'string' || typeof raw.summary !== 'string') return null;
-    let markdown: string;
-    try {
-      markdown = await readFile(this.adviceMarkdownFile(site), 'utf8');
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
-      throw err;
-    }
-    return { by: raw.by, at: raw.at, summary: raw.summary, markdown };
+    // Under the lock the two files are always the same writer's: without it a reader can pick up one
+    // agent's summary over another agent's markdown. No folder: nothing to read, nowhere to lock.
+    if (!(await stat(this.dir(site)).then(() => true, () => false))) return null;
+    return withFileLock(this.adviceLockFile(site), async () => {
+      const raw = (await readJson(this.adviceFile(site))) as Partial<Advice> | undefined;
+      if (!raw || typeof raw.by !== 'string' || typeof raw.at !== 'string' || typeof raw.summary !== 'string') return null;
+      let markdown: string;
+      try {
+        markdown = await readFile(this.adviceMarkdownFile(site), 'utf8');
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+        throw err;
+      }
+      return { by: raw.by, at: raw.at, summary: raw.summary, markdown };
+    });
   }
 
   /** Stores the advice, replacing any earlier one: only the latest is kept. */
@@ -206,12 +216,17 @@ export class SiteStore {
     if (summary.length > SUMMARY_MAX) throw new Error(en.store.summaryTooLong);
     const saved: Advice = { by: advice.by, at: new Date().toISOString(), summary, markdown: advice.markdown };
     // The two files are one advice: written apart, a second writer could slip its markdown under this
-    // one's json. The markdown goes first, so the json that names it is never ahead of its own text.
+    // one's json, and on Windows two renames onto the same file collide outright. The lock makes the
+    // pair one step for every process, as `updateOverlay` does for the user layer; `serialize` keeps
+    // the writers of this process from queueing on the lock file one against another.
     return this.serialize(async () => {
       await mkdir(this.dir(site), { recursive: true });
-      await writeAtomic(this.adviceMarkdownFile(site), saved.markdown);
-      await writeAtomic(this.adviceFile(site), JSON.stringify({ by: saved.by, at: saved.at, summary: saved.summary }, null, 2));
-      return saved;
+      return withFileLock(this.adviceLockFile(site), async () => {
+        // The markdown goes first, so the json that names it is never ahead of its own text.
+        await writeAtomic(this.adviceMarkdownFile(site), saved.markdown);
+        await writeAtomic(this.adviceFile(site), JSON.stringify({ by: saved.by, at: saved.at, summary: saved.summary }, null, 2));
+        return saved;
+      });
     });
   }
 
