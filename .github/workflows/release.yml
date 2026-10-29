@@ -1,4 +1,4 @@
-# Tag a version (git tag v0.2.0 && git push --tags) to:
+# Bump with `node scripts/set-version.mjs 0.2.0`, then tag it (git tag v0.2.0 && git push --tags) to:
 #   1. build the package and attach site-atlas.tgz to a GitHub release (what install.sh downloads),
 #   2. publish it to npm when the NPM_TOKEN secret is set.
 name: Release
@@ -23,11 +23,11 @@ jobs:
           node-version: 24
           cache: pnpm
           registry-url: https://registry.npmjs.org
+      # The package and both plugin manifests carry the version. `scripts/set-version.mjs` bumps them
+      # together; this fails the release when the tag and any of them have drifted apart.
+      - name: The tag matches every manifest
+        run: node scripts/set-version.mjs --check "${GITHUB_REF_NAME#v}"
       - run: pnpm install --frozen-lockfile
-      - name: The tag matches package.json
-        run: |
-          version="$(node -p 'require("./package.json").version')"
-          [ "v$version" = "${GITHUB_REF_NAME}" ] || { echo "Tag ${GITHUB_REF_NAME} does not match package.json version $version"; exit 1; }
       - run: pnpm build
       - name: Pack
         run: |

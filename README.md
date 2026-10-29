@@ -96,9 +96,10 @@ site-atlas scan https://example.com --max-pages 5 --exclude "/blog/**"
 
 | Command | Purpose |
 |---|---|
-| `setup [--with-deps]` · `doctor` | Download Chromium · check the installation |
+| `setup [--with-deps]` · `doctor [--json]` | Download Chromium · check the installation (`--json` for an agent to read) |
 | `scan <url>` · `canvas [site] [--host <ip>] [--port <n>] [--token <t>]` | Scan a site · start the canvas (see [Run on a server](#run-on-a-server)) |
 | `plan <site>` | Print the plan: pending and applied changes |
+| `advise <site>` · `advise <site> --file <advice.md> --summary "<one line>" --mode own\|advisory` | Print the stored recommendation · store one, which the canvas home card then shows |
 | `confirm <site> <changeId> --note "<what you changed and where>"` · `reopen <site> <changeId> --note "<why>"` | Mark a change applied once it is in the code · set it back to pending |
 | `move <site> <blockKey> <toPage>` · `delete <site> <blockKey>` · `restore <site> <blockKey>` | Propose moving or deleting a section, or cancel the deletion |
 | `role <site> <blockKey> <role>` | Correct the detected role of a section (`features`, `pricing`, `faq`, `steps`…), or `auto` to go back to the detected one |
@@ -179,15 +180,16 @@ args = ["mcp"]
 
 On Windows, npm installs `site-atlas.cmd`; if a client cannot start it, use `"command": "node"` with `"args": ["<npm prefix>/node_modules/site-atlas/dist/cli.js", "mcp"]` (`npm prefix -g` prints the folder).
 
-### Tools (22)
+### Tools (24)
 
 | Tool | Purpose |
 |---|---|
 | `atlas_scan` | Scan a site and reconcile your existing organization |
-| `atlas_list_sites` | List scanned sites |
+| `atlas_list_sites` | List scanned sites, with their mode and the summary of their advice |
 | `atlas_get_map` | Map of pages and sections, with kinds, detected roles, tags and planned order |
 | `atlas_get_block` | Section details (components, issues, thumbnail) |
 | `atlas_list_issues` | Issues from the latest scan |
+| `atlas_set_advice` · `atlas_get_advice` | Store a recommendation next to the atlas, with the site's mode · read the stored one |
 | `atlas_tags` · `atlas_set_block_tags` | Create, rename, delete and assign tags |
 | `atlas_set_block_role` | Correct the detected role of a section, or clear it to go back to the detected one |
 | `atlas_move_block` · `atlas_add_planned_page` | Rearrange the planned order |
@@ -205,6 +207,49 @@ Example prompt for an agent:
 > "Scan http://localhost:4321 with site-atlas, move the pricing section to /pricing and tell me what needs to change in the code."
 
 Text extracted from the scanned site is marked as **untrusted content**, so agents treat it as data, not instructions.
+
+## Use it from your AI (plugin)
+
+The MCP entry above hands an agent the tools. The **plugin** hands it the tools *and* the method: four skills it loads
+on its own, or that you call by name. It installs from this repository, which is also its marketplace, in either agent.
+
+**Claude Code**
+
+```bash
+claude plugin marketplace add zavants/site-atlas-zavants
+claude plugin install site-atlas@site-atlas
+```
+
+In the desktop app the second step is `+` → **Add plugins** → Site Atlas.
+
+**Codex**
+
+```bash
+codex plugin marketplace add zavants/site-atlas-zavants
+codex plugin add site-atlas@site-atlas
+```
+
+Both agents start a plugin's MCP server when a session starts, so a session that is already open needs `/reload-plugins` (Claude Code) or a new session (Codex).
+
+The plugin does not carry the scanner. It looks for the `site-atlas` command on your `PATH`, then in `~/.site-atlas/npm/bin` and `~/.local/bin`, then in the global npm folder, and last in a source checkout around itself; `SITE_ATLAS_BIN` overrides all of them. When it finds nothing, the first skill installs it.
+
+| Skill | What it does |
+|---|---|
+| `atlas` | Scans a URL into pages and sections, opens the canvas, and reports the shape of the site with its most frequent issues |
+| `atlas-advise` | Reads the whole atlas, writes a prioritized recommendation along five fixed axes, puts what it can on the canvas as pending changes, and stores the advice on the atlas |
+| `atlas-apply` | Implements the pending changes in the code of your own site, re-scans to verify, and confirms each one |
+| `site-atlas-setup` | Installs the CLI, downloads its Chromium, and works through a failing check |
+
+**Two modes**, stored on the atlas and switchable from the home card of the canvas. In **my site** (`own`) the agent advises and implements, verifying each change with a re-scan. In **someone else's site** (`advisory`) it observes and recommends only: the plan stays a proposal, the deliverable is a report, and `atlas-apply` refuses.
+
+**What it cannot see**, which `atlas-advise` restates whenever it shaped the advice:
+
+- up to 30 pages by default, one origin, `robots.txt` respected;
+- the rendered DOM at desktop size: no login, no interaction, no mobile layout;
+- sections and their roles come from heuristics, and you can correct any of them;
+- issues are structural, not content or performance.
+
+Cursor, Windsurf and Claude Desktop have no plugin format here: point them at the server with the plain MCP entry above.
 
 ## CLI on Windows (Git Bash)
 

@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, mkdtemp, readFile, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -39,6 +39,16 @@ const readJson = async <T>(...parts: string[]): Promise<T> => JSON.parse(await r
 const temp = () => mkdtemp(join(tmpdir(), 'site-atlas-plugin-'));
 const loadLauncher = async (): Promise<Launcher> => (await import(pathToFileURL(launcher).href)) as Launcher;
 const cliHelp = () => execFileSync(process.execPath, [tsx, 'src/cli.ts', '--help'], { cwd: root, encoding: 'utf8' });
+
+/** Every file that carries the release version, in the order set-version.mjs reports them. */
+const VERSIONED = [
+  'package.json',
+  join('plugin', '.claude-plugin', 'plugin.json'),
+  join('plugin', '.codex-plugin', 'plugin.json'),
+  join('.claude-plugin', 'marketplace.json'),
+  join('.agents', 'plugins', 'marketplace.json'),
+];
+const setVersion = join(root, 'scripts', 'set-version.mjs');
 
 describe('plugin manifests', () => {
   it('every manifest parses and carries the version of the package', async () => {
@@ -230,5 +240,79 @@ describe('the MCP launcher', () => {
     });
     expect(run.status).toBe(2);
     expect(run.stderr.trim()).toBe(NOT_FOUND);
+  });
+});
+
+describe('set-version', () => {
+  /** A temp copy of the five versioned files, with the Codex marketplace carrying a version too. */
+  const copyManifests = async (): Promise<string> => {
+    const dir = await temp();
+    for (const file of VERSIONED) {
+      await mkdir(join(dir, dirname(file)), { recursive: true });
+      await copyFile(join(root, file), join(dir, file));
+    }
+    const agentsPath = join(dir, '.agents', 'plugins', 'marketplace.json');
+    const agents = JSON.parse(await readFile(agentsPath, 'utf8')) as Marketplace;
+    agents.plugins[0]!.version = '0.0.1';
+    await writeFile(agentsPath, `${JSON.stringify(agents, null, 2)}\n`);
+    return dir;
+  };
+  const readAll = async (dir: string): Promise<Record<string, string>> =>
+    Object.fromEntries(await Promise.all(VERSIONED.map(async (f) => [f, await readFile(join(dir, f), 'utf8')] as const)));
+  const changedLines = (before: string, after: string): string[] => {
+    const old = before.split('\n');
+    return after.split('\n').filter((line, i) => line !== old[i]);
+  };
+  const run = (...args: string[]) => spawnSync(process.execPath, [setVersion, ...args], { encoding: 'utf8' });
+
+  it('set-version updates every manifest and moves no other line', async () => {
+    const dir = await copyManifests();
+    const before = await readAll(dir);
+    const written = run('9.9.9', dir);
+    expect(written.stderr).toBe('');
+    expect(written.status).toBe(0);
+    const after = await readAll(dir);
+    for (const file of VERSIONED) {
+      expect(changedLines(before[file]!, after[file]!), file).toEqual([expect.stringContaining('"version": "9.9.9"')]);
+      expect(written.stdout, file).toContain(file);
+    }
+  });
+
+  it('leaves the Codex marketplace alone when its entry carries no version', async () => {
+    const dir = await copyManifests();
+    const agentsPath = join(dir, '.agents', 'plugins', 'marketplace.json');
+    const agents = JSON.parse(await readFile(agentsPath, 'utf8')) as Marketplace;
+    delete agents.plugins[0]!.version;
+    await writeFile(agentsPath, `${JSON.stringify(agents, null, 2)}\n`);
+    const before = await readFile(agentsPath, 'utf8');
+    expect(run('9.9.9', dir).status).toBe(0);
+    expect(await readFile(agentsPath, 'utf8')).toBe(before);
+  });
+
+  it('rejects a version that is not x.y.z', async () => {
+    const dir = await copyManifests();
+    const before = await readAll(dir);
+    for (const bad of ['1.2', 'v1.2.3', '1.2.3-beta', '']) {
+      const bailed = run(bad, dir);
+      expect(bailed.status, bad).toBe(1);
+      expect(bailed.stderr, bad).toMatch(/x\.y\.z/);
+    }
+    expect(await readAll(dir)).toEqual(before);
+  });
+
+  it('--check is what the release workflow runs: it fails until every manifest agrees', async () => {
+    const dir = await copyManifests();
+    const stale = run('--check', '9.9.9', dir);
+    expect(stale.status).toBe(1);
+    expect(stale.stderr).toContain('package.json');
+    expect(run('9.9.9', dir).status).toBe(0);
+    const agreed = run('--check', '9.9.9', dir);
+    expect(agreed.stderr).toBe('');
+    expect(agreed.status).toBe(0);
+  });
+
+  it('the checked-in tree agrees with its own package version', async () => {
+    const pkg = await readJson<{ version: string }>('package.json');
+    expect(run('--check', pkg.version, root).status).toBe(0);
   });
 });
