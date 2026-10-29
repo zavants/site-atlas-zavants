@@ -113,8 +113,15 @@ program
     const sites = store();
     if (o.file === undefined && o.summary === undefined && o.mode === undefined) {
       const advice = await sites.readAdvice(site);
-      if (!advice) throw new Error(en.cli.noAdvice);
       const { mode } = await sites.readSiteInfo(site);
+      if (!advice) {
+        // The mode is what the apply skill refuses on, and a person can set it on the canvas long
+        // before any advice exists. Without MCP this command is the only way to read it, so say it
+        // here too; silence would let an agent treat someone else's site as its own. Still exit 1:
+        // there is no advice to print.
+        if (mode) console.log(en.cli.adviceMode(site, mode));
+        throw new Error(en.cli.noAdvice);
+      }
       console.log(`${en.cli.adviceHeader(advice.by, advice.at, mode)}\n\n${advice.markdown.trimEnd()}`);
       return;
     }

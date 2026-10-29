@@ -90,6 +90,7 @@ export const en = {
     adviseBy: 'who wrote the advice',
     adviseNeedsAll: 'Give --file, --summary and --mode together to store advice, or none of them to print the stored one.',
     adviceHeader: (by: string, at: string, mode: string | null) => `Advice by ${by} · ${at} · mode ${mode ?? 'unknown'}`,
+    adviceMode: (site: string, mode: string) => `Site ${site} · mode ${mode}`,
     adviceSaved: (site: string) => `Advice saved for ${site}. It shows on the canvas home page.`,
     noAdvice: 'No advice for this site yet.',
     component: 'Shared components (headers, footers).',

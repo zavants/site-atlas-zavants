@@ -144,6 +144,20 @@ describe('CLI advise', () => {
     expect(shown.out).toContain('Move pricing up.');
     expect((await cli('advise', SITE, '--file', file, '--summary', 's', '--mode', 'maybe')).code).toBe(1);
   });
+
+  it('prints the mode a person set on the canvas even before any advice exists', SLOW, async () => {
+    const { cli, home } = await setup();
+    // What the canvas home card does when someone marks the site as someone else's.
+    await new SiteStore(home).setSiteMode(SITE, 'advisory');
+    const shown = await cli('advise', SITE);
+    expect(shown.out).toContain('mode advisory');
+    expect(shown.err).toContain('No advice for this site yet.');
+    expect(shown.code).toBe(1);
+    // Nothing stored, nothing claimed: an apply agent falls back to inferring the mode.
+    const unknown = await cli('advise', 'no-such-site');
+    expect(unknown.out).toBe('');
+    expect(unknown.code).toBe(1);
+  });
 });
 
 describe('CLI doctor', () => {
