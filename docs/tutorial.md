@@ -105,21 +105,36 @@ Each change says what to do and how to know it is done. They stay **pending** un
 
 ## 5. Connect your AI
 
-Site Atlas speaks the Model Context Protocol, so an agent reads the map and the plan through tools instead of through you.
+Site Atlas speaks the Model Context Protocol, so an agent reads the map and the plan through tools instead of through you. The short way in is the plugin, which brings the tools and the method at once.
 
 **Claude Code:**
 
 ```bash
-claude mcp add site-atlas -- site-atlas mcp
+claude plugin marketplace add zavants/site-atlas-zavants
+claude plugin install site-atlas@site-atlas
 ```
+
+In the desktop app the second line is `+` → **Add plugins** → Site Atlas.
 
 **Codex:**
 
 ```bash
+codex plugin marketplace add zavants/site-atlas-zavants
+codex plugin add site-atlas@site-atlas
+```
+
+The plugin adds four skills your agent loads by itself: `atlas` scans a URL and reads back the shape of the site, `atlas-advise` writes a prioritized recommendation and stores it on the atlas, `atlas-apply` implements the pending changes and confirms them, and `site-atlas-setup` sorts out a missing install. Both agents start a plugin's server when the session starts, so reload (`/reload-plugins`) or open a new session.
+
+It also sets the **mode**, which decides how far the agent goes. On your own site it advises and implements; on someone else's it recommends only and `atlas-apply` refuses. You can flip it on the home card of the canvas.
+
+**Only the tools, without the plugin.** One line per agent:
+
+```bash
+claude mcp add site-atlas -- site-atlas mcp
 codex mcp add site-atlas -- site-atlas mcp
 ```
 
-That writes a `[mcp_servers.site-atlas]` entry into `~/.codex/config.toml`, leaving the rest of the file alone.
+The Codex one writes a `[mcp_servers.site-atlas]` entry into `~/.codex/config.toml`, leaving the rest of the file alone.
 
 **Any other MCP client** (Cursor, Windsurf, Claude Desktop) takes the same thing as JSON:
 
@@ -133,7 +148,7 @@ Start a new session after adding the server, then ask the agent for something re
 
 > Scan http://localhost:4321 with site-atlas, move the pricing section to its own page, and tell me what has to change in the code.
 
-The agent gets 22 tools: scanning, the map with its roles and issues, the plan, and every operation the canvas offers. Text taken from the scanned site reaches it marked as untrusted data, so instructions hidden in a page are treated as content, never as orders.
+The agent gets 24 tools: scanning, the map with its roles and issues, the plan, the stored advice, and every operation the canvas offers. Text taken from the scanned site reaches it marked as untrusted data, so instructions hidden in a page are treated as content, never as orders.
 
 ---
 

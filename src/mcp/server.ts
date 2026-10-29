@@ -8,7 +8,7 @@ import { SectionRoleSchema } from '../schema/scan.js';
 import { en } from '../i18n/en.js';
 import type { BlockView, SiteMap } from '../model/map.js';
 import { OpError, type OverlayOp } from '../model/ops.js';
-import { getMap, getPlan, mutate, requireScan, SiteNotFoundError } from '../model/service.js';
+import { getMap, getPlan, listSiteSummaries, mutate, requireScan, SiteNotFoundError } from '../model/service.js';
 import { runScan } from '../run.js';
 import { startCanvasServer } from '../server/serve.js';
 import type { SiteStore } from '../store/store.js';
@@ -105,9 +105,10 @@ export function createMcpServer(store: SiteStore): McpServer {
   server.registerTool(
     'atlas_list_sites',
     { description: en.mcp.tools.listSites, inputSchema: {} },
+    // Site names, origins and advice summaries all repeat text that came from the site: untrusted, like the map and the plan.
     guard(async () => {
-      const sites = await store.listSites();
-      return plain(sites.length ? sites.map((s) => en.mcp.siteLine(s.site, s.lastScan ?? '—')).join('\n') : en.mcp.noSites);
+      const sites = await listSiteSummaries(store);
+      return siteText(sites.length ? sites.map((s) => en.mcp.siteSummaryLine(s)).join('\n') : en.mcp.noSites);
     }),
   );
 
@@ -154,6 +155,39 @@ export function createMcpServer(store: SiteStore): McpServer {
       const scan = await requireScan(store, site);
       const issues = scan.issues.filter((i) => !level || i.level === level);
       return siteText(issues.length ? issues.map((i) => `[${i.level}] ${i.page}${i.blockKey ? ` ${i.blockKey}` : ''}: ${i.message}`).join('\n') : en.mcp.noIssues);
+    }),
+  );
+
+  server.registerTool(
+    'atlas_set_advice',
+    {
+      description: en.mcp.tools.setAdvice,
+      inputSchema: {
+        site: z.string(),
+        summary: z.string().describe(en.mcp.tools.setAdviceSummary),
+        markdown: z.string().describe(en.mcp.tools.setAdviceMarkdown),
+        mode: z.enum(['own', 'advisory']).describe(en.mcp.tools.setAdviceMode),
+      },
+    },
+    // A site with no scan has no atlas to advise on: fail before writing, so no folder is created for it.
+    // The advice is written first because it is what validates the summary, and the mode is the gate the
+    // apply skill reads: a rejected call must not leave the mode flipped with no advice behind it.
+    guard(async ({ site, summary, markdown, mode }) => {
+      await requireScan(store, site);
+      await store.writeAdvice(site, { by: clientName(), summary, markdown });
+      await store.setSiteMode(site, mode);
+      return plain(en.mcp.adviceSaved(site));
+    }),
+  );
+
+  server.registerTool(
+    'atlas_get_advice',
+    { description: en.mcp.tools.getAdvice, inputSchema: { site: z.string() } },
+    guard(async ({ site }) => {
+      const advice = await store.readAdvice(site);
+      if (!advice) throw new OpError(en.mcp.noAdvice);
+      const { mode } = await store.readSiteInfo(site);
+      return siteText(`${en.mcp.adviceHeader(advice.by, advice.at, mode)}\n\n${advice.markdown}`);
     }),
   );
 

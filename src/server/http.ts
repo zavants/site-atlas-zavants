@@ -116,6 +116,12 @@ const isLocalOrigin = (origin: string) => {
 };
 
 const OpBody = z.object({ rev: z.number().int().nonnegative(), op: OverlayOpSchema });
+const MODE = z.enum(['own', 'advisory']);
+// The two fields the canvas may change on an atlas; at least one of them has to be there.
+const PatchBody = z
+  .object({ name: z.string().max(120).optional(), mode: MODE.nullable().optional() })
+  .refine((b) => 'name' in b || 'mode' in b);
+const AdviceBody = z.object({ by: z.string().min(1).max(80), summary: z.string().trim().max(200), markdown: z.string(), mode: MODE.optional() });
 const ScanBody = z.object({
   url: z.string().min(1),
   site: z.string().optional(),
@@ -201,7 +207,8 @@ export function createApp(store: SiteStore, opts: AppOptions = {}) {
         if (!sameOrigin) return c.json({ error: en.http.originNotAllowed }, 403);
       }
       const type = c.req.header('content-type') ?? '';
-      const takesJson = c.req.path.endsWith('/ops') || c.req.path === '/api/scans' || c.req.method === 'PATCH';
+      const takesJson =
+        c.req.path.endsWith('/ops') || c.req.path.endsWith('/advice') || c.req.path === '/api/scans' || c.req.method === 'PATCH' || c.req.method === 'PUT';
       if (takesJson && !type.startsWith('application/json')) {
         return c.json({ error: en.http.expectedJson }, 415);
       }
@@ -243,9 +250,35 @@ export function createApp(store: SiteStore, opts: AppOptions = {}) {
   app.patch('/api/sites/:site', async (c) => {
     const site = c.req.param('site');
     await requireScan(store, site);
-    const parsed = z.object({ name: z.string().max(120) }).safeParse(await c.req.json().catch(() => null));
-    if (!parsed.success) return c.json({ error: en.http.invalidName }, 400);
-    return c.json(await store.setSiteName(site, parsed.data.name));
+    const parsed = PatchBody.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      const badMode = parsed.error.issues.some((i) => i.path[0] === 'mode');
+      return c.json({ error: badMode ? en.http.invalidMode : en.http.invalidName }, 400);
+    }
+    let info = await store.readSiteInfo(site);
+    if (parsed.data.name !== undefined) info = await store.setSiteName(site, parsed.data.name);
+    if ('mode' in parsed.data) info = await store.setSiteMode(site, parsed.data.mode ?? null);
+    return c.json(info);
+  });
+
+  app.get('/api/sites/:site/advice', async (c) => {
+    const site = c.req.param('site');
+    if (!SAFE.test(site) || site.includes('..')) return c.json({ error: en.http.invalidPath }, 400);
+    const advice = await store.readAdvice(site);
+    return advice ? c.json(advice) : c.json({ error: en.http.noAdvice }, 404);
+  });
+
+  // Advice is a signed note, not a plan edit: `by` comes from the body, so each agent stores it under
+  // its own name (the /ops rule that attributes every canvas edit to the canvas stays as it is).
+  app.put('/api/sites/:site/advice', async (c) => {
+    const site = c.req.param('site');
+    if (!SAFE.test(site) || site.includes('..')) return c.json({ error: en.http.invalidPath }, 400);
+    await requireScan(store, site);
+    const parsed = AdviceBody.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return c.json({ error: en.http.invalidAdvice }, 400);
+    const { mode, ...advice } = parsed.data;
+    if (mode) await store.setSiteMode(site, mode);
+    return c.json(await store.writeAdvice(site, advice));
   });
 
   app.delete('/api/sites/:site', async (c) => {

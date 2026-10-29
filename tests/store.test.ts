@@ -7,6 +7,8 @@ import { SiteStore, StaleRevError } from '../src/store/store.js';
 import { emptyOverlay } from '../src/schema/overlay.js';
 import { sampleScan } from './helpers/sample.js';
 
+const SITE = 'localhost-4405-demo';
+
 describe('rutas', () => {
   it('deriva el siteId de host, puerto y primer segmento', () => {
     expect(deriveSiteId('http://localhost:4405/beta-1/index.html')).toBe('localhost-4405-beta-1');
@@ -79,4 +81,49 @@ describe('SiteStore', () => {
       vi.useRealTimers();
     }
   }, 5000);
+
+  it('keeps a mode per site next to its name', async () => {
+    await store.saveScan(sampleScan());
+    expect((await store.readSiteInfo(SITE)).mode).toBeNull();
+    expect((await store.setSiteMode(SITE, 'advisory')).mode).toBe('advisory');
+    await store.setSiteName(SITE, 'Demo');
+    expect(await store.readSiteInfo(SITE)).toMatchObject({ name: 'Demo', mode: 'advisory' });
+  });
+
+  it('stores one advice per site, latest wins, summary capped at 200 characters', async () => {
+    await store.saveScan(sampleScan());
+    expect(await store.readAdvice(SITE)).toBeNull();
+    const first = await store.writeAdvice(SITE, { by: 'claude-code', summary: ' Move pricing up ', markdown: '# Advice\n\nMove pricing up.' });
+    expect(first).toMatchObject({ by: 'claude-code', summary: 'Move pricing up', markdown: '# Advice\n\nMove pricing up.' });
+    expect(Date.parse(first.at)).toBeGreaterThan(0);
+    await store.writeAdvice(SITE, { by: 'cli', summary: 'Second', markdown: 'Second' });
+    expect((await store.readAdvice(SITE))?.summary).toBe('Second');
+    await expect(store.writeAdvice(SITE, { by: 'x', summary: 'a'.repeat(201), markdown: '' })).rejects.toThrow(/200 characters/);
+  });
+
+  it('never publishes half a site.json when the name and the mode are set at once', async () => {
+    await store.saveScan(sampleScan());
+    for (let round = 0; round < 5; round++) {
+      await Promise.all([store.setSiteName(SITE, `Demo ${'o'.repeat(4000)}`), store.setSiteMode(SITE, 'advisory')]);
+      expect(await store.readSiteInfo(SITE)).toMatchObject({ site: SITE });
+    }
+  });
+
+  it('publishes one whole advice when several are written at once', async () => {
+    await store.saveScan(sampleScan());
+    const writers = ['alice', 'bob', 'carol', 'dave'];
+    const markdownOf = (by: string) => `# Advice by ${by}\n\n${by.repeat(20_000)}`;
+    for (let round = 0; round < 5; round++) {
+      const written = await Promise.allSettled(
+        writers.map((by) => store.writeAdvice(SITE, { by, summary: `Summary by ${by}`, markdown: markdownOf(by) })),
+      );
+      expect(written.map((r) => (r.status === 'rejected' ? (r.reason as Error).message : 'fulfilled'))).toEqual(
+        writers.map(() => 'fulfilled'),
+      );
+      const saved = await store.readAdvice(SITE);
+      expect(writers).toContain(saved?.by);
+      expect(saved?.summary).toBe(`Summary by ${saved?.by}`);
+      expect(saved?.markdown).toBe(markdownOf(saved!.by));
+    }
+  });
 });

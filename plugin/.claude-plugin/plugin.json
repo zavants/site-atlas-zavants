@@ -1,0 +1,8 @@
+{
+  "name": "site-atlas",
+  "version": "0.1.0",
+  "description": "Scan a website into sections, advise on its structure, and implement the approved plan.",
+  "author": { "name": "Zavants" },
+  "repository": "https://github.com/zavants/site-atlas-zavants",
+  "license": "MIT"
+}

@@ -5,8 +5,9 @@ import type { Change } from '../../src/model/changes.js';
 import type { OverlayOp, PlanFields } from '../../src/model/ops.js';
 import type { Target } from '../../src/schema/overlay.js';
 import type { SiteSummary } from '../../src/model/service.js';
+import type { Advice, SiteInfo, SiteMode } from '../../src/store/store.js';
 
-export type { BlockView, Change, ComponentView, EffectiveLink, OverlayOp, PageView, PlanFields, SiteMap, SiteSummary, Target, TargetView };
+export type { Advice, BlockView, Change, ComponentView, EffectiveLink, OverlayOp, PageView, PlanFields, SiteInfo, SiteMap, SiteMode, SiteSummary, Target, TargetView };
 
 export class ConflictError extends Error {
   constructor(readonly map: SiteMap) {
@@ -36,6 +37,15 @@ export const startScan = (req: ScanRequest) =>
   fetch('/api/scans', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req) }).then((r) => json<{ started: true; site: string }>(r));
 export const renameSite = (site: string, name: string) =>
   fetch(`/api/sites/${enc(site)}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }) }).then((r) => json<{ name: string }>(r));
+/** Who may change the site's code: agents implement the plan on "own", only recommend on "advisory". */
+export const setSiteMode = (site: string, mode: SiteMode | null) =>
+  fetch(`/api/sites/${enc(site)}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode }) }).then((r) => json<SiteInfo>(r));
+/** The latest advice an agent stored, or `null` when there is none yet (404). Its Markdown is shown as text, never as HTML. */
+export const getAdvice = async (site: string): Promise<Advice | null> => {
+  const res = await fetch(`/api/sites/${enc(site)}/advice`);
+  if (res.status === 404) return null;
+  return json<Advice>(res);
+};
 export const deleteSite = (site: string) => fetch(`/api/sites/${enc(site)}`, { method: 'DELETE' }).then((r) => json<{ deleted: string }>(r));
 export const getMap = (site: string) => fetch(`/api/sites/${enc(site)}/map`).then((r) => json<SiteMap>(r));
 export const getPlan = (site: string) =>
@@ -60,5 +70,11 @@ export function subscribe(site: string, onEvent: (type: SiteEventType, data: Rec
   }
   return () => source.close();
 }
+
+/** An ISO instant (advice carries one) in the reader's own format; unparseable text is shown as it came. */
+export const localDate = (iso: string) => {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
+};
 
 export const shotUrl = (map: SiteMap, b: BlockView) => (b.shot ? `/shots/${enc(map.site)}/${enc(map.scanId)}/${enc(b.shot)}` : null);

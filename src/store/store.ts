@@ -6,11 +6,26 @@ import { en } from '../i18n/en.js';
 import { ScanSchema, type Scan } from '../schema/scan.js';
 import { atlasHome, siteDir } from './paths.js';
 
+/** Who may change the site: `own` when the agent can edit its code, `advisory` when it can only recommend. */
+export type SiteMode = 'own' | 'advisory';
+
 export interface SiteInfo {
   site: string;
   createdAt: string;
   name: string;
+  mode: SiteMode | null;
 }
+
+/** The latest recommendation stored next to an atlas: a signed note, its one-line summary and the full Markdown. */
+export interface Advice {
+  by: string;
+  at: string;
+  summary: string;
+  markdown: string;
+}
+
+const MODES: SiteMode[] = ['own', 'advisory'];
+const SUMMARY_MAX = 200;
 
 export class StaleRevError extends Error {
   constructor(
@@ -23,8 +38,11 @@ export class StaleRevError extends Error {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Unique per call: two writes of one file must never share a temp file, or they interleave into a corrupt result. */
+let tmpSeq = 0;
+
 async function writeAtomic(file: string, data: string): Promise<void> {
-  const tmp = `${file}.tmp-${process.pid}`;
+  const tmp = `${file}.tmp-${process.pid}-${++tmpSeq}`;
   await writeFile(tmp, data);
   for (let attempt = 0; ; attempt++) {
     try {
@@ -32,7 +50,10 @@ async function writeAtomic(file: string, data: string): Promise<void> {
       return;
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
-      if (attempt >= 3 || (code !== 'EPERM' && code !== 'EBUSY')) throw err;
+      if (attempt >= 3 || (code !== 'EPERM' && code !== 'EBUSY')) {
+        await unlink(tmp).catch(() => undefined);
+        throw err;
+      }
       await sleep(50);
     }
   }
@@ -84,11 +105,18 @@ async function withFileLock<T>(lockFile: string, fn: () => Promise<T>): Promise<
 
 export class SiteStore {
   readonly home: string;
-  /** Serializa escrituras de overlay dentro del proceso. */
+  /** Serializes writes inside this process; `withFileLock` covers the other processes. */
   private chain: Promise<unknown> = Promise.resolve();
 
   constructor(home?: string) {
     this.home = home ?? atlasHome();
+  }
+
+  /** Queues a write behind the ones already running here, so none of them sees another one half-done. */
+  private serialize<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.chain.then(fn);
+    this.chain = run.catch(() => undefined);
+    return run;
   }
 
   dir(site: string): string {
@@ -127,17 +155,79 @@ export class SiteStore {
     return join(this.dir(site), 'site.json');
   }
 
-  /** site.json: the id, when the site was first scanned and the display name the user gave it, if any. */
-  async readSiteInfo(site: string): Promise<SiteInfo> {
-    const raw = (await readJson(this.siteFile(site))) as Partial<SiteInfo> | undefined;
-    return { site, createdAt: raw?.createdAt ?? '', name: typeof raw?.name === 'string' ? raw.name : '' };
+  private adviceFile(site: string): string {
+    return join(this.dir(site), 'advice.json');
   }
 
-  async setSiteName(site: string, name: string): Promise<SiteInfo> {
-    const info = { ...(await this.readSiteInfo(site)), name: name.trim() };
-    await mkdir(this.dir(site), { recursive: true });
-    await writeAtomic(this.siteFile(site), JSON.stringify(info, null, 2));
+  private adviceMarkdownFile(site: string): string {
+    return join(this.dir(site), 'advice.md');
+  }
+
+  /** advice.md and advice.json are one record: every process reads and writes the pair under this lock. */
+  private adviceLockFile(site: string): string {
+    return `${this.adviceFile(site)}.lock`;
+  }
+
+  /** site.json: the id, when the site was first scanned, the display name the user gave it and the mode, if any. */
+  async readSiteInfo(site: string): Promise<SiteInfo> {
+    const raw = (await readJson(this.siteFile(site))) as Partial<SiteInfo> | undefined;
+    const mode = MODES.find((m) => m === raw?.mode) ?? null;
+    return { site, createdAt: raw?.createdAt ?? '', name: typeof raw?.name === 'string' ? raw.name : '', mode };
+  }
+
+  private async writeSiteInfo(info: SiteInfo): Promise<SiteInfo> {
+    await mkdir(this.dir(info.site), { recursive: true });
+    await writeAtomic(this.siteFile(info.site), JSON.stringify(info, null, 2));
     return info;
+  }
+
+  // Read and write are one step: two callers setting the name and the mode at once must not each
+  // write back the other's missing field.
+  setSiteName(site: string, name: string): Promise<SiteInfo> {
+    return this.serialize(async () => this.writeSiteInfo({ ...(await this.readSiteInfo(site)), name: name.trim() }));
+  }
+
+  setSiteMode(site: string, mode: SiteMode | null): Promise<SiteInfo> {
+    return this.serialize(async () => this.writeSiteInfo({ ...(await this.readSiteInfo(site)), mode }));
+  }
+
+  /** The latest advice, or null when it was never written (or only half of it survived). */
+  async readAdvice(site: string): Promise<Advice | null> {
+    // Under the lock the two files are always the same writer's: without it a reader can pick up one
+    // agent's summary over another agent's markdown. No folder: nothing to read, nowhere to lock.
+    if (!(await stat(this.dir(site)).then(() => true, () => false))) return null;
+    return withFileLock(this.adviceLockFile(site), async () => {
+      const raw = (await readJson(this.adviceFile(site))) as Partial<Advice> | undefined;
+      if (!raw || typeof raw.by !== 'string' || typeof raw.at !== 'string' || typeof raw.summary !== 'string') return null;
+      let markdown: string;
+      try {
+        markdown = await readFile(this.adviceMarkdownFile(site), 'utf8');
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+        throw err;
+      }
+      return { by: raw.by, at: raw.at, summary: raw.summary, markdown };
+    });
+  }
+
+  /** Stores the advice, replacing any earlier one: only the latest is kept. */
+  async writeAdvice(site: string, advice: { by: string; summary: string; markdown: string }): Promise<Advice> {
+    const summary = advice.summary.trim();
+    if (summary.length > SUMMARY_MAX) throw new Error(en.store.summaryTooLong);
+    const saved: Advice = { by: advice.by, at: new Date().toISOString(), summary, markdown: advice.markdown };
+    // The two files are one advice: written apart, a second writer could slip its markdown under this
+    // one's json, and on Windows two renames onto the same file collide outright. The lock makes the
+    // pair one step for every process, as `updateOverlay` does for the user layer; `serialize` keeps
+    // the writers of this process from queueing on the lock file one against another.
+    return this.serialize(async () => {
+      await mkdir(this.dir(site), { recursive: true });
+      return withFileLock(this.adviceLockFile(site), async () => {
+        // The markdown goes first, so the json that names it is never ahead of its own text.
+        await writeAtomic(this.adviceMarkdownFile(site), saved.markdown);
+        await writeAtomic(this.adviceFile(site), JSON.stringify({ by: saved.by, at: saved.at, summary: saved.summary }, null, 2));
+        return saved;
+      });
+    });
   }
 
   /** Removes the site folder: scans, thumbnails and the user layer. */

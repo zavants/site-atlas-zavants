@@ -1,6 +1,6 @@
 import { en } from '../i18n/en.js';
 import type { Scan } from '../schema/scan.js';
-import type { SiteStore } from '../store/store.js';
+import type { Advice, SiteMode, SiteStore } from '../store/store.js';
 import { withComponents } from './components.js';
 import { buildMap, type SiteMap } from './map.js';
 import { applyOp, type OverlayOp } from './ops.js';
@@ -60,13 +60,23 @@ export interface SiteSummary {
   issues: { error: number; warn: number; info: number };
   pending: number;
   applied: number;
+  mode: SiteMode | null;
+  /** The latest advice without its Markdown: the card shows the summary and opens the rest on demand. */
+  advice: { by: string; at: string; summary: string } | null;
 }
 
 export async function listSiteSummaries(store: SiteStore): Promise<SiteSummary[]> {
   const out: SiteSummary[] = [];
   for (const { site, lastScan } of await store.listSites()) {
     const info = await store.readSiteInfo(site);
-    const base: SiteSummary = { site, name: info.name, startUrl: null, origin: null, lastScan, pages: 0, blocks: 0, issues: { error: 0, warn: 0, info: 0 }, pending: 0, applied: 0 };
+    let stored: Advice | null = null;
+    try {
+      stored = await store.readAdvice(site);
+    } catch {
+      // an unreadable advice still lists the site: one damaged file must not empty the home page
+    }
+    const advice = stored ? { by: stored.by, at: stored.at, summary: stored.summary } : null;
+    const base: SiteSummary = { site, name: info.name, startUrl: null, origin: null, lastScan, pages: 0, blocks: 0, issues: { error: 0, warn: 0, info: 0 }, pending: 0, applied: 0, mode: info.mode, advice };
     let scan: Scan | null = null;
     try {
       scan = await store.latestScan(site);

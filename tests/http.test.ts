@@ -191,3 +191,41 @@ describe('API HTTP home page', () => {
     expect((await app.request('/api/sites/..%2F..', { method: 'DELETE' })).status).toBe(400);
   });
 });
+
+describe('API HTTP advice', () => {
+  const put = (body: unknown, type = 'application/json') =>
+    app.request(`/api/sites/${SITE}/advice`, { method: 'PUT', body: JSON.stringify(body), headers: { 'content-type': type } });
+
+  it('stores and returns advice, with by from the body and the mode on the site', async () => {
+    expect((await app.request(`/api/sites/${SITE}/advice`)).status).toBe(404);
+    const res = await put({ by: 'claude-code', summary: 'Move pricing up', markdown: '# Advice', mode: 'own' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ by: 'claude-code', summary: 'Move pricing up', markdown: '# Advice' });
+    expect(await (await app.request(`/api/sites/${SITE}/advice`)).json()).toMatchObject({ by: 'claude-code' });
+    const [s] = (await (await app.request('/api/sites')).json()) as { mode: string; advice: { summary: string } }[];
+    expect(s).toMatchObject({ mode: 'own', advice: { summary: 'Move pricing up' } });
+  });
+
+  it('rejects bad advice bodies and unknown sites', async () => {
+    expect((await put({ by: 'x', summary: 'a'.repeat(201), markdown: '' })).status).toBe(400);
+    expect((await put({ by: 'x', summary: 's', markdown: 'm', mode: 'maybe' })).status).toBe(400);
+    expect((await put({ by: 'x', summary: 's', markdown: 'm' }, 'text/plain')).status).toBe(415);
+    expect(
+      (
+        await app.request('/api/sites/nada/advice', {
+          method: 'PUT',
+          body: JSON.stringify({ by: 'x', summary: 's', markdown: 'm' }),
+          headers: { 'content-type': 'application/json' },
+        })
+      ).status,
+    ).toBe(404);
+  });
+
+  it('PATCH sets the mode next to the name and validates it', async () => {
+    const patch = (body: unknown) => app.request(`/api/sites/${SITE}`, { method: 'PATCH', body: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
+    expect(await (await patch({ mode: 'advisory' })).json()).toMatchObject({ mode: 'advisory' });
+    expect(await (await patch({ mode: null })).json()).toMatchObject({ mode: null });
+    expect((await patch({ mode: 'maybe' })).status).toBe(400);
+    expect((await patch({})).status).toBe(400);
+  });
+});

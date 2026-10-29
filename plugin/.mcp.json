@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "site-atlas": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/site-atlas-mcp.js"]
+    }
+  }
+}
