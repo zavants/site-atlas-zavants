@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
-import { deleteSite, getSites, renameSite, rescan, startScan, subscribe, type SiteSummary } from '../api';
+import { deleteSite, getSites, localDate, renameSite, rescan, setSiteMode, startScan, subscribe, type SiteMode, type SiteSummary } from '../api';
 import { t } from '../strings';
+import AdvicePanel from './AdvicePanel.vue';
 
 const sites = ref<SiteSummary[] | null>(null);
 const error = ref('');
@@ -117,6 +118,30 @@ async function remove() {
   }
 }
 
+/* ---------- advice and mode ---------- */
+const adviceFor = ref<string | null>(null);
+const adviceDlg = ref<HTMLDialogElement | null>(null);
+
+function openAdvice(site: string) {
+  adviceFor.value = site;
+  adviceDlg.value?.showModal();
+}
+function closeAdvice() {
+  adviceDlg.value?.close();
+  adviceFor.value = null;
+}
+
+/** Clicking the mode a site already has clears it, so "unknown" stays reachable. */
+async function flipMode(s: SiteSummary, mode: SiteMode) {
+  error.value = '';
+  try {
+    await setSiteMode(s.site, s.mode === mode ? null : mode);
+    await reload();
+  } catch (e) {
+    error.value = (e as Error).message;
+  }
+}
+
 async function copyPrompt(s: SiteSummary) {
   try {
     await navigator.clipboard.writeText(t.home.aiPrompt(s.site));
@@ -184,6 +209,14 @@ onBeforeUnmount(() => unsubscribe?.());
         <span class="muted">{{ busy.has(s.site) ? t.home.scanning : when(s.lastScan) }}</span>
         <span>{{ t.home.size(s.pages, s.blocks) }} · {{ t.home.issues(s.issues.error, s.issues.warn) }}</span>
         <span data-testid="atlas-plan">{{ t.home.plan(s.pending, s.applied) }}</span>
+        <p v-if="s.advice" class="advice-line" data-testid="atlas-advice">
+          {{ t.home.adviceLine(s.advice.by, localDate(s.advice.at), s.advice.summary) }}
+          <button type="button" data-testid="atlas-advice-open" @click="openAdvice(s.site)">{{ t.home.openAdvice }}</button>
+        </p>
+        <div class="seg mode" role="group" :aria-label="t.head.mode" :title="t.home.modeHint">
+          <button type="button" data-testid="mode-own" :aria-pressed="s.mode === 'own'" @click="flipMode(s, 'own')">{{ t.home.modeOwn }}</button>
+          <button type="button" data-testid="mode-advisory" :aria-pressed="s.mode === 'advisory'" @click="flipMode(s, 'advisory')">{{ t.home.modeAdvisory }}</button>
+        </div>
         <div class="actions">
           <a class="button" :href="`/s/${encodeURIComponent(s.site)}`">{{ t.home.open }}</a>
           <button type="button" data-testid="atlas-rescan" :disabled="busy.has(s.site)" @click="startRescan(s)">{{ t.home.rescan }}</button>
@@ -198,6 +231,10 @@ onBeforeUnmount(() => unsubscribe?.());
         </details>
       </li>
     </ul>
+
+    <dialog ref="adviceDlg" class="advice-dialog" @close="adviceFor = null">
+      <AdvicePanel v-if="adviceFor" :site="adviceFor" @close="closeAdvice" />
+    </dialog>
 
     <dialog ref="removeDlg" data-testid="remove-dialog">
       <strong>{{ doomed ? t.home.removeTitle(doomed.name || doomed.site) : '' }}</strong>
@@ -237,6 +274,15 @@ input { font: inherit; padding: 7px 10px; border: 1px solid var(--border); borde
 a.button { display: inline-block; padding: 4px 10px; border: 1px solid var(--accent); border-radius: 6px; color: var(--accent); text-decoration: none; font-size: 13px; }
 .primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
 .danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+.advice-line { margin: 2px 0 0; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.advice-line button { flex: none; font-size: 12px; padding: 2px 8px; }
+.seg { display: inline-flex; margin-top: 4px; }
+.seg button { font-size: 12px; }
+.seg button:first-child { border-radius: 6px 0 0 6px; }
+.seg button:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
+.seg button[aria-pressed='true'] { position: relative; z-index: 1; }
+.mode { justify-self: start; }
+dialog.advice-dialog { max-width: 640px; width: min(640px, 92vw); }
 .ai { margin-top: 6px; }
 .ai summary { cursor: pointer; color: var(--muted); }
 .ai p { margin: 6px 0; }

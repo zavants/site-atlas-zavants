@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ConflictError, getMap, getPlan, rescan, sendOp, subscribe, type Change, type OverlayOp, type PlanFields, type SiteMap } from './api';
 import { t } from './strings';
+import AdvicePanel from './components/AdvicePanel.vue';
 import Home from './components/Home.vue';
 import Menu from './components/Menu.vue';
 import NavList from './components/NavList.vue';
@@ -167,6 +168,13 @@ const filterName = computed(() => {
   return tag ? { name: tag.name, color: tag.color } : null;
 });
 const colorsDlg = ref<HTMLDialogElement | null>(null);
+/** The advice panel loads on open, so the header never fetches advice nobody asked for. */
+const adviceDlg = ref<HTMLDialogElement | null>(null);
+const adviceOpen = ref(false);
+function openAdvice() {
+  adviceOpen.value = true;
+  adviceDlg.value?.showModal();
+}
 watch(components, (list) => {
   if (view.value !== PAGES && !list.some((c) => c.id === view.value)) view.value = PAGES;
 });
@@ -215,6 +223,7 @@ onBeforeUnmount(() => unsubscribe?.());
           <button type="button" data-testid="toggle-real" :aria-pressed="!planned" :title="t.head.viewTitle" @click="planned = false">{{ t.head.real }}</button>
           <button type="button" data-testid="toggle-planned" :aria-pressed="planned" :title="t.head.editTitle(changes.length)" @click="planned = true">{{ t.head.editLabel(changes.length) }}</button>
         </div>
+        <button type="button" data-testid="open-advice" @click="openAdvice">{{ t.head.advice }}</button>
         <button type="button" data-testid="rescan" :disabled="scanning" :aria-busy="scanning" @click="startRescan">{{ scanning ? t.head.scanningShort : t.head.rescan }}</button>
       </div>
       <nav class="menubar" :aria-label="t.menus.aria">
@@ -305,6 +314,9 @@ onBeforeUnmount(() => unsubscribe?.());
       :reset="reset"
     />
     <p class="muted hint foot">{{ t.canvasHint }}</p>
+    <dialog ref="adviceDlg" class="advice-dialog" @close="adviceOpen = false">
+      <AdvicePanel v-if="adviceOpen" :site="site" @close="adviceDlg?.close()" />
+    </dialog>
     <dialog ref="colorsDlg" class="colors" data-testid="tag-colors-dialog">
       <h2>{{ t.options.colorsTitle }}</h2>
       <p class="muted">{{ t.options.colorsHint }}</p>
@@ -353,7 +365,9 @@ h1 { font-size: 18px; margin: 0; }
 .active-filter { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; padding: 2px 4px 2px 10px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
 .active-filter .clear { border: none; background: none; padding: 0 6px; color: var(--muted); }
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-dialog.colors { border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; background: var(--surface); color: var(--text); min-width: 300px; }
+dialog.colors, dialog.advice-dialog { border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; background: var(--surface); color: var(--text); min-width: 300px; }
+dialog.advice-dialog { width: min(640px, 92vw); }
+dialog.advice-dialog::backdrop { background: rgba(0, 0, 0, 0.3); }
 dialog.colors h2 { font-size: 15px; margin: 0 0 4px; }
 dialog.colors::backdrop { background: rgba(0, 0, 0, 0.3); }
 .color-list { max-height: 50vh; overflow: auto; }

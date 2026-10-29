@@ -33,12 +33,18 @@ function listen(): Promise<string> {
   });
 }
 
+/** Stores the latest advice of "demo" over HTTP, the way an agent does. */
+const putAdvice = (body: { by: string; summary: string; markdown: string; mode?: string }) =>
+  fetch(`${base}/api/sites/demo/advice`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+
 beforeAll(async () => {
   fixture = await startStatic('tests/fixtures/site');
   store = new SiteStore(await mkdtemp(join(tmpdir(), 'site-atlas-test-')));
   await runScan(store, `${fixture.url}/index.html`, { site: 'demo', maxPages: 2 });
   await runScan(store, `${fixture.url}/hostil.html`, { site: 'hostil', maxPages: 1 });
   base = await listen();
+  // Advice for "demo" from the start: the canvas header opens it long before the home-page block stores its own.
+  await putAdvice({ by: 'e2e-agent', summary: 'Move pricing up', markdown: '# Advice\n\nMove pricing up.', mode: 'advisory' });
   browser = await chromium.launch();
   const [a, b] = InMemoryTransport.createLinkedPair();
   await createMcpServer(store).connect(a);
@@ -558,6 +564,12 @@ describe('org chart canvas', () => {
     await expect.poll(async () => (await changes()).length).toBeGreaterThan(0);
   });
 
+  it('opens the advice panel from the canvas header', async () => {
+    await page.getByTestId('open-advice').click();
+    await expect.poll(() => page.getByTestId('advice-panel').textContent()).toContain('Move pricing up');
+    await page.keyboard.press('Escape');
+  });
+
   it('shows hostile site content as text', async () => {
     await page.close();
     page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
@@ -612,6 +624,22 @@ describe('home page', () => {
     const site = decodeURIComponent(new URL(home.url()).pathname.replace('/s/', ''));
     expect(site).toMatch(/^127-0-0-1-\d+$/);
     expect(((await (await fetch(`${base}/api/sites`)).json()) as { site: string }[]).some((s) => s.site === site)).toBe(true);
+  });
+
+  it('shows stored advice as text on the card and in a panel, and flips the mode', async () => {
+    await putAdvice({ by: 'e2e-agent', summary: 'Move pricing up', markdown: '# Advice\n\n<img src=x onerror="window.__pwned=1">\n\nMove pricing up.', mode: 'advisory' });
+    await home.goto(`${base}/s/`);
+    const demo = card('demo');
+    await expect.poll(() => demo.getByTestId('atlas-advice').textContent()).toContain('Advice from e2e-agent');
+    expect(await demo.getByTestId('mode-advisory').getAttribute('aria-pressed')).toBe('true');
+    await demo.getByTestId('atlas-advice-open').click();
+    const panel = home.getByTestId('advice-panel');
+    await panel.waitFor();
+    await expect.poll(() => panel.getByTestId('advice-text').textContent()).toContain('<img src=x onerror');
+    expect(await home.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined();
+    await home.keyboard.press('Escape');
+    await demo.getByTestId('mode-own').click();
+    await expect.poll(async () => ((await (await fetch(`${base}/api/sites`)).json()) as { site: string; mode: string }[]).find((s) => s.site === 'demo')?.mode).toBe('own');
   });
 
   it('deletes an atlas after a confirmation', async () => {
