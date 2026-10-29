@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { copyFile, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -15,6 +15,7 @@ const pluginDir = join(root, 'plugin');
 const launcher = join(pluginDir, 'scripts', 'site-atlas-mcp.js');
 const tsx = join(root, 'node_modules', 'tsx', 'dist', 'cli.mjs');
 const SKILLS = ['atlas', 'atlas-advise', 'atlas-apply', 'site-atlas-setup'];
+const WINDOWS = process.platform === 'win32';
 const NOT_FOUND =
   'Site Atlas CLI not found. Install it with: npm install -g site-atlas (then site-atlas setup), or set SITE_ATLAS_BIN.';
 
@@ -28,7 +29,11 @@ type Manifest = {
 };
 type Marketplace = { name: string; plugins: { name: string; source: unknown; version?: string; description?: string }[] };
 type Resolved = { command: string; args: string[] } | null;
-type Launcher = { resolveCli: (env: NodeJS.ProcessEnv, startDir: string) => Resolved };
+type Spawned = { command: string; args: string[]; options: { windowsVerbatimArguments?: boolean } };
+type Launcher = {
+  resolveCli: (env: NodeJS.ProcessEnv, startDir: string) => Resolved;
+  spawnArgs: (cli: { command: string; args: string[] }, platform: string, env: NodeJS.ProcessEnv) => Spawned;
+};
 
 const readJson = async <T>(...parts: string[]): Promise<T> => JSON.parse(await readFile(join(root, ...parts), 'utf8')) as T;
 const temp = () => mkdtemp(join(tmpdir(), 'site-atlas-plugin-'));
@@ -174,5 +179,56 @@ describe('the MCP launcher', () => {
     expect(run.status).toBe(2);
     expect(run.stderr.trim()).toBe(NOT_FOUND);
     expect(run.stdout).toBe('');
+  });
+
+  // The realistic case the shell would break: npm puts site-atlas.cmd under C:\Users\<name with a space>\…
+  it('finds a CLI on the PATH whose folder has a space in it, and starts it', async () => {
+    const dir = join(await temp(), 'Ana Lucia', 'npm');
+    await mkdir(dir, { recursive: true });
+    const shim = join(dir, WINDOWS ? 'site-atlas.cmd' : 'site-atlas');
+    await writeFile(shim, WINDOWS ? '@echo off\r\n@echo ARGS:%*\r\n' : '#!/bin/sh\necho "ARGS:$*"\n', { mode: 0o755 });
+    const home = await temp();
+    const run = spawnSync(process.execPath, [launcher], {
+      encoding: 'utf8',
+      env: { PATH: dir, HOME: home, USERPROFILE: home, SystemRoot: process.env.SystemRoot, ComSpec: process.env.ComSpec },
+    });
+    expect(run.stderr).toBe('');
+    expect(run.status).toBe(0);
+    // cmd.exe hands the shim its own quoting; what matters is that the path survived in one piece.
+    expect(run.stdout.trim().split('\n').at(-1)).toMatch(/^ARGS:"?mcp"?$/);
+  });
+
+  it('quotes a Windows shim for the shell instead of concatenating it', async () => {
+    const { spawnArgs } = await loadLauncher();
+    const shim = 'C:\\Users\\Ana Lucia\\AppData\\Roaming\\npm\\site-atlas.cmd';
+    const shell = 'C:\\Windows\\system32\\cmd.exe';
+    const run = spawnArgs({ command: shim, args: [] }, 'win32', { ComSpec: shell });
+    expect(run.command).toBe(shell);
+    expect(run.args).toEqual(['/d', '/s', '/c', `""${shim}" "mcp""`]);
+    expect(run.options).toEqual({ windowsVerbatimArguments: true });
+  });
+
+  it('starts anything else directly, with no shell in between', async () => {
+    const { spawnArgs } = await loadLauncher();
+    const script = '/opt/site atlas/dist/cli.js';
+    for (const platform of ['linux', 'darwin', 'win32']) {
+      const run = spawnArgs({ command: process.execPath, args: [script] }, platform, {});
+      expect(run, platform).toEqual({ command: process.execPath, args: [script, 'mcp'], options: {} });
+    }
+  });
+
+  it('runs when it is reached through a symlinked folder', async () => {
+    const base = await temp();
+    const real = join(base, 'real');
+    await mkdir(real);
+    await copyFile(launcher, join(real, 'site-atlas-mcp.js'));
+    const link = join(base, 'link');
+    await symlink(real, link, 'junction');
+    const run = spawnSync(process.execPath, [join(link, 'site-atlas-mcp.js')], {
+      encoding: 'utf8',
+      env: { PATH: '', HOME: base, USERPROFILE: base },
+    });
+    expect(run.status).toBe(2);
+    expect(run.stderr.trim()).toBe(NOT_FOUND);
   });
 });

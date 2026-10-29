@@ -10,10 +10,10 @@
 // variable from its environment, so those two are not reliable anchors.
 
 import { execFileSync, spawn } from 'node:child_process';
-import { statSync } from 'node:fs';
+import { realpathSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const WINDOWS = process.platform === 'win32';
 /** On Windows the .cmd shim is the one CreateProcess can start; the extensionless file is a shell script. */
@@ -34,9 +34,31 @@ const firstFile = (dir, names) => names.map((name) => join(dir, name)).find(isFi
 /** A JavaScript entry point runs through this Node; anything else is an executable of its own. */
 const asCommand = (file) => (/\.[cm]?js$/i.test(file) ? { command: process.execPath, args: [file] } : { command: file, args: [] });
 
+/**
+ * How to start a command that Windows cannot start by itself, `npm` and the `.cmd` shims among them:
+ * through cmd.exe, every token quoted and the whole line quoted again, which is the pair `cmd /s` strips.
+ * Not `shell: true`, which Node deprecates for concatenating arguments it does not escape.
+ *
+ * @returns {{ command: string, args: string[], options: object }}
+ */
+const throughCmd = (env, command, args) => ({
+  command: env.ComSpec ?? 'cmd.exe',
+  args: ['/d', '/s', '/c', `"${[command, ...args].map((part) => `"${part}"`).join(' ')}"`],
+  options: { windowsVerbatimArguments: true },
+});
+
+/** The same command run directly, for every platform that can. */
+const directly = (command, args) => ({ command, args, options: {} });
+
 const npmPrefix = (env) => {
   try {
-    const out = execFileSync('npm', ['prefix', '-g'], { encoding: 'utf8', env, shell: WINDOWS, stdio: ['ignore', 'pipe', 'ignore'] });
+    const npm = WINDOWS ? throughCmd(env, 'npm', ['prefix', '-g']) : directly('npm', ['prefix', '-g']);
+    const out = execFileSync(npm.command, npm.args, {
+      ...npm.options,
+      encoding: 'utf8',
+      env,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
     return out.trim() || null;
   } catch {
     return null;
@@ -85,13 +107,38 @@ export function resolveCli(env = process.env, startDir = import.meta.dirname) {
   return null;
 }
 
+/**
+ * How to start the CLI with `mcp`: the command, its arguments and the extra spawn options.
+ *
+ * @param {{ command: string, args: string[] }} cli the resolved CLI
+ * @param {string} platform process.platform of the host
+ * @param {NodeJS.ProcessEnv} env environment to read (ComSpec)
+ * @returns {{ command: string, args: string[], options: object }}
+ */
+export function spawnArgs(cli, platform = process.platform, env = process.env) {
+  const argv = [...cli.args, 'mcp'];
+  return platform === 'win32' && /\.(cmd|bat)$/i.test(cli.command)
+    ? throughCmd(env, cli.command, argv)
+    : directly(cli.command, argv);
+}
+
+/** The real path of a file, or the path itself when it cannot be resolved. */
+const realPath = (file) => {
+  try {
+    return realpathSync(file);
+  } catch {
+    return file;
+  }
+};
+
 function main() {
   const cli = resolveCli(process.env, import.meta.dirname);
   if (!cli) {
     process.stderr.write(`${NOT_FOUND}\n`);
     process.exit(2);
   }
-  const child = spawn(cli.command, [...cli.args, 'mcp'], { stdio: 'inherit', shell: /\.(cmd|bat)$/i.test(cli.command) });
+  const run = spawnArgs(cli);
+  const child = spawn(run.command, run.args, { ...run.options, stdio: 'inherit' });
   child.on('error', (error) => {
     process.stderr.write(`Site Atlas CLI could not be started (${cli.command}): ${error.message}\n`);
     process.exit(2);
@@ -99,4 +146,6 @@ function main() {
   child.on('exit', (code, signal) => process.exit(signal ? 1 : (code ?? 0)));
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+// Both sides through realpath: Node's loader resolves the entry through symlinks and junctions while
+// argv[1] keeps the path as it was given, so comparing them raw would skip main() and exit 0 in silence.
+if (process.argv[1] && realPath(fileURLToPath(import.meta.url)) === realPath(process.argv[1])) main();
