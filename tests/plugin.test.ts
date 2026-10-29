@@ -1,0 +1,178 @@
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { copyFile, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { createMcpServer } from '../src/mcp/server.js';
+import { SiteStore } from '../src/store/store.js';
+
+const root = join(import.meta.dirname, '..');
+const pluginDir = join(root, 'plugin');
+const launcher = join(pluginDir, 'scripts', 'site-atlas-mcp.js');
+const tsx = join(root, 'node_modules', 'tsx', 'dist', 'cli.mjs');
+const SKILLS = ['atlas', 'atlas-advise', 'atlas-apply', 'site-atlas-setup'];
+const NOT_FOUND =
+  'Site Atlas CLI not found. Install it with: npm install -g site-atlas (then site-atlas setup), or set SITE_ATLAS_BIN.';
+
+type Server = { command: string; args: string[]; cwd?: string };
+type Manifest = {
+  name: string;
+  version: string;
+  description: string;
+  mcpServers?: Record<string, Server>;
+  interface?: Record<string, string>;
+};
+type Marketplace = { name: string; plugins: { name: string; source: unknown; version?: string; description?: string }[] };
+type Resolved = { command: string; args: string[] } | null;
+type Launcher = { resolveCli: (env: NodeJS.ProcessEnv, startDir: string) => Resolved };
+
+const readJson = async <T>(...parts: string[]): Promise<T> => JSON.parse(await readFile(join(root, ...parts), 'utf8')) as T;
+const temp = () => mkdtemp(join(tmpdir(), 'site-atlas-plugin-'));
+const loadLauncher = async (): Promise<Launcher> => (await import(pathToFileURL(launcher).href)) as Launcher;
+const cliHelp = () => execFileSync(process.execPath, [tsx, 'src/cli.ts', '--help'], { cwd: root, encoding: 'utf8' });
+
+describe('plugin manifests', () => {
+  it('every manifest parses and carries the version of the package', async () => {
+    const pkg = await readJson<{ version: string }>('package.json');
+    const claude = await readJson<Manifest>('plugin/.claude-plugin/plugin.json');
+    const codex = await readJson<Manifest>('plugin/.codex-plugin/plugin.json');
+    const market = await readJson<Marketplace>('.claude-plugin/marketplace.json');
+    const agents = await readJson<Marketplace>('.agents/plugins/marketplace.json');
+    const versions = [pkg.version, claude.version, codex.version, market.plugins[0]?.version];
+    expect(versions).toHaveLength(4);
+    expect(new Set(versions).size).toBe(1);
+    for (const manifest of [claude, codex]) expect(manifest.name).toBe('site-atlas');
+    expect(codex.description).toBe(claude.description);
+    expect(market.plugins[0]).toMatchObject({ name: 'site-atlas', source: './plugin', description: claude.description });
+    expect(agents.plugins[0]).toMatchObject({ name: 'site-atlas', source: { source: 'local', path: './plugin' } });
+  });
+
+  it('both agents start the same launcher under the same server name', async () => {
+    const claude = await readJson<{ mcpServers: Record<string, Server> }>('plugin/.mcp.json');
+    const codex = await readJson<Manifest>('plugin/.codex-plugin/plugin.json');
+    const [claudeName, ...moreClaude] = Object.keys(claude.mcpServers);
+    const [codexName, ...moreCodex] = Object.keys(codex.mcpServers ?? {});
+    expect(moreClaude).toEqual([]);
+    expect(moreCodex).toEqual([]);
+    expect(claudeName).toBe('site-atlas');
+    expect(codexName).toBe(claudeName);
+
+    const forClaude = claude.mcpServers[claudeName!]!;
+    const forCodex = codex.mcpServers![codexName!]!;
+    expect(forClaude.command).toBe('node');
+    expect(forCodex.command).toBe('node');
+    expect(forClaude.args[0]).toBe('${CLAUDE_PLUGIN_ROOT}/scripts/site-atlas-mcp.js');
+    expect(forClaude.cwd).toBeUndefined();
+    expect(forCodex.cwd).toBe('./');
+    expect(forCodex.args[0]).not.toContain('$');
+    // The same file twice, so the two declarations cannot drift apart.
+    expect(forClaude.args[0]!.replace('${CLAUDE_PLUGIN_ROOT}/', '')).toBe(forCodex.args[0]);
+    expect(existsSync(join(pluginDir, forCodex.args[0]!))).toBe(true);
+  });
+
+  it('ships no bin and no commands directory', () => {
+    expect(existsSync(join(pluginDir, 'bin'))).toBe(false);
+    expect(existsSync(join(pluginDir, 'commands'))).toBe(false);
+  });
+
+  it('points the Codex interface at an icon that exists', async () => {
+    const codex = await readJson<Manifest>('plugin/.codex-plugin/plugin.json');
+    const face = codex.interface!;
+    expect(face.displayName).toBe('Site Atlas');
+    for (const key of ['composerIcon', 'logo']) {
+      const file = face[key]!;
+      expect(file, key).toMatch(/^\.\//);
+      expect(existsSync(join(pluginDir, file)), file).toBe(true);
+    }
+  });
+});
+
+describe('plugin skills', () => {
+  let docs: { name: string; text: string }[] = [];
+  beforeAll(async () => {
+    docs = await Promise.all([
+      ...SKILLS.map(async (name) => ({ name, text: await readFile(join(pluginDir, 'skills', name, 'SKILL.md'), 'utf8') })),
+      { name: 'README.md', text: await readFile(join(pluginDir, 'README.md'), 'utf8') },
+    ]);
+  });
+
+  it('each skill declares its own name and says when to use it', () => {
+    for (const doc of docs.filter((d) => d.name !== 'README.md')) {
+      const front = /^---\r?\n([\s\S]*?)\r?\n---/.exec(doc.text)?.[1] ?? '';
+      expect(front, doc.name).toMatch(new RegExp(`^name: ${doc.name}$`, 'm'));
+      expect((/^description: (.+)$/m.exec(front)?.[1] ?? '').length, doc.name).toBeGreaterThan(40);
+    }
+  });
+
+  it('every site-atlas subcommand the skills name exists', () => {
+    const help = cliHelp();
+    const commands = [...help.slice(help.indexOf('Commands:')).matchAll(/^ {2}([a-z][a-z-]*)/gm)].map((m) => m[1]!);
+    expect(commands.length).toBeGreaterThan(10);
+    expect(commands).toContain('advise');
+    const named = new Set(docs.flatMap((d) => [...d.text.matchAll(/\bsite-atlas ([a-z][a-z-]*)/g)].map((m) => m[1]!)));
+    expect(named.size).toBeGreaterThan(4);
+    for (const name of named) expect(commands, name).toContain(name);
+  });
+
+  it('every atlas_ tool the skills name exists', async () => {
+    const store = new SiteStore(await mkdtemp(join(tmpdir(), 'site-atlas-test-')));
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    await createMcpServer(store).connect(a);
+    const client = new Client({ name: 'test', version: '0' });
+    await client.connect(b);
+    const tools = (await client.listTools()).tools.map((t) => t.name);
+    const named = new Set(docs.flatMap((d) => [...d.text.matchAll(/\batlas_[a-z_]+/g)].map((m) => m[0])));
+    expect(named.size).toBeGreaterThan(5);
+    for (const name of named) expect(tools, name).toContain(name);
+  });
+});
+
+describe('the MCP launcher', () => {
+  it('honours SITE_ATLAS_BIN', async () => {
+    const { resolveCli } = await loadLauncher();
+    const dir = await temp();
+    const script = join(dir, 'site-atlas.js');
+    await writeFile(script, 'process.exit(0);\n');
+    expect(resolveCli({ SITE_ATLAS_BIN: script, PATH: '' }, dir)).toEqual({ command: process.execPath, args: [script] });
+    expect(resolveCli({ SITE_ATLAS_BIN: join(dir, 'site-atlas'), PATH: '' }, dir)).toEqual({
+      command: join(dir, 'site-atlas'),
+      args: [],
+    });
+  });
+
+  it('finds a source checkout by walking up from the plugin folder', async () => {
+    const { resolveCli } = await loadLauncher();
+    const home = await temp();
+    const found = resolveCli({ PATH: '', HOME: home, USERPROFILE: home }, join(pluginDir, 'scripts'));
+    expect(found).toEqual({ command: process.execPath, args: [join(root, 'dist', 'cli.js')] });
+  });
+
+  it('finds nothing with an empty PATH and an empty home', async () => {
+    const { resolveCli } = await loadLauncher();
+    const home = await temp();
+    expect(resolveCli({ PATH: '', HOME: home, USERPROFILE: home }, home)).toBeNull();
+  });
+
+  it('runs the CLI with mcp and forwards its exit code', async () => {
+    const dir = await temp();
+    const fake = join(dir, 'fake-cli.js');
+    await writeFile(fake, 'console.log(process.argv.slice(2).join(" "));\nprocess.exit(0);\n');
+    const run = spawnSync(process.execPath, [launcher], { encoding: 'utf8', env: { ...process.env, SITE_ATLAS_BIN: fake } });
+    expect(run.status).toBe(0);
+    expect(run.stdout.trim().split('\n').at(-1)).toBe('mcp');
+  });
+
+  it('exits 2 with one line when nothing is installed', async () => {
+    const dir = await temp();
+    const copy = join(dir, 'site-atlas-mcp.js');
+    await copyFile(launcher, copy);
+    const run = spawnSync(process.execPath, [copy], { encoding: 'utf8', cwd: dir, env: { PATH: '', HOME: dir, USERPROFILE: dir } });
+    expect(run.status).toBe(2);
+    expect(run.stderr.trim()).toBe(NOT_FOUND);
+    expect(run.stdout).toBe('');
+  });
+});

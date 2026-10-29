@@ -1,0 +1,28 @@
+{
+  "name": "site-atlas",
+  "version": "0.1.0",
+  "description": "Scan a website into sections, advise on its structure, and implement the approved plan.",
+  "author": { "name": "Zavants" },
+  "license": "MIT",
+  "skills": "./skills/",
+  "mcpServers": {
+    "site-atlas": {
+      "command": "node",
+      "args": ["scripts/site-atlas-mcp.js"],
+      "cwd": "./",
+      "startup_timeout_sec": 60,
+      "tool_timeout_sec": 450
+    }
+  },
+  "interface": {
+    "displayName": "Site Atlas",
+    "shortDescription": "Map a site into sections and work the plan",
+    "developerName": "Zavants",
+    "category": "Developer Tools",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "brandColor": "#185fa5",
+    "composerIcon": "./assets/site-atlas.svg",
+    "logo": "./assets/site-atlas.svg",
+    "defaultPrompt": ["Scan this site and show me the map."]
+  }
+}

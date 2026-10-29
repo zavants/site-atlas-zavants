@@ -1,0 +1,13 @@
+{
+  "name": "site-atlas",
+  "owner": { "name": "Zavants" },
+  "description": "Site Atlas: map a website into sections, advise on its structure, and work the plan from your assistant.",
+  "plugins": [
+    {
+      "name": "site-atlas",
+      "source": "./plugin",
+      "description": "Scan a website into sections, advise on its structure, and implement the approved plan.",
+      "version": "0.1.0"
+    }
+  ]
+}

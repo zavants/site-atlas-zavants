@@ -44,6 +44,18 @@ describe('English only', () => {
     for (const out of outputs) expect(out).not.toMatch(SPANISH);
   });
 
+  it('no Spanish in the plugin, its skills and the marketplaces', async () => {
+    const dir = join(root, 'plugin');
+    const inside = (await readdir(dir, { recursive: true })).filter((n) => n.endsWith('.md') || n.endsWith('.json'));
+    const files = [
+      ...inside.map((n) => join(dir, n)),
+      join(root, '.claude-plugin', 'marketplace.json'),
+      join(root, '.agents', 'plugins', 'marketplace.json'),
+    ];
+    expect(files.length).toBeGreaterThan(8);
+    for (const file of files) expect(await readFile(file, 'utf8'), file).not.toMatch(SPANISH);
+  });
+
   it('no Spanish in issue messages', () => {
     const scan = sampleScan();
     const hero = scan.pages[0]!.blocks[1]!;
